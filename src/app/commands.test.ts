@@ -234,6 +234,14 @@ describe('TRIM / EXTEND Fence', () => {
       .map((e) => (e.geom.kind === 'line' ? [Math.min(e.geom.a.x, e.geom.b.x), Math.max(e.geom.a.x, e.geom.b.x)].map((v) => Math.round(v * 1e6) / 1e6) : []))
       .sort((p, q) => p[0] - q[0]);
 
+  it('Enter at the first fence point returns to the object prompt instead of cancelling', () => {
+    const { runner, type, log } = setup();
+    type('TR', '', 'F', '');
+    expect(runner.active).toBe(true);
+    expect(runner.prompt).toBe('Select object to trim [Fence]:');
+    expect(log).not.toContain('*Cancel*');
+  });
+
   it('trims every object the fence crosses', () => {
     const { doc, type, runner } = setup();
     for (const y of [0, 10, 20]) type('L', `0,${y}`, `100,${y}`, '');
@@ -318,5 +326,30 @@ describe('SKETCH', () => {
     type('SK', '0,0', '10,0', 'U', '');
     expect(doc.entities).toHaveLength(0);
     expect(log.at(-1)).toMatch(/two different points/);
+  });
+});
+
+describe('PARTSLIST', () => {
+  it('adds rows with defaults, edits with Enter keeping values, lists and deletes', () => {
+    const { doc, runner, type, log } = setup();
+    type('BOM', 'A', '', '', 'Welle', '', 'S235JR', 'Ø40x140', '');
+    expect(doc.partsList).toEqual([{ item: '1', quantity: '1', name: 'Welle', standard: '', material: 'S235JR', stock: 'Ø40x140', remark: '' }]);
+    type('A', '', '2', 'Gabel', 'ZA 38-2', 'S235JR', '.', 'gefräst');
+    expect(doc.partsList[1]).toMatchObject({ item: '2', quantity: '2', name: 'Gabel', standard: 'ZA 38-2', remark: 'gefräst' });
+    type('E', '2', '', '', '', '', 'C45', '', '.');
+    expect(doc.partsList[1]).toMatchObject({ name: 'Gabel', material: 'C45', remark: '' });
+    type('L');
+    expect(log.some((l) => l.includes('Welle') && l.includes('Gabel'))).toBe(true);
+    type('D', '1');
+    expect(doc.partsList.map((r) => r.item)).toEqual(['2']);
+    type('');
+    expect(runner.active).toBe(false);
+  });
+
+  it('cancelling an Add leaves the list unchanged', () => {
+    const { doc, runner, type } = setup();
+    type('PARTSLIST', 'A', '', '');
+    runner.cancel();
+    expect(doc.partsList).toEqual([]);
   });
 });

@@ -9,7 +9,7 @@ export { endpoints, midpoint, bbox, closestPoint, distanceTo, curveLength } from
 export { intersectsBox, insideBox, intersect } from './intersect';
 
 // --- snapping ---
-export { snapCandidates, perpendicularFoot, tangentPoints } from './snap';
+export { snapCandidates, perpendicularFoot, perpendicularFeet, tangentPoints } from './snap';
 
 // --- construction & transforms ---
 export { freehandCurve, biarc } from './freehand';

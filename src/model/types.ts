@@ -130,6 +130,17 @@ export type TitleBlockField =
   | 'generalTolerance' // e.g. "ISO 2768-m"
   | 'documentType';  // e.g. "Fertigungszeichnung"
 
+/** One parts-list row (ISO 7573). All fields are free text; `item` is the item (position) number. */
+export interface PartsListRow {
+  item: string;
+  quantity: string;
+  name: string;
+  standard: string;          // part number / standard designation
+  material: string;
+  stock: string;             // raw dimensions or pattern number
+  remark: string;
+}
+
 export interface SheetDoc {
   version: 1;
   format: SheetFormat;
@@ -141,4 +152,6 @@ export interface SheetDoc {
   entities: Entity[];
   dimensions: Dimension[];
   annotations: Annotation[];
+  /** Parts list above the title block, row 0 lowest (next to the header). Empty = no parts list. */
+  partsList: PartsListRow[];
 }

@@ -1,5 +1,5 @@
 // Object snaps over ALL views, in sheet coordinates (so a T-square projection across views works).
-import { closestPoint, dist, distanceTo, endpoints, intersect, perpendicularFoot, snapCandidates, tangentPoints } from '../geom';
+import { closestPoint, dist, distanceTo, endpoints, intersect, perpendicularFeet, snapCandidates, tangentPoints } from '../geom';
 import type { Curve, SnapKind, Vec2 } from '../geom/types';
 import type { AnchorPoint, SheetDoc } from '../model/types';
 import { entitySheetCurve, visibleEntities } from './xform';
@@ -81,8 +81,9 @@ export function findSnap(doc: SheetDoc, cursor: Vec2, aperture: number, from: Ve
 
   for (const n of near) {
     if (from) {
-      const foot = perpendicularFoot(n.curve, from);
-      if (foot && dist(foot, from) > 1e-9) consider({ point: foot, kind: 'perpendicular', entityId: n.id, anchor: null });
+      for (const foot of perpendicularFeet(n.curve, from)) {
+        if (dist(foot, from) > 1e-9) consider({ point: foot, kind: 'perpendicular', entityId: n.id, anchor: null });
+      }
       if (n.curve.kind !== 'line') {
         for (const t of tangentPoints(n.curve, from)) consider({ point: t, kind: 'tangent', entityId: n.id, anchor: null });
       }

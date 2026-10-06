@@ -20,6 +20,7 @@ export function newSheet(): SheetDoc {
     entities: [],
     dimensions: [],
     annotations: [],
+    partsList: [],
   };
 }
 
@@ -97,5 +98,6 @@ export function parse(json: string): SheetDoc {
   const doc = JSON.parse(json) as SheetDoc;
   if (doc.version !== 1) throw new Error(`unsupported file version ${String(doc.version)}`);
   doc.annotations ??= []; // files written before annotations existed
+  doc.partsList ??= [];
   return doc;
 }

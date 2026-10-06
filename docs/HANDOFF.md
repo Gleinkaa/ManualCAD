@@ -40,6 +40,11 @@ None (no commits besides this file).
 
 ## Open items — small gaps, ready to implement
 
+> **Done 2026-10-06 (branch `feat/za38-partslist`):** all three below.
+> 1. New contract export `perpendicularFeet()` (`geom/snap.ts`) returns both feet on circles (arcs: those on the extent); `app/snap.ts` considers each. Test in `snap.test.ts`.
+> 2. `allowEnter` on "Specify first fence point"; Enter returns to "Select object to trim/extend". Test in `commands.test.ts`.
+> 3. Runner `onEnd` in `app.ts` clears `acquired` and `track` (no unit test — app.ts needs a DOM).
+
 1. **PER onto a circle only offers the near-side foot.** `src/geom/snap.ts:43-47` returns one point; from (100,40) the far foot (169.6,26.1) on the r=20 circle at (150,30) comes back as `nearest`. AutoCAD offers the perpendicular on either side of the diameter. Fix: return both feet for circles (and the antipodal one for arcs when it lies on the arc). `perpendicularFoot` is part of the `geom/index.ts:12` contract — add a `perpendicularFeet(): Vec2[]` export or change the return type and update the single caller `src/app/snap.ts:84`. Add a case to `src/app/snap.test.ts`.
 2. **Fence: Enter at "Specify first fence point" cancels the whole TRIM/EXTEND.** `src/app/commands/modify.ts:66` has no `allowEnter`, so `runner.ts:178-179` cancels. AutoCAD returns to "Select object to trim". Fix: `allowEnter: true` on the first prompt, return `null` on `enter` (the caller already `continue`s on null, `modify.ts:152`). Repro: `TR`, Enter, `F`, Enter → `*Cancel*`.
 3. **Acquired tracking points never clear.** `src/app/app.ts:83,630-633` keeps the last 4 snapped points across commands, so with ortho on the cursor can lock to points from an earlier command. AutoCAD drops acquired points when the command ends. Fix: clear `acquired` in the runner host `onEnd` (`app.ts:121`).
