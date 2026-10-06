@@ -147,6 +147,29 @@ describe('linear', () => {
   });
 });
 
+describe('associativity', () => {
+  it('follows the endpoints of a line entity and refreshes the fallbacks', () => {
+    const doc = sheet(2);
+    doc.entities.push({ id: 'edge', viewId: 'v', layer: '0', lineType: 'visible', geom: { kind: 'line', a: { x: 0, y: 0 }, b: { x: 25, y: 0 } } });
+    const d = linear({ x: 0, y: 0 }, { x: 0, y: 0 }, 'horizontal', 10);
+    d.a.ref = { entityId: 'edge', point: 'start' };
+    d.b.ref = { entityId: 'edge', point: 'end' };
+    expect(measure(doc, d)).toBe(25);
+    expect(dimensionText(doc, d)).toBe('25');
+
+    const edge = doc.entities.find((e) => e.id === 'edge')!;
+    edge.geom = { kind: 'line', a: { x: 0, y: 0 }, b: { x: 32.5, y: 0 } };
+    expect(measure(doc, d)).toBe(32.5);
+    const dl = of(plotDimension(doc, d), 'polyline')[2];
+    close(dl.points[1], { x: 165, y: 110 });
+    expect(d.b.fallback).toEqual({ x: 32.5, y: 0 });
+
+    doc.entities = doc.entities.filter((e) => e.id !== 'edge');
+    expect(measure(doc, d)).toBe(32.5); // falls back to the last resolved points
+    expect(d.b.ref).toBeNull();
+  });
+});
+
 describe('radial', () => {
   it('radius: line from the centre, one arrow touching the arc from inside', () => {
     const doc = sheet(2);
