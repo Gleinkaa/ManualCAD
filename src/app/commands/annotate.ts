@@ -193,7 +193,7 @@ export function* balloon(ctx: CommandContext): CommandGen {
   const preset = nextItemNumber(ctx);
   const e = yield { kind: 'point', prompt: 'Specify item number location', base: start.tip.p, preview: (p) => ({ annotations: [make(p, preset)] }) };
   if (e.kind !== 'point') return;
-  const n = yield { kind: 'text', prompt: `Enter item number <${preset}>`, default: preset };
+  const n = yield { kind: 'text', prompt: 'Enter item number', default: preset };
   if (n.kind !== 'text') return;
   const text = n.text.trim() || preset;
   ctx.doc.annotations.push(make(e.p, text));
