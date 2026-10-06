@@ -1,0 +1,3 @@
+# Standards rules instead of geometric constraints
+
+ManualCAD has no parametric or geometric constraint solver: geometry stays exactly where the user put it, and nothing gets moved to satisfy relations like "parallel" or "length = 40". What the program enforces instead is **Norm rules**. The user chooses the meaning of an element (centre line, surface symbol, dimension), and the program sets its line type, line width, text height and symbol form according to ÖNORM EN ISO. This keeps the drawing-board character the project exists for, and it avoids the hardest part of CAD (solver plus topological naming).

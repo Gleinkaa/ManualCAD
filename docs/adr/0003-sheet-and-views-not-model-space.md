@@ -1,0 +1,3 @@
+# Sheet with scaled views instead of model space and layouts
+
+A ManualCAD file is one sheet, and part geometry lives inside views on that sheet. Each view has its own scale and origin, and coordinates are stored in real millimetres. There is no AutoCAD model space and no paper-space layouts or viewports. This mirrors the drawing board (one sheet, each view at its own scale), removes the model/paper-space split that confuses AutoCAD users, and makes detail views at other scales the normal case instead of a viewport trick. Layers only show and hide things; line type and width come from the element's meaning (see ADR-0001).
