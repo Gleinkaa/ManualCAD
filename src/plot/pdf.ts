@@ -11,7 +11,7 @@ const PT_PER_MM = 72 / 25.4;
 /** Vector PDF of the sheet at exact 1:1 paper size (prints to scale), ISO 3098 font embedded. */
 export async function exportPdf(doc: SheetDoc): Promise<Blob> {
   const { w, h } = sheetSize(doc.format, doc.orientation);
-  const pdf = new jsPDF({ unit: 'mm', format: [w, h], orientation: w > h ? 'landscape' : 'portrait', compress: true });
+  const pdf = new jsPDF({ unit: 'mm', format: [w, h], orientation: w > h ? 'landscape' : 'portrait', compress: true, putOnlyUsedFonts: true });
   pdf.setProperties({ title: doc.titleBlock.title ?? '', subject: doc.titleBlock.drawingNumber ?? '', creator: 'ManualCAD' });
 
   const ttf = await fontBase64();

@@ -34,11 +34,11 @@ interface Cell {
 // material and general tolerance on top. Captions per ÖNORM EN ISO 7200 (German).
 const CELLS: Cell[] = [
   { field: 'owner', caption: '', x: 0, y: 0, w: 55, h: 28, valueH: 5, center: true },
-  { field: 'drawingNumber', caption: 'Zeichnungsnummer', x: 55, y: 0, w: 60, h: 10, valueH: 5 },
-  { field: 'revision', caption: 'Änd.', x: 115, y: 0, w: 12, h: 10, valueH: VALUE_H },
-  { field: 'date', caption: 'Ausgabedatum', x: 127, y: 0, w: 30, h: 10, valueH: VALUE_H },
-  { field: 'sheet', caption: 'Blatt', x: 157, y: 0, w: 23, h: 10, valueH: VALUE_H },
-  { field: 'title', caption: 'Benennung', x: 55, y: 10, w: 125, h: 18, valueH: 7 },
+  { field: 'drawingNumber', caption: 'Zeichnungsnummer', x: 55, y: 0, w: 60, h: 12, valueH: 5 },
+  { field: 'revision', caption: 'Änd.', x: 115, y: 0, w: 12, h: 12, valueH: VALUE_H },
+  { field: 'date', caption: 'Ausgabedatum', x: 127, y: 0, w: 30, h: 12, valueH: VALUE_H },
+  { field: 'sheet', caption: 'Blatt', x: 157, y: 0, w: 23, h: 12, valueH: VALUE_H },
+  { field: 'title', caption: 'Benennung', x: 55, y: 12, w: 125, h: 16, valueH: 7 },
   { field: 'createdBy', caption: 'Erstellt durch', x: 0, y: 28, w: 45, h: 10, valueH: VALUE_H },
   { field: 'approvedBy', caption: 'Genehmigt von', x: 45, y: 28, w: 45, h: 10, valueH: VALUE_H },
   { field: 'documentType', caption: 'Dokumentart', x: 90, y: 28, w: 90, h: 10, valueH: VALUE_H },
@@ -149,7 +149,7 @@ function plotTitleBlock(doc: SheetDoc, tb: FrameGeometry['titleBlock'], narrow: 
       out.push(text(at(c.x + c.w / 2, c.y + c.h / 2), value, fitTextHeight(value, c.valueH, c.w - 4), 'center', 'middle', `${tag}:${c.field}`));
     } else {
       const h = fitTextHeight(value, c.valueH, c.w - 3);
-      out.push(text(at(c.x + 1.5, c.y + (c.h > 10 ? 3 : 1.5)), value, h, 'left', 'bottom', `${tag}:${c.field}`));
+      out.push(text(at(c.x + 1.5, c.y + (c.h > 12 ? 3 : 1.5)), value, h, 'left', 'bottom', `${tag}:${c.field}`));
     }
   }
 
