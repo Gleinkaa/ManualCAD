@@ -2,7 +2,7 @@
 import { chamfer as geomChamfer, distanceTo, intersect, extend as geomExtend, fillet as geomFillet, mirror as geomMirror, offset as geomOffset, translate, trim as geomTrim } from '../../geom';
 import type { Curve, Vec2 } from '../../geom/types';
 import { mirrorAnnotation, translateAnnotation } from '../../model/annot';
-import { newId, resolveAnchor, toSheet } from '../../model/doc';
+import { dimensionAnchors, newId, resolveAnchor, toSheet } from '../../model/doc';
 import type { Annotation, AnchorPoint, DimAnchor, Dimension, Entity, LinearDimension } from '../../model/types';
 import { fmt } from '../input';
 import { visibleEntities } from '../xform';
@@ -320,12 +320,7 @@ export function* move(ctx: CommandContext): CommandGen {
   const moved = new Set(ents.map((e) => e.id));
   for (const e of ents) e.geom = translate(e.geom, localDelta(ctx, e.viewId, d));
   for (const a of annots) Object.assign(a, translateAnnotation(a, localDelta(ctx, a.viewId, d)));
-  for (const dim of dims) {
-    if (dim.kind === 'linear') {
-      shiftAnchor(ctx, dim.a, dim.viewId, d, moved);
-      shiftAnchor(ctx, dim.b, dim.viewId, d, moved);
-    }
-  }
+  for (const dim of dims) for (const an of dimensionAnchors(dim)) shiftAnchor(ctx, an, dim.viewId, d, moved);
 }
 
 function copyAnchor(ctx: CommandContext, a: DimAnchor, viewId: string, d: Vec2, map: Map<string, string>): DimAnchor {
@@ -359,12 +354,15 @@ export function* copy(ctx: CommandContext): CommandGen {
     }
     for (const a of annots) ctx.doc.annotations.push({ ...translateAnnotation(structuredClone(a), localDelta(ctx, a.viewId, d)), id: newId('a') });
     for (const dim of dims) {
+      const cp = (an: DimAnchor) => copyAnchor(ctx, an, dim.viewId, d, map);
       if (dim.kind === 'linear') {
+        ctx.doc.dimensions.push({ ...structuredClone(dim), id: newId('d'), a: cp(dim.a), b: cp(dim.b) });
+      } else if (dim.kind === 'angular') {
         ctx.doc.dimensions.push({
           ...structuredClone(dim),
           id: newId('d'),
-          a: copyAnchor(ctx, dim.a, dim.viewId, d, map),
-          b: copyAnchor(ctx, dim.b, dim.viewId, d, map),
+          leg1: { a: cp(dim.leg1.a), b: cp(dim.leg1.b) },
+          leg2: { a: cp(dim.leg2.a), b: cp(dim.leg2.b) },
         });
       } else {
         const target = map.get(dim.entityId);
@@ -399,7 +397,7 @@ function dimNormal(orientation: LinearDimension['orientation'], A: Vec2, B: Vec2
 function mirrorDim(ctx: CommandContext, dim: Dimension, a: Vec2, b: Vec2, idMap: Map<string, string>): Dimension | null {
   const view = ctx.viewOf(dim.viewId);
   const isArc = (id: string) => ctx.entity(id)?.geom.kind === 'arc';
-  if (dim.kind !== 'linear') {
+  if (dim.kind !== 'linear' && dim.kind !== 'angular') {
     const target = idMap.get(dim.entityId);
     if (!target) return null;
     const phi = Math.atan2(b.y - a.y, b.x - a.x);
@@ -416,6 +414,10 @@ function mirrorDim(ctx: CommandContext, dim: Dimension, a: Vec2, b: Vec2, idMap:
     const point = isArc(an.ref.entityId) ? (swap[an.ref.point] ?? an.ref.point) : an.ref.point;
     return { ref: { entityId: target, point }, fallback: p };
   };
+  // The senses stay valid: each leg direction is mirrored together with its anchors.
+  if (dim.kind === 'angular') {
+    return { ...structuredClone(dim), leg1: { a: anchor(dim.leg1.a), b: anchor(dim.leg1.b) }, leg2: { a: anchor(dim.leg2.a), b: anchor(dim.leg2.b) } };
+  }
   const A = toSheet(view, resolveAnchor(ctx.doc, dim.a));
   const B = toSheet(view, resolveAnchor(ctx.doc, dim.b));
   const n = dimNormal(dim.orientation, A, B);
@@ -448,7 +450,8 @@ function dimsToMirror(ctx: CommandContext, selected: Dimension[], ents: Entity[]
   const out = [...selected];
   for (const d of ctx.doc.dimensions) {
     if (out.includes(d)) continue;
-    const follows = d.kind === 'linear' ? !!d.a.ref && !!d.b.ref && ids.has(d.a.ref.entityId) && ids.has(d.b.ref.entityId) : ids.has(d.entityId);
+    const follows =
+      d.kind === 'radius' || d.kind === 'diameter' ? ids.has(d.entityId) : dimensionAnchors(d).every((an) => !!an.ref && ids.has(an.ref.entityId));
     if (follows) out.push(d);
   }
   return out;
@@ -465,7 +468,7 @@ export function* mirror(ctx: CommandContext): CommandGen {
     ents.map((e) => ({ e, curve: geomMirror(e.geom, ctx.localIn(e.viewId, a.p), ctx.localIn(e.viewId, p)) }));
   const previewDims = (p: Vec2): Dimension[] =>
     dims
-      .filter((d): d is LinearDimension => d.kind === 'linear')
+      .filter((d) => d.kind === 'linear' || d.kind === 'angular')
       .map((d) => mirrorDim(ctx, d, a.p, p, new Map()))
       .filter((d): d is Dimension => !!d);
   const b = yield {
@@ -507,13 +510,12 @@ export function* mirror(ctx: CommandContext): CommandGen {
   }
 }
 
-/** Remove entities/dimensions; radial dims of removed entities go too, linear anchors freeze at their position. */
+/** Remove entities/dimensions; radial dims of removed entities go too, linear/angular anchors freeze at their position. */
 export function eraseIds(ctx: CommandContext, ids: string[]): void {
   const set = new Set(ids);
   const doc = ctx.doc;
   for (const dim of doc.dimensions) {
-    if (dim.kind !== 'linear') continue;
-    for (const a of [dim.a, dim.b]) {
+    for (const a of dimensionAnchors(dim)) {
       if (a.ref && set.has(a.ref.entityId)) {
         resolveAnchor(doc, a);
         a.ref = null;
@@ -521,7 +523,7 @@ export function eraseIds(ctx: CommandContext, ids: string[]): void {
     }
   }
   doc.entities = doc.entities.filter((e) => !set.has(e.id));
-  doc.dimensions = doc.dimensions.filter((d) => !set.has(d.id) && !(d.kind !== 'linear' && set.has(d.entityId)));
+  doc.dimensions = doc.dimensions.filter((d) => !set.has(d.id) && !((d.kind === 'radius' || d.kind === 'diameter') && set.has(d.entityId)));
   doc.annotations = doc.annotations.filter((a) => !set.has(a.id));
 }
 

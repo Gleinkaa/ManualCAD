@@ -62,7 +62,7 @@ const BUTTONS: [string, string, string][][] = [
   [['OFFSET', 'Offset', 'OFFSET (O)'], ['TRIM', 'Trim', 'TRIM (TR)'], ['EXTEND', 'Extend', 'EXTEND (EX)'], ['FILLET', 'Fillet', 'FILLET (F)'], ['CHAMFER', 'Chamfer', 'CHAMFER (CHA)']],
   [['MOVE', 'Move', 'MOVE (M)'], ['COPY', 'Copy', 'COPY (CO)'], ['MIRROR', 'Mirror', 'MIRROR (MI)'], ['ERASE', 'Erase', 'ERASE (E / Del)']],
   [['TEXT', 'Text', 'TEXT (DT)'], ['SKETCH', 'Freehand', 'SKETCH (SK): freehand break line, ISO 128-2 01.1']],
-  [['DIMLINEAR', 'Linear', 'DIMLINEAR (DLI)'], ['DIMALIGNED', 'Aligned', 'DIMALIGNED (DAL)'], ['DIMRADIUS', 'Radius', 'DIMRADIUS (DRA)'], ['DIMDIAMETER', 'Diameter', 'DIMDIAMETER (DDI)']],
+  [['DIMLINEAR', 'Linear', 'DIMLINEAR (DLI)'], ['DIMALIGNED', 'Aligned', 'DIMALIGNED (DAL)'], ['DIMRADIUS', 'Radius', 'DIMRADIUS (DRA)'], ['DIMDIAMETER', 'Diameter', 'DIMDIAMETER (DDI)'], ['DIMANGULAR', 'Angular', 'DIMANGULAR (DAN)'], ['DIMEDIT', 'Dim text', 'DIMEDIT (DED)']],
   [['VIEW', 'View', 'VIEW (V)'], ['ZOOM E', 'Fit', 'ZOOM Extents'], ['UNDO', 'Undo', 'UNDO (Ctrl+Z)'], ['REDO', 'Redo', 'REDO (Ctrl+Y)']],
 ];
 

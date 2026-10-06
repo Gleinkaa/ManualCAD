@@ -1,12 +1,38 @@
-// Dimension commands: DIMLINEAR, DIMALIGNED, DIMRADIUS, DIMDIAMETER. Anchors associate to snapped entity points.
-import { dist, endpoints } from '../../geom';
+// Dimension commands: DIMLINEAR, DIMALIGNED, DIMRADIUS, DIMDIAMETER, DIMANGULAR, DIMEDIT.
+// Anchors associate to snapped entity points.
+import { cross, dist, endpoints } from '../../geom';
 import type { Vec2 } from '../../geom/types';
+import { dimensionText } from '../../dim';
 import { newId, toSheet } from '../../model/doc';
-import type { DimAnchor, Entity, LinearDimension, RadialDimension } from '../../model/types';
-import type { PointInput } from './types';
-import type { CommandContext, CommandGen, SubGen } from './types';
+import type { AngularDimension, AngularLeg, DimAnchor, Dimension, DimText, Entity, LinearDimension, RadialDimension } from '../../model/types';
+import type { Option, PointInput } from './types';
+import { selectObjects, type CommandContext, type CommandGen, type SubGen } from './types';
 
 type Orientation = LinearDimension['orientation'];
+
+/** Text and Mtext options on every "dimension line location" prompt (both ask for a single line here). */
+const TEXT_OPTIONS: Option[] = [{ key: 'M', label: 'Mtext' }, { key: 'T', label: 'Text' }];
+
+const keepMeasured = (): DimText => ({ override: null, prefix: '', suffix: '' });
+
+/**
+ * Dimension text as typed (AutoCAD syntax): `<>` stands for the measured value, `%%c` → ⌀, `%%d` → °,
+ * `%%p` → ±. With `<>` the text around it becomes prefix/suffix; without it the text replaces the value;
+ * empty text keeps the measured value.
+ */
+export function parseDimText(input: string): DimText {
+  const t = input.replace(/%%c/gi, '⌀').replace(/%%d/gi, '°').replace(/%%p/gi, '±');
+  if (t.trim() === '') return keepMeasured();
+  const i = t.indexOf('<>');
+  if (i < 0) return { override: t, prefix: '', suffix: '' };
+  return { override: null, prefix: t.slice(0, i), suffix: t.slice(i + 2) };
+}
+
+/** Ask for dimension text; Enter keeps `current`. `measured` is shown as the default like AutoCAD. */
+function* askDimText(measured: string, current: DimText): SubGen<DimText> {
+  const r = yield { kind: 'text', prompt: `Enter dimension text <${measured}>` };
+  return r.kind === 'text' ? parseDimText(r.text) : current;
+}
 
 /**
  * Signed offset (sheet mm) of the dimension line through `loc`, measured from the midpoint of a and b
@@ -86,6 +112,7 @@ function* linearDim(ctx: CommandContext, aligned: boolean): CommandGen {
     return;
   }
   let fixed: Orientation | null = aligned ? 'aligned' : null;
+  let text = keepMeasured();
   const make = (loc: Vec2): LinearDimension => {
     const orientation = fixed ?? autoOrientation(sa, sb, loc);
     return {
@@ -97,16 +124,22 @@ function* linearDim(ctx: CommandContext, aligned: boolean): CommandGen {
       b: structuredClone(b),
       orientation,
       offset: dimOffset(orientation, sa, sb, loc),
-      text: { override: null, prefix: '', suffix: '' },
+      text: structuredClone(text),
     };
   };
   for (;;) {
     const r = yield {
       kind: 'point',
       prompt: 'Specify dimension line location',
-      options: aligned ? [] : [{ key: 'H', label: 'Horizontal' }, { key: 'V', label: 'Vertical' }],
+      options: aligned ? TEXT_OPTIONS : [...TEXT_OPTIONS, { key: 'H', label: 'Horizontal' }, { key: 'V', label: 'Vertical' }],
       preview: (p) => ({ dims: [make(p)] }),
     };
+    if (r.kind === 'option' && (r.key === 'T' || r.key === 'M')) {
+      const probe = make(sb);
+      probe.text = keepMeasured();
+      text = yield* askDimText(dimensionText(ctx.doc, probe), text);
+      continue;
+    }
     if (r.kind === 'option') {
       fixed = r.key === 'H' ? 'horizontal' : 'vertical';
       continue;
@@ -134,6 +167,7 @@ function* radialDim(ctx: CommandContext, kind: 'radius' | 'diameter'): CommandGe
   const g = ent.geom;
   const view = ctx.viewOf(ent.viewId);
   const c = toSheet(view, g.c);
+  let text = keepMeasured();
   const make = (p: Vec2): RadialDimension => ({
     kind,
     id: newId('d'),
@@ -142,11 +176,20 @@ function* radialDim(ctx: CommandContext, kind: 'radius' | 'diameter'): CommandGe
     entityId: ent.id,
     angle: Math.atan2(p.y - c.y, p.x - c.x),
     leader: Math.max(0, dist(p, c) - g.r * view.scale),
-    text: { override: null, prefix: '', suffix: '' },
+    text: structuredClone(text),
   });
-  const loc = yield { kind: 'point', prompt: 'Specify dimension line location', preview: (p) => ({ dims: [make(p)] }) };
-  if (loc.kind !== 'point') return;
-  ctx.doc.dimensions.push(make(loc.p));
+  for (;;) {
+    const loc = yield { kind: 'point', prompt: 'Specify dimension line location', options: TEXT_OPTIONS, preview: (p) => ({ dims: [make(p)] }) };
+    if (loc.kind === 'option') {
+      const probe = make(c);
+      probe.text = keepMeasured();
+      text = yield* askDimText(dimensionText(ctx.doc, probe), text);
+      continue;
+    }
+    if (loc.kind !== 'point') return;
+    ctx.doc.dimensions.push(make(loc.p));
+    return;
+  }
 }
 
 export function dimradius(ctx: CommandContext): CommandGen {
@@ -155,4 +198,97 @@ export function dimradius(ctx: CommandContext): CommandGen {
 
 export function dimdiameter(ctx: CommandContext): CommandGen {
   return radialDim(ctx, 'diameter');
+}
+
+// --- angular ---
+
+function legOf(e: Entity): AngularLeg | null {
+  const ends = endpoints(e.geom);
+  if (e.geom.kind !== 'line' || !ends) return null;
+  return { a: { ref: { entityId: e.id, point: 'start' }, fallback: ends[0] }, b: { ref: { entityId: e.id, point: 'end' }, fallback: ends[1] } };
+}
+
+/**
+ * Senses selecting the sector that contains `loc` (all view-local): `loc − vertex = α·d1 + β·d2`,
+ * the sector between sign(α)·d1 and sign(β)·d2 contains it (AutoCAD picks the quadrant the same way).
+ */
+export function angularSenses(vertex: Vec2, d1: Vec2, d2: Vec2, loc: Vec2): { sense1: 1 | -1; sense2: 1 | -1 } {
+  const w = { x: loc.x - vertex.x, y: loc.y - vertex.y };
+  const den = cross(d1, d2);
+  const alpha = cross(w, d2) / den;
+  const beta = cross(d1, w) / den;
+  return { sense1: alpha < 0 ? -1 : 1, sense2: beta < 0 ? -1 : 1 };
+}
+
+export function* dimangular(ctx: CommandContext): CommandGen {
+  const isLine = (e: Entity) => e.geom.kind === 'line';
+  const r1 = yield { kind: 'entity', prompt: 'Select first line', filter: isLine };
+  if (r1.kind !== 'entity') return;
+  const e1 = ctx.entity(r1.id);
+  const r2 = yield { kind: 'entity', prompt: 'Select second line', filter: isLine };
+  if (r2.kind !== 'entity') return;
+  const e2 = ctx.entity(r2.id);
+  if (!e1 || !e2) return;
+  if (e1.viewId !== e2.viewId) {
+    ctx.log('Both lines must be in the same view.');
+    return;
+  }
+  const leg1 = legOf(e1);
+  const leg2 = legOf(e2);
+  if (!leg1 || !leg2) return;
+  const d1 = { x: leg1.b.fallback.x - leg1.a.fallback.x, y: leg1.b.fallback.y - leg1.a.fallback.y };
+  const d2 = { x: leg2.b.fallback.x - leg2.a.fallback.x, y: leg2.b.fallback.y - leg2.a.fallback.y };
+  const den = cross(d1, d2);
+  if (Math.abs(den) < 1e-9 * Math.hypot(d1.x, d1.y) * Math.hypot(d2.x, d2.y)) {
+    ctx.log('Lines are parallel.');
+    return;
+  }
+  const p1 = leg1.a.fallback;
+  const p2 = leg2.a.fallback;
+  const t = cross({ x: p2.x - p1.x, y: p2.y - p1.y }, d2) / den;
+  const vertex = { x: p1.x + t * d1.x, y: p1.y + t * d1.y };
+  const view = ctx.viewOf(e1.viewId);
+  const V = toSheet(view, vertex);
+  let text = keepMeasured();
+  const make = (p: Vec2): AngularDimension => ({
+    kind: 'angular',
+    id: newId('d'),
+    viewId: e1.viewId,
+    layer: ctx.settings.layer,
+    leg1: structuredClone(leg1),
+    leg2: structuredClone(leg2),
+    ...angularSenses(vertex, d1, d2, ctx.localIn(e1.viewId, p)),
+    radius: dist(p, V),
+    text: structuredClone(text),
+  });
+  for (;;) {
+    const r = yield { kind: 'point', prompt: 'Specify dimension arc line location', options: TEXT_OPTIONS, preview: (p) => ({ dims: [make(p)] }) };
+    if (r.kind === 'option') {
+      const probe = make(toSheet(view, { x: vertex.x + d1.x + d2.x, y: vertex.y + d1.y + d2.y }));
+      probe.text = keepMeasured();
+      text = yield* askDimText(dimensionText(ctx.doc, probe), text);
+      continue;
+    }
+    if (r.kind !== 'point') return;
+    if (dist(r.p, V) < 1e-9) {
+      ctx.log('The dimension arc needs a location away from the vertex.');
+      continue;
+    }
+    ctx.doc.dimensions.push(make(r.p));
+    return;
+  }
+}
+
+// --- DIMEDIT ---
+
+/** DIMEDIT New: replace the text of the selected dimensions (`<>` = measured value). */
+export function* dimedit(ctx: CommandContext): CommandGen {
+  const o = yield { kind: 'text', prompt: 'Enter type of dimension editing', options: [{ key: 'N', label: 'New' }], default: 'N' };
+  if (o.kind !== 'option' && !(o.kind === 'text' && /^n/i.test(o.text.trim()))) return;
+  const t = yield { kind: 'text', prompt: 'Enter dimension text (<> = measured value)' };
+  const text = t.kind === 'text' ? parseDimText(t.text) : keepMeasured();
+  const ids = new Set(yield* selectObjects(ctx));
+  const dims: Dimension[] = ctx.doc.dimensions.filter((d) => ids.has(d.id));
+  for (const d of dims) d.text = structuredClone(text);
+  ctx.log(`${dims.length} dimension(s) changed.`);
 }

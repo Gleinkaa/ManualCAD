@@ -83,7 +83,32 @@ export interface RadialDimension {
   text: DimText;
 }
 
-export type Dimension = LinearDimension | RadialDimension;
+/** One leg of an angular dimension: a line given by two anchors (normally the start and end of a line entity). */
+export interface AngularLeg {
+  a: DimAnchor;
+  b: DimAnchor;
+}
+
+/**
+ * Angle between two lines (ISO 129-1). The vertex is the intersection of the two infinite legs.
+ * The dimensioned sector runs between the rays `sense1·(leg1.b − leg1.a)` and `sense2·(leg2.b − leg2.a)`
+ * from the vertex, always the one below 180°; the four possible sectors are chosen with the senses.
+ */
+export interface AngularDimension {
+  kind: 'angular';
+  id: string;
+  viewId: string;
+  layer: string;
+  leg1: AngularLeg;
+  leg2: AngularLeg;
+  sense1: 1 | -1;
+  sense2: 1 | -1;
+  /** Radius of the dimension arc around the vertex, SHEET mm. */
+  radius: number;
+  text: DimText;
+}
+
+export type Dimension = LinearDimension | RadialDimension | AngularDimension;
 
 /** Single-line text, ISO 3098 type B. Position is view-local; height is paper mm (cap height). */
 export interface TextNote {
