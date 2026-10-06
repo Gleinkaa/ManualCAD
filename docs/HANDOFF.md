@@ -7,7 +7,7 @@ This session continued from the ZA 38 session (PR #1, `feat/za38-partial-section
 ## Current state
 
 - **CI:** `.github/workflows/ci.yml` runs `npm ci`, typecheck, test and build on every PR and on pushes to `master`, and uploads the ZA 38 SVG render as the `za38-svg` artifact.
-- **Checks:** `npm test` gives 239 passing and 1 skipped (the SVG render script). `npm run typecheck` and `npm run build` are clean.
+- **Checks:** `npm test` gives 240 passing and 1 skipped (the SVG render script). `npm run typecheck` and `npm run build` are clean.
 - **End-to-end test** (`src/app/za38.test.ts`, fixture in `src/app/testcases/za38.ts`): draws the whole exercise through typed commands only and checks every dimension value from the book, the five hatched cut regions, the parts list and the title block.
 - **Visual checks:**
   - Write the SVG with `ZA38_SVG=/tmp/za38.svg npx vitest run scripts/render-za38.test.ts`.
