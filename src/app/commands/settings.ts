@@ -213,7 +213,6 @@ export function* titleblock(ctx: CommandContext): CommandGen {
   ctx.host.titleBlock?.();
 }
 
-
 // --- PARTSLIST: ISO 7573 parts list above the title block ---
 
 const PARTS_FIELDS: { field: keyof PartsListRow; prompt: string }[] = [

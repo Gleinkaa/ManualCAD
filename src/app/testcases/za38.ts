@@ -141,4 +141,3 @@ export function drawZA38(): { doc: SheetDoc; log: string[] } {
   if (runner.active) log.push(`error: command still active: ${runner.name}`);
   return { doc, log };
 }
-
