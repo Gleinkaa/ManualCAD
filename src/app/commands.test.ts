@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { measure } from '../dim';
+import { dimensionText, measure } from '../dim';
+import { parseDimText } from './commands/dims';
 import { newSheet, toSheet } from '../model/doc';
 import type { SheetDoc } from '../model/types';
 import { CommandContext, defaultSettings } from './commands/types';
@@ -204,7 +205,7 @@ describe('MIRROR with dimensions', () => {
     expect(doc.entities).toHaveLength(1);
     const d1 = doc.dimensions[0];
     const d2 = doc.dimensions[1];
-    if (d1.kind !== 'linear' || d2.kind === 'linear') throw new Error('kinds');
+    if (d1.kind !== 'linear' || d2.kind === 'linear' || d2.kind === 'angular') throw new Error('kinds');
     expect(d1.a.ref).toEqual({ entityId: arc.id, point: 'end' });   // image of the old start
     expect(d1.b.ref).toBeNull();
     expect(d1.b.fallback.x).toBeCloseTo(-30);
@@ -260,5 +261,128 @@ describe('TRIM / EXTEND Fence', () => {
     type('EX', '', 'F', '15,-5', '15,15', '', '');
     expect(lines(doc, 0)).toEqual([[0, 50]]);
     expect(lines(doc, 10)).toEqual([[0, 50]]);
+  });
+});
+
+describe('dimension text', () => {
+  it('parses AutoCAD dimension text: <> = measured value, %%c/%%d/%%p codes', () => {
+    expect(parseDimText('%%c<>')).toEqual({ override: null, prefix: '⌀', suffix: '' });
+    expect(parseDimText('M<>x1')).toEqual({ override: null, prefix: 'M', suffix: 'x1' });
+    expect(parseDimText('<>%%p0,1')).toEqual({ override: null, prefix: '', suffix: '±0,1' });
+    expect(parseDimText('45%%d')).toEqual({ override: '45°', prefix: '', suffix: '' });
+    expect(parseDimText('  ')).toEqual({ override: null, prefix: '', suffix: '' });
+  });
+
+  it('DIMLINEAR Text option gives a diameter on a linear dimension', () => {
+    const { doc, runner, type } = setup();
+    type('L', '0,-17.5', '0,17.5', '');
+    type('DLI', '0,-17.5', '0,17.5', 'T');
+    expect(runner.prompt).toBe('Enter dimension text <35>:');
+    type('%%c<>', '-20,0');
+    expect(runner.active).toBe(false);
+    expect(dimensionText(doc, doc.dimensions[0])).toBe('⌀35');
+  });
+
+  it('Enter at the text prompt keeps the measured value', () => {
+    const { doc, type } = setup();
+    type('DLI', '0,0', '20,0', 'M', '', '10,10');
+    expect(dimensionText(doc, doc.dimensions[0])).toBe('20');
+  });
+
+  it('DIMDIAMETER Text option', () => {
+    const { doc, type, click } = setup();
+    type('C', '0,0', '7');
+    type('DDI');
+    click(7, 0);
+    type('T', '<> H7', '20,20');
+    expect(dimensionText(doc, doc.dimensions[0])).toBe('⌀14 H7');
+  });
+
+  it('DIMEDIT New replaces the text of selected dimensions', () => {
+    const { doc, runner, type } = setup();
+    type('DLI', '0,0', '28,0', '14,10');
+    type('DLI', '0,0', '0,15', '-10,7');
+    runner.start('DIMEDIT', doc.dimensions.map((d) => d.id));
+    type('N', '%%c<>');
+    expect(runner.active).toBe(false);
+    expect(doc.dimensions.map((d) => dimensionText(doc, d))).toEqual(['⌀28', '⌀15']);
+  });
+});
+
+describe('DIMANGULAR', () => {
+  const c30 = Math.cos(Math.PI / 6);
+  const s30 = Math.sin(Math.PI / 6);
+  function twoLines() {
+    const t = setup();
+    t.type('L', '0,0', '40,0', '');
+    t.type('L', '0,0', '@40<30', '');
+    return t;
+  }
+
+  it('dimensions the 30° sector picked by the location point, associatively', () => {
+    const { doc, runner, type, click } = twoLines();
+    type('DAN');
+    click(20, 0);
+    click(20 * c30, 20 * s30);
+    expect(runner.prompt).toMatch(/^Specify dimension arc line location/);
+    click(30 * Math.cos(Math.PI / 12), 30 * Math.sin(Math.PI / 12));
+    expect(runner.active).toBe(false);
+    const d = doc.dimensions[0];
+    expect(d.kind).toBe('angular');
+    expect(measure(doc, d)).toBeCloseTo(30);
+    expect(d.kind === 'angular' && d.radius).toBeCloseTo(30);
+    expect(dimensionText(doc, d)).toBe('30°');
+    // the supplementary sector on the other side of the second line
+    type('DAN');
+    click(20, 0);
+    click(20 * c30, 20 * s30);
+    click(-30, 5);
+    expect(measure(doc, doc.dimensions[1])).toBeCloseTo(150);
+    // associative: steepen the second line
+    const e = doc.entities[1];
+    e.geom = { kind: 'line', a: { x: 0, y: 0 }, b: { x: 0, y: 40 } };
+    expect(measure(doc, d)).toBeCloseTo(90);
+  });
+
+  it('refuses parallel lines', () => {
+    const { runner, type, click, log } = setup();
+    type('L', '0,0', '40,0', '');
+    type('L', '0,10', '40,10', '');
+    type('DAN');
+    click(20, 0);
+    click(20, 10);
+    expect(runner.active).toBe(false);
+    expect(log.at(-1)).toBe('Lines are parallel.');
+  });
+
+  it('MOVE, MIRROR and ERASE carry the angular dimension along', () => {
+    const { doc, runner, type, click } = twoLines();
+    type('DAN');
+    click(20, 0);
+    click(20 * c30, 20 * s30);
+    click(30, 8);
+    const d = doc.dimensions[0];
+    if (d.kind !== 'angular') throw new Error('kind');
+
+    // MOVE lines and dimension together: anchors stay associated
+    runner.start('MOVE', [...doc.entities.map((e) => e.id), d.id]);
+    type('0,0', '10,0');
+    expect(d.leg1.a.ref).not.toBeNull();
+    expect(measure(doc, d)).toBeCloseTo(30);
+
+    // MIRROR across the x axis without erasing: the copy follows the mirrored lines, still 30°
+    runner.start('MIRROR', doc.entities.map((e) => e.id));
+    type('0,0', '10,0', 'N');
+    expect(doc.dimensions).toHaveLength(2);
+    const m = doc.dimensions[1];
+    if (m.kind !== 'angular') throw new Error('kind');
+    expect(measure(doc, m)).toBeCloseTo(30);
+    expect(m.leg1.a.ref?.entityId).toBe(doc.entities[2].id);
+    expect(m.sense1).toBe(d.sense1);
+
+    // ERASE the second line: anchors freeze, the dimension stays at 30°
+    runner.start('ERASE', [doc.entities[1].id]);
+    expect(d.leg2.a.ref).toBeNull();
+    expect(measure(doc, d)).toBeCloseTo(30);
   });
 });

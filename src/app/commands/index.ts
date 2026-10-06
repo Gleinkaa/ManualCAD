@@ -1,5 +1,5 @@
 // Command registry: AutoCAD English names and aliases.
-import { dimaligned, dimdiameter, dimlinear, dimradius } from './dims';
+import { dimaligned, dimangular, dimdiameter, dimedit, dimlinear, dimradius } from './dims';
 import { arc, circle, line, rectang } from './draw';
 import { chamfer, copy, erase, extend, fillet, mirror, move, offset, trim } from './modify';
 import { layer, ltype, titleblock, view, zoom } from './settings';
@@ -23,6 +23,8 @@ export const COMMANDS: Record<string, CommandFn> = {
   DIMALIGNED: dimaligned,
   DIMRADIUS: dimradius,
   DIMDIAMETER: dimdiameter,
+  DIMANGULAR: dimangular,
+  DIMEDIT: dimedit,
   VIEW: view,
   LTYPE: ltype,
   LAYER: layer,
@@ -54,6 +56,8 @@ export const ALIASES: Record<string, string> = {
   DAL: 'DIMALIGNED',
   DRA: 'DIMRADIUS',
   DDI: 'DIMDIAMETER',
+  DAN: 'DIMANGULAR',
+  DED: 'DIMEDIT',
   V: 'VIEW',
   LT: 'LTYPE',
   '-LT': 'LTYPE',

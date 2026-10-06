@@ -1,9 +1,9 @@
 // CONTRACT: signatures are fixed. Bodies are implemented by the dim module owner.
-import { add, dist, dot, norm, perp, scale, sub } from '../geom';
+import { add, cross, dist, dot, norm, perp, scale, sub } from '../geom';
 import type { CircleCurve, ArcCurve, Vec2 } from '../geom/types';
 import { getView, resolveAnchor, toSheet } from '../model/doc';
 import { LINE_GROUPS } from '../model/standards';
-import type { Dimension, LinearDimension, RadialDimension, SheetDoc } from '../model/types';
+import type { AngularDimension, Dimension, LinearDimension, RadialDimension, SheetDoc } from '../model/types';
 import type { Primitive, StrokeStyle } from '../plot/types';
 import {
   ARROW_ANGLE,
@@ -29,6 +29,10 @@ export function measure(doc: SheetDoc, dim: Dimension): number {
     if (dim.orientation === 'vertical') return Math.abs(b.y - a.y);
     return dist(a, b);
   }
+  if (dim.kind === 'angular') {
+    const g = angularGeometry(doc, dim);
+    return g ? (Math.acos(Math.max(-1, Math.min(1, dot(g.u1, g.u2)))) * 180) / Math.PI : 0;
+  }
   const r = radialCurve(doc, dim).r;
   return dim.kind === 'radius' ? r : 2 * r;
 }
@@ -40,6 +44,7 @@ export function dimensionText(doc: SheetDoc, dim: Dimension): string {
   let symbol = '';
   if (dim.kind === 'radius' && !t.prefix.includes('R')) symbol = 'R';
   if (dim.kind === 'diameter' && !/[⌀Øø]/.test(t.prefix)) symbol = '⌀';
+  if (dim.kind === 'angular') return t.prefix + formatValue(measure(doc, dim)) + (t.suffix.startsWith('°') ? '' : '°') + t.suffix;
   return t.prefix + symbol + formatValue(measure(doc, dim)) + t.suffix;
 }
 
@@ -47,6 +52,7 @@ export function dimensionText(doc: SheetDoc, dim: Dimension): string {
 export function plotDimension(doc: SheetDoc, dim: Dimension): Primitive[] {
   const ctx = context(doc, dim);
   if (dim.kind === 'linear') return plotLinear(doc, dim, ctx);
+  if (dim.kind === 'angular') return plotAngular(doc, dim, ctx);
   if (!findCurve(doc, dim)) return [];
   return dim.kind === 'radius' ? plotRadius(doc, dim, ctx) : plotDiameter(doc, dim, ctx);
 }
@@ -168,6 +174,77 @@ function dimensionLine(
   } else {
     const s0 = Math.max(textOut ?? 0, c.al + c.gap);
     prims.push(line(c, start, add(P2, scale(u, s0 + tw))), label(c, add(P2, scale(u, s0 + tw / 2)), u, text));
+  }
+  return prims;
+}
+
+// --- angular ---
+
+/**
+ * Vertex (view-local) and the unit rays of the dimensioned sector (senses applied), or null when the
+ * legs are parallel or degenerate.
+ */
+export function angularGeometry(doc: SheetDoc, dim: AngularDimension): { vertex: Vec2; u1: Vec2; u2: Vec2 } | null {
+  const p1 = resolveAnchor(doc, dim.leg1.a);
+  const d1 = sub(resolveAnchor(doc, dim.leg1.b), p1);
+  const p2 = resolveAnchor(doc, dim.leg2.a);
+  const d2 = sub(resolveAnchor(doc, dim.leg2.b), p2);
+  const l1 = Math.hypot(d1.x, d1.y);
+  const l2 = Math.hypot(d2.x, d2.y);
+  if (l1 < EPS || l2 < EPS) return null;
+  const den = cross(d1, d2);
+  if (Math.abs(den) < 1e-9 * l1 * l2) return null;
+  const vertex = add(p1, scale(d1, cross(sub(p2, p1), d2) / den));
+  return { vertex, u1: scale(d1, dim.sense1 / l1), u2: scale(d2, dim.sense2 / l2) };
+}
+
+function plotAngular(doc: SheetDoc, dim: AngularDimension, c: Ctx): Primitive[] {
+  const g = angularGeometry(doc, dim);
+  const R = dim.radius;
+  if (!g || R <= EPS) return [];
+  const view = getView(doc, dim.viewId);
+  const V = toSheet(view, g.vertex);
+  const legs = [
+    { u: g.u1, pts: [dim.leg1.a, dim.leg1.b].map((a) => toSheet(view, resolveAnchor(doc, a))) },
+    { u: g.u2, pts: [dim.leg2.a, dim.leg2.b].map((a) => toSheet(view, resolveAnchor(doc, a))) },
+  ];
+  // Sweep counter-clockwise from the first ray to the second.
+  if (cross(legs[0].u, legs[1].u) < 0) legs.reverse();
+  const [u1, u2] = [legs[0].u, legs[1].u];
+  const prims: Primitive[] = [];
+
+  // Extension lines run along the legs from the nearer end of the line to just beyond the arc.
+  for (const { u, pts } of legs) {
+    const ts = pts.map((p) => dot(sub(p, V), u));
+    const tmin = Math.min(...ts);
+    const tmax = Math.max(...ts);
+    if (R > tmax + EPS) prims.push(line(c, add(V, scale(u, tmax)), add(V, scale(u, R + c.overshoot))));
+    else if (R < tmin - EPS) prims.push(line(c, add(V, scale(u, tmin)), add(V, scale(u, Math.max(0, R - c.overshoot)))));
+  }
+
+  const th1 = Math.atan2(u1.y, u1.x);
+  const sweep = Math.acos(Math.max(-1, Math.min(1, dot(u1, u2))));
+  const th2 = th1 + sweep;
+  const at = (th: number) => add(V, scale({ x: Math.cos(th), y: Math.sin(th) }, R));
+  const tangent = (th: number) => ({ x: -Math.sin(th), y: Math.cos(th) });
+  const arc = (a0: number, a1: number): Primitive => ({ kind: 'arc', c: V, r: R, start: a0, end: a1, style: c.style, tag: c.tag });
+  const text = dimensionText(doc, dim);
+  const tw = textWidth(text, c.h);
+  const L = R * sweep;
+  const mid = th1 + sweep / 2;
+  if (L >= 2 * c.al + tw + 2 * c.gap) {
+    prims.push(arc(th1, th2), arrow(c, at(th1), scale(tangent(th1), -1)), arrow(c, at(th2), tangent(th2)), label(c, at(mid), tangent(mid), text));
+    return prims;
+  }
+  // Too short: arrows outside pointing in, with short tails; text outside beyond the second arrow if needed.
+  const tail = (c.al * (1 + OUTSIDE_TAIL_FACTOR)) / R;
+  prims.push(arrow(c, at(th1), tangent(th1)), arrow(c, at(th2), scale(tangent(th2), -1)));
+  if (L >= tw + 2 * c.gap) {
+    prims.push(arc(th1 - tail, th2 + tail), label(c, at(mid), tangent(mid), text));
+  } else {
+    const s0 = c.al + c.gap;
+    const tm = th2 + (s0 + tw / 2) / R;
+    prims.push(arc(th1 - tail, th2 + (s0 + tw) / R), label(c, at(tm), tangent(tm), text));
   }
   return prims;
 }

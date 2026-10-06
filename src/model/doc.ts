@@ -1,6 +1,6 @@
 import { endpoints, midpoint } from '../geom';
 import type { Vec2 } from '../geom/types';
-import type { AnchorPoint, DimAnchor, Entity, SheetDoc, View } from './types';
+import type { AnchorPoint, DimAnchor, Dimension, Entity, SheetDoc, View } from './types';
 
 let counter = 0;
 export function newId(prefix: string): string {
@@ -72,6 +72,13 @@ export function resolveAnchor(doc: SheetDoc, anchor: DimAnchor): Vec2 {
     anchor.ref = null;
   }
   return anchor.fallback;
+}
+
+/** The anchors of a dimension that can be tied to entity points (none for radial dimensions). */
+export function dimensionAnchors(dim: Dimension): DimAnchor[] {
+  if (dim.kind === 'linear') return [dim.a, dim.b];
+  if (dim.kind === 'angular') return [dim.leg1.a, dim.leg1.b, dim.leg2.a, dim.leg2.b];
+  return [];
 }
 
 function anchorPoint(ent: Entity, point: AnchorPoint): Vec2 | null {

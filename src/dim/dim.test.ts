@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Vec2 } from '../geom/types';
 import { newSheet } from '../model/doc';
-import type { Dimension, DimText, LinearDimension, RadialDimension, SheetDoc } from '../model/types';
+import type { AngularDimension, Dimension, DimText, LinearDimension, RadialDimension, SheetDoc } from '../model/types';
 import type { Primitive } from '../plot/types';
-import { clampToArc, dimensionText, formatValue, measure, plotDimension, readableAngle } from './index';
+import { angularGeometry, clampToArc, dimensionText, formatValue, measure, plotDimension, readableAngle } from './index';
 
 const noText = (): DimText => ({ override: null, prefix: '', suffix: '' });
 
@@ -244,5 +244,87 @@ describe('radial', () => {
     const d = radial('radius', 'l', 0);
     expect(plotDimension(sheet(), d)).toEqual([]);
     expect(() => measure(sheet(), d)).toThrow();
+  });
+});
+
+describe('angular', () => {
+  // Two lines meeting at the view origin: along +x and at 30°. Scale 1, origin (100,100).
+  function angularSheet(): SheetDoc {
+    const doc = sheet(1);
+    const c = Math.cos(Math.PI / 6);
+    const sn = Math.sin(Math.PI / 6);
+    doc.entities.push(
+      { id: 'h', viewId: 'v', layer: '0', lineType: 'visible', geom: { kind: 'line', a: { x: 0, y: 0 }, b: { x: 40, y: 0 } } },
+      { id: 's', viewId: 'v', layer: '0', lineType: 'visible', geom: { kind: 'line', a: { x: 0, y: 0 }, b: { x: 40 * c, y: 40 * sn } } },
+    );
+    return doc;
+  }
+  function angular(radius: number, sense1: 1 | -1 = 1, sense2: 1 | -1 = 1): AngularDimension {
+    const leg = (id: string, e: Vec2) => ({ a: { ref: { entityId: id, point: 'start' as const }, fallback: { x: 0, y: 0 } }, b: { ref: { entityId: id, point: 'end' as const }, fallback: e } });
+    return { kind: 'angular', id: 'a1', viewId: 'v', layer: '0', leg1: leg('h', { x: 40, y: 0 }), leg2: leg('s', { x: 1, y: 1 }), sense1, sense2, radius, text: noText() };
+  }
+
+  it('measures the sector chosen by the senses, text with degree sign', () => {
+    const doc = angularSheet();
+    expect(measure(doc, angular(30))).toBeCloseTo(30);
+    expect(dimensionText(doc, angular(30))).toBe('30°');
+    expect(measure(doc, angular(30, -1, 1))).toBeCloseTo(150);
+    expect(measure(doc, angular(30, -1, -1))).toBeCloseTo(30);
+    const d = angular(30);
+    d.text = { override: null, prefix: '', suffix: '° ±1' };
+    expect(dimensionText(doc, d)).toBe('30° ±1');
+  });
+
+  it('formats fractional degrees with a decimal comma', () => {
+    const doc = angularSheet();
+    const s = doc.entities.find((e) => e.id === 's')!;
+    s.geom = { kind: 'line', a: { x: 0, y: 0 }, b: { x: 10 * Math.cos((7.5 * Math.PI) / 180), y: 10 * Math.sin((7.5 * Math.PI) / 180) } };
+    expect(dimensionText(doc, angular(30))).toBe('7,5°');
+  });
+
+  it('plots an arc around the vertex with two arrows and the text inside', () => {
+    const doc = angularSheet();
+    const prims = plotDimension(doc, angular(30));
+    const arcs = of(prims, 'arc');
+    expect(arcs).toHaveLength(1);
+    close(arcs[0].c, { x: 100, y: 100 });
+    expect(arcs[0].r).toBeCloseTo(30);
+    expect(arcs[0].start).toBeCloseTo(0);
+    expect(arcs[0].end).toBeCloseTo(Math.PI / 6);
+    const arrows = of(prims, 'fill');
+    expect(arrows).toHaveLength(2);
+    close(arrows[0].points[0], { x: 130, y: 100 });
+    close(arrows[1].points[0], { x: 100 + 30 * Math.cos(Math.PI / 6), y: 100 + 30 * Math.sin(Math.PI / 6) });
+    const text = of(prims, 'text')[0];
+    expect(text.text).toBe('30°');
+    expect(text.angle).toBeCloseTo(Math.PI / 12 + Math.PI / 2 - Math.PI); // tangent at 15°, turned readable
+    // the legs reach 40 mm, beyond the arc: no extension lines
+    expect(of(prims, 'polyline')).toHaveLength(0);
+  });
+
+  it('draws extension lines when the arc lies beyond the legs, arrows outside when the arc is short', () => {
+    const doc = angularSheet();
+    const far = plotDimension(doc, angular(60));
+    const ext = of(far, 'polyline');
+    expect(ext).toHaveLength(2);
+    close(ext[0].points[0], { x: 140, y: 100 });
+    expect(ext[0].points[1].x).toBeGreaterThan(160);
+    const short = plotDimension(doc, angular(8));
+    const arc = of(short, 'arc')[0];
+    expect(arc.start).toBeLessThan(0); // tail beyond the first arrow
+    expect(of(short, 'fill')).toHaveLength(2);
+  });
+
+  it('vertex is the intersection of the infinite legs; parallel legs plot nothing', () => {
+    const doc = angularSheet();
+    const h = doc.entities.find((e) => e.id === 'h')!;
+    h.geom = { kind: 'line', a: { x: 10, y: -5 }, b: { x: 40, y: -5 } };
+    const g = angularGeometry(doc, angular(30))!;
+    expect(g.vertex.y).toBeCloseTo(-5);
+    expect(g.vertex.x).toBeCloseTo(-5 / Math.tan(Math.PI / 6));
+    const s = doc.entities.find((e) => e.id === 's')!;
+    s.geom = { kind: 'line', a: { x: 0, y: 0 }, b: { x: 10, y: 0 } };
+    expect(angularGeometry(doc, angular(30))).toBeNull();
+    expect(plotDimension(doc, angular(30))).toEqual([]);
   });
 });
