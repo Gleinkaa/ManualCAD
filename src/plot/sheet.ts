@@ -4,7 +4,7 @@ import { getView, toSheet } from '../model/doc';
 import { formatScale, LINE_GROUPS, LINE_TYPES } from '../model/standards';
 import type { LineTypeId, SheetDoc, View } from '../model/types';
 import { plotFrame } from './frame';
-import { BLACK, fitPattern, strokeStyle } from './style';
+import { BLACK, fitPattern, SCREEN_COLORS, strokeStyle } from './style';
 import type { Primitive } from './types';
 
 export interface PlotOptions {
@@ -49,7 +49,8 @@ export function plotCurve(doc: SheetDoc, viewId: string, curve: Curve, lineType:
 /** Label text of a view per ISO 128-3: none for the main (first) view, else its name plus the scale if it differs. */
 export function viewLabel(doc: SheetDoc, view: View): string | null {
   const main = doc.views[0];
-  if (!main || view.id === main.id) return null;
+  // Views in projection relation need no designation (ISO 128-3).
+  if (!main || view.id === main.id || view.link) return null;
   const differs = Math.abs(view.scale - main.scale) > 1e-9;
   return differs ? `${view.name} (${formatScale(view.scale)})` : view.name;
 }
@@ -74,6 +75,12 @@ function curveBox(c: Curve): BBox {
   };
 }
 
+/** Dimensions are thin lines: retag them and give them the thin line colour. */
+function dimPrimitive(p: Primitive, tag: string, color: string): Primitive {
+  if (p.kind === 'polyline' || p.kind === 'arc') return { ...p, tag, style: { ...p.style, color } };
+  return { ...p, tag, color };
+}
+
 function layerVisible(doc: SheetDoc, name: string): boolean {
   return doc.layers.find((l) => l.name === name)?.visible ?? true;
 }
@@ -93,9 +100,10 @@ export function plotSheet(doc: SheetDoc, opts: PlotOptions): Primitive[] {
       max: { x: Math.max(prev.max.x, b.max.x), y: Math.max(prev.max.y, b.max.y) },
     } : b);
   }
+  const dimColor = opts.screenColors ? SCREEN_COLORS.thin : BLACK;
   for (const d of doc.dimensions) {
     if (!layerVisible(doc, d.layer)) continue;
-    out.push(...plotDimension(doc, d).map((p) => ({ ...p, tag: p.tag ?? `dim:${d.id}` })));
+    out.push(...plotDimension(doc, d).map((p) => dimPrimitive(p, `dim:${d.id}`, dimColor)));
   }
   const h = labelHeight(doc);
   for (const view of doc.views) {
