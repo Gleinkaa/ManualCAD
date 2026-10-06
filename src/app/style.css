@@ -184,6 +184,7 @@ body {
 }
 
 .mc-coords {
+  white-space: pre;
   font-family: Consolas, 'Cascadia Mono', monospace;
   min-width: 260px;
 }

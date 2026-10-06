@@ -183,6 +183,7 @@ export class CommandRunner {
   click(p: Vec2, snap: SnapHit | null): void {
     const req = this.request;
     if (!this.gen || !req) return;
+    if (req.kind === 'point' || req.kind === 'entity') this.ctx.log(this.prompt);
     if (req.kind === 'point') {
       this.feedPoint(p, snap);
     } else if (req.kind === 'entity') {

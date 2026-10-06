@@ -248,6 +248,7 @@ export class App {
     else if (this.runner.active) this.runner.cancel();
     else this.selection = [];
     this.ui.input.value = '';
+    this.refreshUI();
     this.afterInput();
   }
 
@@ -445,7 +446,11 @@ export class App {
         this.submit();
         return;
       }
-      if (k.length === 1) this.ui.input.focus();
+      if (k.length === 1 && !ev.altKey) {
+        ev.preventDefault();
+        this.ui.input.value += k;
+        this.ui.input.focus();
+      }
     }
   }
 

@@ -57,7 +57,9 @@ function* viewNew(ctx: CommandContext): SubGen<void> {
       continue;
     }
     if (r.kind !== 'point') return;
-    const placed = linked ? linkFor(parent, r.p) : { origin: r.p, link: null };
+    // free placements land on a 0.5 mm sheet grid so view origins stay readable
+    const p = r.snap ? r.p : { x: Math.round(r.p.x * 2) / 2, y: Math.round(r.p.y * 2) / 2 };
+    const placed = linked ? linkFor(parent, p) : { origin: p, link: null };
     const view: View = { id: newId('v'), name, scale, origin: placed.origin, link: placed.link };
     doc.views.push(view);
     ctx.settings.currentViewId = view.id;
