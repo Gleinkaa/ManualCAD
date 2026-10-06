@@ -13,6 +13,8 @@ export interface RunnerHost {
   pick(p: Vec2, filter?: (e: Entity) => boolean): string | null;
   /** UNDO, SAVE, ... */
   hostCommand(name: string): void;
+  /** The noun-verb pre-selection handed to a starting command (and cleared). */
+  takeSelection(): string[];
   /** Called before a command starts and after it ends (or is cancelled). */
   onStart(name: string): void;
   onEnd(name: string): void;
@@ -62,7 +64,7 @@ export class CommandRunner {
     return this.request ? formatPrompt(this.request) : 'Command:';
   }
 
-  start(name: string, preselection: string[] = []): void {
+  start(name: string, preselection?: string[]): void {
     if (this.gen) this.cancel();
     const fn = COMMANDS[name];
     if (!fn) {
@@ -72,7 +74,7 @@ export class CommandRunner {
     this.lastCommand = name;
     this.name = name;
     this.host.onStart(name);
-    this.ctx.preselection = preselection;
+    this.ctx.preselection = preselection ?? this.host.takeSelection();
     this.gathering = [];
     this.gen = fn(this.ctx);
     this.step(undefined);

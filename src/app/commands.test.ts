@@ -13,6 +13,7 @@ function setup(doc: SheetDoc = newSheet()) {
   const runner = new CommandRunner(ctx, {
     pick: (p, filter) => pickEntity(doc, p, 1, filter ? (id) => filter(doc.entities.find((e) => e.id === id)!) : undefined),
     hostCommand: () => {},
+    takeSelection: () => [],
     onStart: () => {},
     onEnd: () => {},
   });
