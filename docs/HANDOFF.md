@@ -6,6 +6,7 @@ The goal of this session was everything needed to draw textbook exercise **ZA 38
 
 ## Current state
 
+- **CI:** `.github/workflows/ci.yml` runs `npm ci`, typecheck, test and build on every PR and on pushes to `master`, and uploads the ZA 38 SVG render as the `za38-svg` artifact.
 - **Checks:** `npm test` gives 193 passing and 1 skipped (the SVG render script). `npm run typecheck` and `npm run build` are clean.
 - **End-to-end test** (`src/app/za38.test.ts`, fixture in `src/app/testcases/za38.ts`):
   - Draws the whole exercise through typed commands only.
