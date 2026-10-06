@@ -13,6 +13,7 @@ export { plotFrame, frameGeometry, titleBlockFields, titleBlockValue, partsListC
 export { renderCanvas, type CanvasTransform } from './canvas';
 export { FONT_FAMILY, loadFonts, textWidth, fontSizeForCapHeight } from './font';
 export { SCREEN_COLORS } from './style';
+export { sheetToSvg } from './svg';
 
 /** Stroke style for a line type in the sheet's line group (width, ISO 128-2 dash lengths, colour). */
 export function lineStyle(doc: SheetDoc, lineType: LineTypeId, opts: PlotOptions): StrokeStyle {

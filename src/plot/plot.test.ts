@@ -239,6 +239,22 @@ describe('view labels', () => {
     expect(label).toMatchObject({ kind: 'text', text: 'Z (5:1)', align: 'center' });
     if (label?.kind === 'text') expect(label.pos.y).toBeGreaterThan(220);
   });
+
+  it('clears dimensions above the view, and can be switched off', () => {
+    doc.entities = [{ id: 'e1', viewId: 'v2', layer: '0', lineType: 'visible', geom: { kind: 'line', a: { x: 0, y: 0 }, b: { x: 20, y: 0 } } }];
+    doc.dimensions = [{
+      kind: 'linear', id: 'd1', viewId: 'v2', layer: '0', orientation: 'horizontal', offset: 30,
+      a: { ref: null, fallback: { x: 0, y: 0 } }, b: { ref: null, fallback: { x: 20, y: 0 } }, text: { override: null, prefix: '', suffix: '' },
+    }];
+    const label = plotSheet(doc, print).find((p) => p.tag === 'label:v2');
+    const dimText = plotSheet(doc, print).find((p) => p.tag === 'dim:d1' && p.kind === 'text');
+    if (label?.kind !== 'text' || dimText?.kind !== 'text') throw new Error('missing text');
+    expect(label.pos.y).toBeGreaterThan(dimText.pos.y + dimText.height);
+    doc.views[1].label = false;
+    expect(viewLabel(doc, doc.views[1])).toBeNull();
+    doc.views[1].label = undefined;
+    doc.dimensions = [];
+  });
 });
 
 describe('plotSheet', () => {

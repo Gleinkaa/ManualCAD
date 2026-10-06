@@ -97,6 +97,7 @@ export function* view(ctx: CommandContext): CommandGen {
     { key: 'S', label: 'Set' },
     { key: 'SC', label: 'SCale' },
     { key: 'U', label: 'Unlink' },
+    { key: 'LA', label: 'LAbel' },
   ];
   const r = yield { kind: 'text', prompt: `Current view: "${ctx.view().name}". Enter an option`, options: opts };
   if (r.kind !== 'option') return;
@@ -119,6 +120,12 @@ export function* view(ctx: CommandContext): CommandGen {
     case 'SC': {
       const s = yield* askScale(ctx, ctx.view().scale);
       if (s) ctx.view().scale = s;
+      return;
+    }
+    case 'LA': {
+      const v = ctx.view();
+      v.label = v.label === false ? undefined : false;
+      ctx.log(`Label of "${v.name}" ${v.label === false ? 'off' : 'on (printed when ISO 128-3 asks for one)'}.`);
       return;
     }
     case 'U': {

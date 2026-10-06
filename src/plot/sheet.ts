@@ -51,7 +51,7 @@ export function plotCurve(doc: SheetDoc, viewId: string, curve: Curve, lineType:
 export function viewLabel(doc: SheetDoc, view: View): string | null {
   const main = doc.views[0];
   // Views in projection relation need no designation (ISO 128-3).
-  if (!main || view.id === main.id || view.link) return null;
+  if (!main || view.id === main.id || view.link || view.label === false) return null;
   const differs = Math.abs(view.scale - main.scale) > 1e-9;
   return differs ? `${view.name} (${formatScale(view.scale)})` : view.name;
 }
@@ -106,9 +106,16 @@ export function plotSheet(doc: SheetDoc, opts: PlotOptions): Primitive[] {
     out.push(...plotAnnotation(doc, a, opts));
   }
   const dimColor = opts.screenColors ? SCREEN_COLORS.thin : BLACK;
+  // highest sheet y of each view's dimensions: the label must clear them as well
+  const dimTop = new Map<string, number>();
   for (const d of doc.dimensions) {
     if (!layerVisible(doc, d.layer)) continue;
-    out.push(...plotDimension(doc, d).map((p) => dimPrimitive(p, `dim:${d.id}`, dimColor)));
+    const prims = plotDimension(doc, d);
+    out.push(...prims.map((p) => dimPrimitive(p, `dim:${d.id}`, dimColor)));
+    for (const p of prims) {
+      const top = p.kind === 'text' ? p.pos.y + p.height : p.kind === 'arc' ? p.c.y + p.r : Math.max(...p.points.map((q) => q.y));
+      dimTop.set(d.viewId, Math.max(dimTop.get(d.viewId) ?? -Infinity, top));
+    }
   }
   const h = labelHeight(doc);
   for (const view of doc.views) {
@@ -116,7 +123,8 @@ export function plotSheet(doc: SheetDoc, opts: PlotOptions): Primitive[] {
     if (!text) continue;
     const box = boxes.get(view.id);
     const top = box ? toSheet(view, { x: (box.min.x + box.max.x) / 2, y: box.max.y }) : view.origin;
-    out.push({ kind: 'text', pos: { x: top.x, y: top.y + h }, text, height: h, angle: 0, align: 'center', baseline: 'bottom', color: BLACK, tag: `label:${view.id}` });
+    const y = Math.max(top.y + h, (dimTop.get(view.id) ?? -Infinity) + h / 2);
+    out.push({ kind: 'text', pos: { x: top.x, y }, text, height: h, angle: 0, align: 'center', baseline: 'bottom', color: BLACK, tag: `label:${view.id}` });
   }
   return out;
 }

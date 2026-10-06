@@ -33,6 +33,8 @@ export interface View {
   scale: number;             // 2 = 2:1, 0.5 = 1:2
   origin: Vec2;              // sheet position of the view-local (0,0)
   link: ProjectionLink | null;
+  /** false = never print the view label (e.g. a second part on the same sheet, identified by its item number). */
+  label?: boolean;
 }
 
 export interface Entity {
