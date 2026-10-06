@@ -31,6 +31,4 @@ export function visibleEntities(doc: SheetDoc): Entity[] {
   return doc.entities.filter((e) => !hidden.has(e.layer));
 }
 
-export function layerVisible(doc: SheetDoc, name: string): boolean {
-  return doc.layers.find((l) => l.name === name)?.visible ?? true;
-}
+export { layerVisible } from '../model/doc';

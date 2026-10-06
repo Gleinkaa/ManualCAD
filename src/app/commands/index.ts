@@ -1,5 +1,5 @@
 // Command registry: AutoCAD English names and aliases.
-import { sketch, text } from './annotate';
+import { balloon, leader, sketch, text } from './annotate';
 import { dimaligned, dimangular, dimdiameter, dimedit, dimlinear, dimradius } from './dims';
 import { arc, circle, line, rectang } from './draw';
 import { hatch } from './hatch';
@@ -24,6 +24,8 @@ export const COMMANDS: Record<string, CommandFn> = {
   ERASE: erase,
   TEXT: text,
   SKETCH: sketch,
+  LEADER: leader,
+  BALLOON: balloon,
   DIMLINEAR: dimlinear,
   DIMALIGNED: dimaligned,
   DIMRADIUS: dimradius,
@@ -64,6 +66,13 @@ export const ALIASES: Record<string, string> = {
   DT: 'TEXT',
   DTEXT: 'TEXT',
   SK: 'SKETCH',
+  LE: 'LEADER',
+  LEAD: 'LEADER',
+  QLEADER: 'LEADER',
+  MLEADER: 'LEADER',
+  MLD: 'LEADER',
+  BAL: 'BALLOON',
+  ITEM: 'BALLOON',
   DLI: 'DIMLINEAR',
   DAL: 'DIMALIGNED',
   DRA: 'DIMRADIUS',

@@ -140,8 +140,26 @@ export interface Hatch {
   spacing: number;           // paper mm between hatch lines
 }
 
+/**
+ * Leader line (ISO 128-22): a narrow continuous line from the tip to a note or item number.
+ * The terminator says where the tip ends: arrowhead on an outline, dot inside an outline, none on a dimension line.
+ * `note`: the text stands on a horizontal reference line at the last point.
+ * `item`: an item number (ISO 6433) at the end of the leader, without reference line.
+ */
+export interface Leader {
+  kind: 'leader';
+  id: string;
+  viewId: string;
+  layer: string;
+  points: Vec2[];            // view-local; points[0] is the tip; at least two points
+  terminator: 'arrow' | 'dot' | 'none';
+  style: 'note' | 'item';
+  text: string;              // empty = leader without text
+  height: number;            // paper mm, ISO 3098 series
+}
+
 /** Sheet objects that are neither part geometry nor dimensions. */
-export type Annotation = TextNote | Hatch;
+export type Annotation = TextNote | Hatch | Leader;
 
 export type TitleBlockField =
   | 'owner'          // legal owner / company / school

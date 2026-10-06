@@ -128,3 +128,55 @@ export function hatchSegments(loops: Curve[][], angleDeg: number, spacing: numbe
   }
   return out;
 }
+
+/**
+ * Remove the parts of segments that lie inside any of the convex polygons (vertices in either order).
+ * Used to interrupt hatching behind text (ISO 128-50). Pieces shorter than `minLength` are dropped.
+ */
+export function clipOutsideConvex(segs: [Vec2, Vec2][], polys: Vec2[][], minLength = 1e-6): [Vec2, Vec2][] {
+  const out: [Vec2, Vec2][] = [];
+  for (const [a, b] of segs) {
+    const d = { x: b.x - a.x, y: b.y - a.y };
+    const L = Math.hypot(d.x, d.y);
+    if (L < minLength) continue;
+    // parameter intervals of the segment hidden by each polygon (Cyrus–Beck)
+    const hidden: [number, number][] = [];
+    for (const poly of polys) {
+      const n = poly.length;
+      if (n < 3) continue;
+      let area = 0;
+      for (let i = 0; i < n; i++) area += poly[i].x * poly[(i + 1) % n].y - poly[(i + 1) % n].x * poly[i].y;
+      const s = area >= 0 ? 1 : -1; // inward normal side for CCW
+      let t0 = 0;
+      let t1 = 1;
+      for (let i = 0; i < n && t0 < t1; i++) {
+        const p = poly[i];
+        const q = poly[(i + 1) % n];
+        // inward normal of edge p→q
+        const nx = -(q.y - p.y) * s;
+        const ny = (q.x - p.x) * s;
+        const num = (a.x - p.x) * nx + (a.y - p.y) * ny; // ≥ 0 inside
+        const den = d.x * nx + d.y * ny;
+        if (Math.abs(den) < 1e-15) {
+          if (num < 0) t1 = -1;
+          continue;
+        }
+        const t = -num / den;
+        if (den > 0) t0 = Math.max(t0, t);
+        else t1 = Math.min(t1, t);
+      }
+      if (t1 > t0) hidden.push([t0, t1]);
+    }
+    hidden.sort((x, y) => x[0] - y[0]);
+    let t = 0;
+    const emit = (u: number, w: number) => {
+      if ((w - u) * L >= minLength) out.push([{ x: a.x + d.x * u, y: a.y + d.y * u }, { x: a.x + d.x * w, y: a.y + d.y * w }]);
+    };
+    for (const [h0, h1] of hidden) {
+      if (h0 > t) emit(t, h0);
+      t = Math.max(t, h1);
+    }
+    if (t < 1) emit(t, 1);
+  }
+  return out;
+}

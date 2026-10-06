@@ -1,6 +1,6 @@
 import type { BBox, Curve, Vec2 } from '../geom/types';
 import { plotDimension } from '../dim';
-import { getView, toSheet } from '../model/doc';
+import { getView, layerVisible, toSheet } from '../model/doc';
 import { formatScale, LINE_GROUPS, LINE_TYPES } from '../model/standards';
 import type { LineTypeId, SheetDoc, View } from '../model/types';
 import { plotAnnotation } from './annot';
@@ -80,10 +80,6 @@ function curveBox(c: Curve): BBox {
 function dimPrimitive(p: Primitive, tag: string, color: string): Primitive {
   if (p.kind === 'polyline' || p.kind === 'arc') return { ...p, tag, style: { ...p.style, color } };
   return { ...p, tag, color };
-}
-
-function layerVisible(doc: SheetDoc, name: string): boolean {
-  return doc.layers.find((l) => l.name === name)?.visible ?? true;
 }
 
 export function plotSheet(doc: SheetDoc, opts: PlotOptions): Primitive[] {

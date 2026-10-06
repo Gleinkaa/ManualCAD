@@ -220,24 +220,51 @@ export function angularSenses(vertex: Vec2, d1: Vec2, d2: Vec2, loc: Vec2): { se
   return { sense1: alpha < 0 ? -1 : 1, sense2: beta < 0 ? -1 : 1 };
 }
 
-export function* dimangular(ctx: CommandContext): CommandGen {
+/** First prompt of DIMANGULAR: two lines, or Enter for the 3-point form (vertex, then one point on each leg). */
+function* angularLegs(ctx: CommandContext): SubGen<{ viewId: string; leg1: AngularLeg; leg2: AngularLeg } | null> {
   const isLine = (e: Entity) => e.geom.kind === 'line';
-  const r1 = yield { kind: 'entity', prompt: 'Select first line', filter: isLine };
-  if (r1.kind !== 'entity') return;
+  const r1 = yield { kind: 'entity', prompt: 'Select first line or <specify vertex>', filter: isLine, allowEnter: true };
+  if (r1.kind === 'enter') {
+    const v = yield { kind: 'point', prompt: 'Specify angle vertex' };
+    if (v.kind !== 'point') return null;
+    const viewId = dimView(ctx, v);
+    const ray = (p: Vec2) => ({ curves: [{ curve: { kind: 'line' as const, a: ctx.localIn(viewId, v.p), b: ctx.localIn(viewId, p) }, lineType: 'construction' as const, viewId }] });
+    const p1 = yield { kind: 'point', prompt: 'Specify first angle endpoint', base: v.p, preview: ray };
+    if (p1.kind !== 'point') return null;
+    const p2 = yield { kind: 'point', prompt: 'Specify second angle endpoint', base: v.p, preview: ray };
+    if (p2.kind !== 'point') return null;
+    const vertex = anchorFrom(ctx, viewId, v);
+    return {
+      viewId,
+      leg1: { a: vertex, b: anchorFrom(ctx, viewId, p1) },
+      leg2: { a: structuredClone(vertex), b: anchorFrom(ctx, viewId, p2) },
+    };
+  }
+  if (r1.kind !== 'entity') return null;
   const e1 = ctx.entity(r1.id);
   const r2 = yield { kind: 'entity', prompt: 'Select second line', filter: isLine };
-  if (r2.kind !== 'entity') return;
+  if (r2.kind !== 'entity') return null;
   const e2 = ctx.entity(r2.id);
-  if (!e1 || !e2) return;
+  if (!e1 || !e2) return null;
   if (e1.viewId !== e2.viewId) {
     ctx.log('Both lines must be in the same view.');
-    return;
+    return null;
   }
   const leg1 = legOf(e1);
   const leg2 = legOf(e2);
-  if (!leg1 || !leg2) return;
+  return leg1 && leg2 ? { viewId: e1.viewId, leg1, leg2 } : null;
+}
+
+export function* dimangular(ctx: CommandContext): CommandGen {
+  const legs = yield* angularLegs(ctx);
+  if (!legs) return;
+  const { viewId, leg1, leg2 } = legs;
   const d1 = { x: leg1.b.fallback.x - leg1.a.fallback.x, y: leg1.b.fallback.y - leg1.a.fallback.y };
   const d2 = { x: leg2.b.fallback.x - leg2.a.fallback.x, y: leg2.b.fallback.y - leg2.a.fallback.y };
+  if (Math.hypot(d1.x, d1.y) < 1e-9 || Math.hypot(d2.x, d2.y) < 1e-9) {
+    ctx.log('An angle endpoint coincides with the vertex.');
+    return;
+  }
   const den = cross(d1, d2);
   if (Math.abs(den) < 1e-9 * Math.hypot(d1.x, d1.y) * Math.hypot(d2.x, d2.y)) {
     ctx.log('Lines are parallel.');
@@ -247,17 +274,17 @@ export function* dimangular(ctx: CommandContext): CommandGen {
   const p2 = leg2.a.fallback;
   const t = cross({ x: p2.x - p1.x, y: p2.y - p1.y }, d2) / den;
   const vertex = { x: p1.x + t * d1.x, y: p1.y + t * d1.y };
-  const view = ctx.viewOf(e1.viewId);
+  const view = ctx.viewOf(viewId);
   const V = toSheet(view, vertex);
   let text = keepMeasured();
   const make = (p: Vec2): AngularDimension => ({
     kind: 'angular',
     id: newId('d'),
-    viewId: e1.viewId,
+    viewId,
     layer: ctx.settings.layer,
     leg1: structuredClone(leg1),
     leg2: structuredClone(leg2),
-    ...angularSenses(vertex, d1, d2, ctx.localIn(e1.viewId, p)),
+    ...angularSenses(vertex, d1, d2, ctx.localIn(viewId, p)),
     radius: dist(p, V),
     text: structuredClone(text),
   });
