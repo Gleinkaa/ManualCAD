@@ -23,15 +23,19 @@ export const SNAP_LABELS: Record<SnapKind, string> = {
   nearest: 'Nearest',
 };
 
-const PRIORITY: Record<SnapKind, number> = {
+/**
+ * AutoCAD-like priority: within the aperture a higher-ranked kind always wins, distance only breaks ties.
+ * So the corner endpoint beats the midpoint of a small chamfer next to it.
+ */
+export const SNAP_PRIORITY: Record<SnapKind, number> = {
   endpoint: 0,
-  midpoint: 0,
-  center: 0,
-  quadrant: 0,
-  intersection: 0,
-  perpendicular: 1,
-  tangent: 1,
-  nearest: 2,
+  intersection: 1,
+  center: 2,
+  midpoint: 2,
+  quadrant: 3,
+  perpendicular: 4,
+  tangent: 4,
+  nearest: 5,
 };
 
 interface Near {
@@ -49,7 +53,7 @@ export function findSnap(doc: SheetDoc, cursor: Vec2, aperture: number, from: Ve
   const consider = (hit: SnapHit) => {
     const d = dist(hit.point, cursor);
     if (d > aperture) return;
-    const key = PRIORITY[hit.kind] * 1e6 + d;
+    const key = SNAP_PRIORITY[hit.kind] * 1e6 + d;
     if (key < bestKey) {
       bestKey = key;
       best = hit;
