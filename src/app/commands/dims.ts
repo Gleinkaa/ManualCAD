@@ -142,7 +142,7 @@ function* radialDim(ctx: CommandContext, kind: 'radius' | 'diameter'): CommandGe
     entityId: ent.id,
     angle: Math.atan2(p.y - c.y, p.x - c.x),
     leader: Math.max(0, dist(p, c) - g.r * view.scale),
-    text: { override: null, prefix: kind === 'radius' ? 'R' : '⌀', suffix: '' },
+    text: { override: null, prefix: '', suffix: '' },
   });
   const loc = yield { kind: 'point', prompt: 'Specify dimension line location', preview: (p) => ({ dims: [make(p)] }) };
   if (loc.kind !== 'point') return;
