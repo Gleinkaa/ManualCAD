@@ -138,6 +138,14 @@ export interface Hatch {
   loops: Curve[][];          // each loop a closed chain of curves, view-local
   angle: number;             // degrees, normally 45 or 135
   spacing: number;           // paper mm between hatch lines
+  /** Associativity: when a boundary entity changes, the region around `seed` is found again. Absent = fixed loops. */
+  assoc?: HatchAssoc;
+}
+
+export interface HatchAssoc {
+  seed: Vec2;                // view-local internal point picked by HATCH
+  boundary: string[];        // ids of the entities the loops lie on
+  key: string;               // fingerprint of those entities when the loops were found
 }
 
 /**

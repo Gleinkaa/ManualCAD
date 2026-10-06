@@ -3,6 +3,7 @@ import type { Vec2 } from '../geom/types';
 import { toLocal, toSheet } from '../model/doc';
 import type { Entity } from '../model/types';
 import { COMMANDS, resolveCommand } from './commands';
+import { updateAssociativeHatches } from './commands/hatch';
 import type { CommandContext, CommandGen, Input, Option, Request } from './commands/types';
 import { fmt, parseCoordinate, resolveInput } from './input';
 import type { SnapHit } from './snap';
@@ -237,6 +238,8 @@ export class CommandRunner {
     this.request = null;
     this.name = null;
     this.gathering = [];
+    const lost = updateAssociativeHatches(this.ctx.doc);
+    if (lost > 0) this.ctx.log(`${lost} hatch(es) lost their boundary and no longer follow edits.`);
     this.host.onEnd(name);
   }
 }

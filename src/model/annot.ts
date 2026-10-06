@@ -6,7 +6,8 @@ import type { Annotation } from './types';
 export function translateAnnotation(a: Annotation, d: Vec2): Annotation {
   if (a.kind === 'text') return { ...a, pos: { x: a.pos.x + d.x, y: a.pos.y + d.y } };
   if (a.kind === 'leader') return { ...a, points: a.points.map((p) => ({ x: p.x + d.x, y: p.y + d.y })) };
-  return { ...a, loops: a.loops.map((l) => l.map((c) => translate(c, d))) };
+  const assoc = a.assoc && { ...a.assoc, seed: { x: a.assoc.seed.x + d.x, y: a.assoc.seed.y + d.y } };
+  return { ...a, loops: a.loops.map((l) => l.map((c) => translate(c, d))), ...(assoc && { assoc }) };
 }
 
 /**
@@ -32,5 +33,6 @@ export function mirrorAnnotation(a: Annotation, p: Vec2, q: Vec2): Annotation {
   if (a.kind === 'leader') return { ...a, points: a.points.map(m) };
   const phi = (Math.atan2(q.y - p.y, q.x - p.x) * 180) / Math.PI;
   const angle = (((2 * phi - a.angle) % 180) + 180) % 180;
-  return { ...a, loops: a.loops.map((l) => l.map((c) => mirrorCurve(c, p, q))), angle };
+  const assoc = a.assoc && { ...a.assoc, seed: m(a.assoc.seed) };
+  return { ...a, loops: a.loops.map((l) => l.map((c) => mirrorCurve(c, p, q))), angle, ...(assoc && { assoc }) };
 }
