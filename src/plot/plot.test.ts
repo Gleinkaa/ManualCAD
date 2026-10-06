@@ -231,3 +231,39 @@ describe('exportPdf', () => {
     expect(Number(box?.[2]) / (72 / 25.4)).toBeCloseTo(297, 1);
   });
 });
+
+describe('plotSheet dimensions and linked views', () => {
+  function docWithDim(): SheetDoc {
+    const doc = sheet();
+    doc.entities = [{ id: 'e1', viewId: 'v-front', layer: '0', lineType: 'visible', geom: { kind: 'line', a: { x: 0, y: 0 }, b: { x: 40, y: 0 } } }];
+    doc.dimensions = [{
+      kind: 'linear', id: 'd1', viewId: 'v-front', layer: '0',
+      a: { ref: { entityId: 'e1', point: 'start' }, fallback: { x: 0, y: 0 } },
+      b: { ref: { entityId: 'e1', point: 'end' }, fallback: { x: 40, y: 0 } },
+      orientation: 'horizontal', offset: -10, text: { override: null, prefix: '', suffix: '' },
+    }];
+    return doc;
+  }
+
+  it("tags dimension primitives 'dim:<id>' and colours them thin on screen, black in print", () => {
+    const doc = docWithDim();
+    const color = (p: Primitive): string => (p.kind === 'polyline' || p.kind === 'arc' ? p.style.color : p.color);
+    const onScreen = plotSheet(doc, screen).filter((p) => p.tag === 'dim:d1');
+    expect(onScreen.length).toBeGreaterThan(2);
+    expect(onScreen.every((p) => color(p) === lineStyle(doc, 'thin', screen).color)).toBe(true);
+    const printed = plotSheet(doc, print).filter((p) => p.tag === 'dim:d1');
+    expect(printed.every((p) => color(p) === '#000000')).toBe(true);
+    expect(plotSheet(doc, print).some((p) => p.tag === 'd1')).toBe(false);
+  });
+
+  it('gives views with a projection link no label', () => {
+    const doc = sheet();
+    doc.views.push(
+      { id: 'side', name: 'Side view', scale: 1, origin: { x: 250, y: 160 }, link: { parentId: 'v-front', freeAxis: 'x' } },
+      { id: 'det', name: 'Z', scale: 5, origin: { x: 300, y: 80 }, link: null },
+    );
+    expect(viewLabel(doc, doc.views[1])).toBeNull();
+    expect(viewLabel(doc, doc.views[2])).toBe('Z (5:1)');
+    expect(plotSheet(doc, print).some((p) => p.tag === 'label:side')).toBe(false);
+  });
+});
