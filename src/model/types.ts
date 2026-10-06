@@ -64,7 +64,7 @@ export interface LinearDimension {
   a: DimAnchor;
   b: DimAnchor;
   orientation: 'horizontal' | 'vertical' | 'aligned';
-  /** Signed distance of the dimension line from the measured points, in SHEET mm, perpendicular to the measured direction. */
+  /** Signed distance of the dimension line from the midpoint of the two measured sheet points, in SHEET mm, perpendicular to the measured direction (+y horizontal, +x vertical, left normal of a→b aligned). */
   offset: number;
   text: DimText;
 }
