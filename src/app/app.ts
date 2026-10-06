@@ -24,6 +24,8 @@ const SCREEN: PlotOptions = { includeConstruction: true, screenColors: true };
 const APERTURE_PX = 10;
 const PICKBOX_PX = 5;
 const HIGHLIGHT = '#1e6fd9';
+/** Rubber-band preview colour: distinct from drawing (black), selection (blue) and the crosshair. */
+const PREVIEW = '#c2185b';
 
 function loadAutosave(): SheetDoc | null {
   try {
@@ -746,6 +748,14 @@ export class App {
     const pv = this.preview();
     this.draw(this.sheetPrims(), t);
     this.draw(this.highlightPrims(), t);
+
+    // crosshair under the rubber band, so an ortho preview lying on it stays visible
+    const req = this.runner.request;
+    const cur = this.mousePx && this.eff ? vp.toScreen(this.eff) : null;
+    if (cur && this.mousePx) {
+      const pickbox = !req || req.kind === 'entity' || req.kind === 'selection' ? PICKBOX_PX * dpr : 0;
+      drawCrosshair(g, req?.kind === 'point' ? cur : this.mousePx, w, h, pickbox, dpr);
+    }
     this.draw(this.previewPrims(pv), t);
 
     const view = this.doc.views.find((v) => v.id === this.settings.currentViewId);
@@ -754,12 +764,8 @@ export class App {
 
     if (this.windowStart && this.mousePx) drawSelectionBox(g, vp.toScreen(this.windowStart.sheet), this.mousePx, dpr);
 
-    if (this.mousePx && this.eff) {
-      const cur = vp.toScreen(this.eff);
+    if (cur) {
       for (const a of this.track) drawTrackLine(g, vp.toScreen(a), cur, dpr);
-      const req = this.runner.request;
-      const pickbox = !req || req.kind === 'entity' || req.kind === 'selection' ? PICKBOX_PX * dpr : 0;
-      drawCrosshair(g, req?.kind === 'point' ? cur : this.mousePx, w, h, pickbox, dpr);
       if (this.snapHit) drawSnapMarker(g, cur, this.snapHit.kind, SNAP_LABELS[this.snapHit.kind], dpr);
       else if (this.hint) tooltip(g, { x: cur.x + 14 * dpr, y: cur.y + 14 * dpr }, this.hint, dpr);
       this.updateCoords();
@@ -818,7 +824,12 @@ export class App {
     } catch {
       // incomplete geometry while rubber-banding
     }
-    return out;
+    const minW = (1.5 * this.dpr) / this.vp.zoom;
+    return out.map((p) =>
+      p.kind === 'polyline' || p.kind === 'arc'
+        ? { ...p, style: { ...p.style, width: Math.max(p.style.width, minW), color: PREVIEW } }
+        : { ...p, color: PREVIEW },
+    );
   }
 
   private updateCoords(): void {
