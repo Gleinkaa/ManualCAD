@@ -7,10 +7,10 @@ TypeScript + Vite + Canvas2D, tests with vitest. Desktop app later via Tauri (AD
 `npm run dev` · `npm test` · `npm run typecheck`
 
 ## Modules (`src/`)
-- `geom/`: pure 2D curve math (line/circle/arc): intersections, snaps, offset/trim/extend/fillet/chamfer. No DOM.
-- `model/`: document types (`SheetDoc`), Norm rule data (`standards.ts`), doc helpers (view transforms, projection links, anchors, JSON).
+- `geom/`: pure 2D curve math (line/circle/arc): intersections, snaps, offset/trim/extend/fillet/chamfer, freehand arcs, closed regions and hatch lines. No DOM.
+- `model/`: document types (`SheetDoc`), Norm rule data (`standards.ts`), doc helpers (view transforms, projection links, anchors, annotation transforms, JSON).
 - `dim/`: dimensions → plot primitives per ISO 129-1. No DOM.
-- `plot/`: sheet → device-independent primitives (sheet mm, y up), canvas renderer, PDF export, fonts.
+- `plot/`: sheet → device-independent primitives (sheet mm, y up), canvas renderer, PDF and SVG export, fonts.
 - `app/`: UI: viewport, command line, commands, snaps, selection, undo.
 
 Dependency direction: `app → plot → dim → model → geom`. Never import upward.

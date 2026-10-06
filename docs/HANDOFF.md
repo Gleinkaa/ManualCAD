@@ -56,4 +56,4 @@ npm test
 npm run dev            # window.manualcad is the App in dev builds
 ```
 
-Driving the app with Playwright works as described in the previous handoff: view-local mm → CSS px via `app.vp.toScreen`, then `page.mouse`. Type into `.mc-input` with `press('Enter')`; Space only submits while the input is empty, so text with spaces works.
+Driving the app with Playwright: view-local mm → CSS px via `app.vp.toScreen`, then `page.mouse`. Type into `.mc-input` with `press('Enter')`; Space only submits while the input is empty, so text with spaces works.
