@@ -1,8 +1,8 @@
 // Modify commands: OFFSET, TRIM, EXTEND, FILLET, CHAMFER, MOVE, COPY, MIRROR, ERASE.
 import { chamfer as geomChamfer, distanceTo, extend as geomExtend, fillet as geomFillet, mirror as geomMirror, offset as geomOffset, translate, trim as geomTrim } from '../../geom';
 import type { Curve, Vec2 } from '../../geom/types';
-import { newId, resolveAnchor } from '../../model/doc';
-import type { DimAnchor, Dimension, Entity } from '../../model/types';
+import { newId, resolveAnchor, toSheet } from '../../model/doc';
+import type { AnchorPoint, DimAnchor, Dimension, Entity, LinearDimension } from '../../model/types';
 import { fmt } from '../input';
 import { visibleEntities } from '../xform';
 import { selectObjects, type CommandContext, type CommandGen, type Preview, type SubGen } from './types';
@@ -295,27 +295,127 @@ export function* copy(ctx: CommandContext): CommandGen {
   }
 }
 
+function mirrorPt(p: Vec2, a: Vec2, b: Vec2): Vec2 {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return p;
+  const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2;
+  const f = { x: a.x + t * dx, y: a.y + t * dy };
+  return { x: 2 * f.x - p.x, y: 2 * f.y - p.y };
+}
+
+/** Unit normal along which a linear dimension's offset is measured (see dim/plotLinear). */
+function dimNormal(orientation: LinearDimension['orientation'], A: Vec2, B: Vec2): Vec2 {
+  if (orientation === 'horizontal') return { x: 0, y: 1 };
+  if (orientation === 'vertical') return { x: 1, y: 0 };
+  const l = Math.hypot(B.x - A.x, B.y - A.y);
+  return l < 1e-12 ? { x: 0, y: 1 } : { x: -(B.y - A.y) / l, y: (B.x - A.x) / l };
+}
+
+/**
+ * Mirror of `dim` across the sheet line a-b. `idMap` maps mirrored entity ids to the ids of their mirror images
+ * (the same id when mirrored in place); anchors on other entities are frozen at their mirrored position.
+ */
+function mirrorDim(ctx: CommandContext, dim: Dimension, a: Vec2, b: Vec2, idMap: Map<string, string>): Dimension | null {
+  const view = ctx.viewOf(dim.viewId);
+  const isArc = (id: string) => ctx.entity(id)?.geom.kind === 'arc';
+  if (dim.kind !== 'linear') {
+    const target = idMap.get(dim.entityId);
+    if (!target) return null;
+    const phi = Math.atan2(b.y - a.y, b.x - a.x);
+    return { ...structuredClone(dim), entityId: target, angle: 2 * phi - dim.angle };
+  }
+  const la = ctx.localIn(dim.viewId, a);
+  const lb = ctx.localIn(dim.viewId, b);
+  const anchor = (an: DimAnchor): DimAnchor => {
+    const p = mirrorPt(resolveAnchor(ctx.doc, an), la, lb);
+    const target = an.ref ? idMap.get(an.ref.entityId) : undefined;
+    if (!an.ref || !target) return { ref: null, fallback: p };
+    // a mirrored arc runs the other way round: its start is the image of the old end
+    const swap: Record<string, AnchorPoint> = { start: 'end', end: 'start' };
+    const point = isArc(an.ref.entityId) ? (swap[an.ref.point] ?? an.ref.point) : an.ref.point;
+    return { ref: { entityId: target, point }, fallback: p };
+  };
+  const A = toSheet(view, resolveAnchor(ctx.doc, dim.a));
+  const B = toSheet(view, resolveAnchor(ctx.doc, dim.b));
+  const n = dimNormal(dim.orientation, A, B);
+  const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+  const D = mirrorPt({ x: M.x + n.x * dim.offset, y: M.y + n.y * dim.offset }, a, b);
+  let orientation = dim.orientation;
+  if (orientation !== 'aligned') {
+    const deg = (((Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI) % 180 + 180) % 180;
+    if (Math.abs(deg - 45) < 1e-6 || Math.abs(deg - 135) < 1e-6) orientation = orientation === 'horizontal' ? 'vertical' : 'horizontal';
+  }
+  const A2 = mirrorPt(A, a, b);
+  const B2 = mirrorPt(B, a, b);
+  const n2 = dimNormal(orientation, A2, B2);
+  const M2 = { x: (A2.x + B2.x) / 2, y: (A2.y + B2.y) / 2 };
+  return {
+    ...structuredClone(dim),
+    orientation,
+    a: anchor(dim.a),
+    b: anchor(dim.b),
+    offset: (D.x - M2.x) * n2.x + (D.y - M2.y) * n2.y,
+  };
+}
+
+/**
+ * Dimensions that go along with mirrored entities: the selected ones plus those whose every anchor is on a
+ * mirrored entity (they would otherwise be left behind on the source).
+ */
+function dimsToMirror(ctx: CommandContext, selected: Dimension[], ents: Entity[]): Dimension[] {
+  const ids = new Set(ents.map((e) => e.id));
+  const out = [...selected];
+  for (const d of ctx.doc.dimensions) {
+    if (out.includes(d)) continue;
+    const follows = d.kind === 'linear' ? !!d.a.ref && !!d.b.ref && ids.has(d.a.ref.entityId) && ids.has(d.b.ref.entityId) : ids.has(d.entityId);
+    if (follows) out.push(d);
+  }
+  return out;
+}
+
 export function* mirror(ctx: CommandContext): CommandGen {
   const ids = yield* selectObjects(ctx);
-  const { ents, dims } = splitIds(ctx, ids);
-  if (ents.length === 0) return;
-  if (dims.length > 0) ctx.log(`${dims.length} dimension(s) are not mirrored.`);
+  const { ents, dims: selectedDims } = splitIds(ctx, ids);
+  if (ents.length === 0 && selectedDims.length === 0) return;
+  const dims = dimsToMirror(ctx, selectedDims, ents);
   const a = yield { kind: 'point', prompt: 'Specify first point of mirror line' };
   if (a.kind !== 'point') return;
   const make = (p: Vec2) =>
     ents.map((e) => ({ e, curve: geomMirror(e.geom, ctx.localIn(e.viewId, a.p), ctx.localIn(e.viewId, p)) }));
+  const previewDims = (p: Vec2): Dimension[] =>
+    dims
+      .filter((d): d is LinearDimension => d.kind === 'linear')
+      .map((d) => mirrorDim(ctx, d, a.p, p, new Map()))
+      .filter((d): d is Dimension => !!d);
   const b = yield {
     kind: 'point',
     prompt: 'Specify second point of mirror line',
     base: a.p,
-    preview: (p) => (p.x === a.p.x && p.y === a.p.y ? {} : { curves: make(p).map(({ e, curve }) => ({ curve, lineType: e.lineType, viewId: e.viewId })) }),
+    preview: (p) =>
+      p.x === a.p.x && p.y === a.p.y
+        ? {}
+        : { curves: make(p).map(({ e, curve }) => ({ curve, lineType: e.lineType, viewId: e.viewId })), dims: previewDims(p) },
   };
   if (b.kind !== 'point') return;
+  if (b.p.x === a.p.x && b.p.y === a.p.y) {
+    ctx.log('The mirror line needs two different points.');
+    return;
+  }
   const yn = yield { kind: 'text', prompt: 'Erase source objects? [Yes/No]', default: 'N' };
   const erase = yn.kind === 'text' && /^y/i.test(yn.text.trim());
-  for (const { e, curve } of make(b.p)) {
-    if (erase) e.geom = curve;
-    else ctx.addEntity(curve, { viewId: e.viewId, layer: e.layer, lineType: e.lineType });
+  const idMap = new Map<string, string>();
+  const curves = make(b.p);
+  if (erase) for (const e of ents) idMap.set(e.id, e.id);
+  else for (const { e, curve } of curves) idMap.set(e.id, ctx.addEntity(curve, { viewId: e.viewId, layer: e.layer, lineType: e.lineType }).id);
+  // dimension images are computed from the source geometry, before it is replaced in place
+  const mirrored = dims.map((d) => ({ d, m: mirrorDim(ctx, d, a.p, b.p, idMap) }));
+  if (erase) for (const { e, curve } of curves) e.geom = curve;
+  for (const { d, m } of mirrored) {
+    if (!m) continue;
+    if (erase) Object.assign(d, m);
+    else ctx.doc.dimensions.push({ ...m, id: newId('d') });
   }
 }
 

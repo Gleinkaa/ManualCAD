@@ -166,3 +166,63 @@ describe('VIEW New', () => {
     expect(ctx.settings.currentViewId).toBe(v.id);
   });
 });
+
+describe('MIRROR with dimensions', () => {
+  const lin = (id: string, entityId: string, offset: number) => ({
+    kind: 'linear' as const, id, viewId: 'v-front', layer: '0',
+    a: { ref: { entityId, point: 'start' as const }, fallback: { x: 0, y: 0 } },
+    b: { ref: { entityId, point: 'end' as const }, fallback: { x: 0, y: 0 } },
+    orientation: 'horizontal' as const, offset, text: { override: null, prefix: '', suffix: '' },
+  });
+
+  it('copies associated dimensions onto the mirrored geometry, on the mirrored side', () => {
+    const doc = newSheet();
+    doc.views[0].scale = 2;
+    const { runner, type } = setup(doc);
+    type('L', '0,0', '40,0', '');
+    const src = doc.entities[0];
+    doc.dimensions.push(lin('d1', src.id, -15));
+    runner.start('MIRROR', [src.id]);          // only the line is selected, the dim follows it
+    type('-10,10', '50,10', 'N');
+    expect(runner.active).toBe(false);
+    expect(doc.entities).toHaveLength(2);
+    expect(doc.dimensions).toHaveLength(2);
+    const copy = doc.dimensions[1];
+    if (copy.kind !== 'linear') throw new Error('linear expected');
+    expect(copy.a.ref?.entityId).toBe(doc.entities[1].id);
+    expect(copy.offset).toBeCloseTo(15);
+    expect(measure(doc, copy)).toBeCloseTo(40);
+  });
+
+  it('mirrors in place with Erase=Yes and swaps arc start/end anchors', () => {
+    const { doc, runner, type, ctx } = setup();
+    const arc = ctx.addEntity({ kind: 'arc', c: { x: 0, y: 0 }, r: 10, start: 0, end: Math.PI / 2 });
+    doc.dimensions.push({ ...lin('d1', arc.id, -5), b: { ref: null, fallback: { x: 30, y: 0 } } });
+    doc.dimensions.push({ kind: 'radius', id: 'd2', viewId: 'v-front', layer: '0', entityId: arc.id, angle: Math.PI / 4, leader: 0, text: { override: null, prefix: '', suffix: '' } });
+    runner.start('MIRROR', [arc.id, 'd1']);
+    type('0,0', '0,10', 'Y');
+    expect(doc.entities).toHaveLength(1);
+    const d1 = doc.dimensions[0];
+    const d2 = doc.dimensions[1];
+    if (d1.kind !== 'linear' || d2.kind === 'linear') throw new Error('kinds');
+    expect(d1.a.ref).toEqual({ entityId: arc.id, point: 'end' });   // image of the old start
+    expect(d1.b.ref).toBeNull();
+    expect(d1.b.fallback.x).toBeCloseTo(-30);
+    expect(measure(doc, d1)).toBeCloseTo(20);
+    expect(d1.offset).toBeCloseTo(-5);
+    expect(d2.angle).toBeCloseTo((3 * Math.PI) / 4);
+  });
+
+  it('mirrors selected dimensions alone', () => {
+    const { doc, runner, type } = setup();
+    type('L', '0,0', '40,0', '');
+    doc.dimensions.push({ ...lin('d1', 'gone', -10), a: { ref: null, fallback: { x: 0, y: 0 } }, b: { ref: null, fallback: { x: 40, y: 0 } } });
+    runner.start('MIRROR', ['d1']);
+    type('0,5', '10,5', 'N');
+    expect(doc.entities).toHaveLength(1);
+    expect(doc.dimensions).toHaveLength(2);
+    const m = doc.dimensions[1];
+    expect(m.kind === 'linear' && m.a.fallback.y).toBeCloseTo(10);
+    expect(m.kind === 'linear' && m.offset).toBeCloseTo(10);
+  });
+});
