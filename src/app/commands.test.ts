@@ -262,3 +262,37 @@ describe('TRIM / EXTEND Fence', () => {
     expect(lines(doc, 10)).toEqual([[0, 50]]);
   });
 });
+
+describe('HATCH', () => {
+  it('hatches the region around a picked point, with a hole as an island', () => {
+    const { doc, type, log } = setup();
+    type('REC', '0,0', '40,20', 'C', '20,10', '5');
+    type('H', '5,5', '');
+    expect(doc.annotations).toHaveLength(1);
+    const h = doc.annotations[0];
+    if (h.kind !== 'hatch') throw new Error('expected hatch');
+    expect(h.loops).toHaveLength(2);
+    expect(h.angle).toBe(45);
+    expect(h.viewId).toBe(doc.views[0].id);
+    expect(log).toContain('1 hatch(es) created.');
+  });
+
+  it('takes angle and spacing options, several picks, and ignores centre lines as boundaries', () => {
+    const { doc, ctx, type, log } = setup();
+    type('REC', '0,0', '40,20');
+    ctx.settings.lineType = 'center';
+    type('L', '20,-5', '20,25', '');
+    type('H', 'A', '135', 'S', '3', '5,5', '30,5', '');
+    expect(doc.annotations).toHaveLength(2);
+    for (const h of doc.annotations) {
+      if (h.kind !== 'hatch') throw new Error('expected hatch');
+      expect(h.loops).toHaveLength(1);
+      expect(h.loops[0]).toHaveLength(4); // the centre line does not split the rectangle
+      expect(h.angle).toBe(135);
+      expect(h.spacing).toBe(3);
+    }
+    type('H', '100,100', '');
+    expect(log).toContain('No closed boundary found around the point.');
+    expect(doc.annotations).toHaveLength(2);
+  });
+});
