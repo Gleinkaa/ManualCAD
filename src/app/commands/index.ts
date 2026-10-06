@@ -2,6 +2,7 @@
 import { sketch, text } from './annotate';
 import { dimaligned, dimangular, dimdiameter, dimedit, dimlinear, dimradius } from './dims';
 import { arc, circle, line, rectang } from './draw';
+import { hatch } from './hatch';
 import { chamfer, copy, erase, extend, fillet, mirror, move, offset, trim } from './modify';
 import { layer, ltype, partslist, titleblock, view, zoom } from './settings';
 import type { CommandFn } from './types';
@@ -11,6 +12,7 @@ export const COMMANDS: Record<string, CommandFn> = {
   CIRCLE: circle,
   ARC: arc,
   RECTANG: rectang,
+  HATCH: hatch,
   OFFSET: offset,
   TRIM: trim,
   EXTEND: extend,
@@ -46,6 +48,9 @@ export const ALIASES: Record<string, string> = {
   A: 'ARC',
   REC: 'RECTANG',
   RECTANGLE: 'RECTANG',
+  H: 'HATCH',
+  BH: 'HATCH',
+  BHATCH: 'HATCH',
   O: 'OFFSET',
   TR: 'TRIM',
   EX: 'EXTEND',
