@@ -3,10 +3,18 @@ import { mirror as mirrorCurve, translate } from '../geom';
 import type { Vec2 } from '../geom/types';
 import type { Annotation } from './types';
 
-/** Point a hatch's boundary ids at the images of its entities (COPY/MIRROR); ids without an image stay as they are. */
+/**
+ * Point a hatch's boundary ids at the images of its entities after MOVE/COPY/MIRROR (`map`: old id → new id,
+ * or to itself when moved in place). A hatch transformed without its whole boundary no longer sits in that
+ * boundary, so it loses its association instead of jumping back on the next edit.
+ */
 export function remapHatchBoundary(a: Annotation, map: Map<string, string>): Annotation {
   if (a.kind !== 'hatch' || !a.assoc) return a;
-  return { ...a, assoc: { ...a.assoc, boundary: a.assoc.boundary.map((id) => map.get(id) ?? id) } };
+  if (!a.assoc.boundary.every((id) => map.has(id))) {
+    const { assoc: _, ...rest } = a;
+    return rest;
+  }
+  return { ...a, assoc: { ...a.assoc, boundary: a.assoc.boundary.map((id) => map.get(id)!) } };
 }
 
 export function translateAnnotation(a: Annotation, d: Vec2): Annotation {

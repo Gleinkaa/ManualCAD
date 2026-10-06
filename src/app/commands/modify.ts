@@ -318,8 +318,13 @@ export function* move(ctx: CommandContext): CommandGen {
   if (!r) return;
   const d = { x: r.to.x - r.base.x, y: r.to.y - r.base.y };
   const moved = new Set(ents.map((e) => e.id));
+  const inPlace = new Map(ents.map((e) => [e.id, e.id]));
   for (const e of ents) e.geom = translate(e.geom, localDelta(ctx, e.viewId, d));
-  for (const a of annots) Object.assign(a, translateAnnotation(a, localDelta(ctx, a.viewId, d)));
+  for (const a of annots) {
+    const m = remapHatchBoundary(translateAnnotation(a, localDelta(ctx, a.viewId, d)), inPlace);
+    if (a.kind === 'hatch' && m.kind === 'hatch' && !m.assoc) delete a.assoc;
+    Object.assign(a, m);
+  }
   for (const dim of dims) for (const an of dimensionAnchors(dim)) shiftAnchor(ctx, an, dim.viewId, d, moved);
 }
 
@@ -508,7 +513,10 @@ export function* mirror(ctx: CommandContext): CommandGen {
   }
   for (const x of annots) {
     const m = remapHatchBoundary(mirrorAnnotation(structuredClone(x), ctx.localIn(x.viewId, a.p), ctx.localIn(x.viewId, b.p)), idMap);
-    if (erase) Object.assign(x, m);
+    if (erase) {
+      if (x.kind === 'hatch' && m.kind === 'hatch' && !m.assoc) delete x.assoc;
+      Object.assign(x, m);
+    }
     else ctx.doc.annotations.push({ ...m, id: newId('a') });
   }
 }

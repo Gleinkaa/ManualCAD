@@ -642,9 +642,10 @@ export class App {
     }
     const aperture = this.tol(APERTURE_PX);
     const base = req.base ?? null;
-    if (this.snapOn) {
+    const only = this.runner.snapOverride ?? undefined;
+    if (this.snapOn || only) {
       try {
-        this.snapHit = findSnap(this.doc, raw, aperture, base);
+        this.snapHit = findSnap(this.doc, raw, aperture, base, only);
       } catch {
         this.snapHit = null;
       }
