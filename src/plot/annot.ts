@@ -60,6 +60,15 @@ function plotHatch(doc: SheetDoc, h: Hatch, opts: PlotOptions, tag: string): Pri
   return clipOutsideConvex(hatchSheetSegments(doc, h), boxes).map(([a, b]) => ({ kind: 'polyline', points: [a, b], closed: false, style, tag }));
 }
 
+/** Unit direction from `pts[i]` to the nearest differing point `step` indices away; null when they all coincide. */
+function segmentDirection(pts: Vec2[], i: number, step: number): Vec2 | null {
+  for (let j = i + step; j >= 0 && j < pts.length; j += step) {
+    const d = sub(pts[i], pts[j]);
+    if (d.x !== 0 || d.y !== 0) return norm(d);
+  }
+  return null;
+}
+
 /**
  * Leader per ISO 128-22: narrow line through the points, terminator at the tip. A note stands on a horizontal
  * reference line that leaves the last point away from the leader; an item number sits just beyond the last point.
@@ -73,12 +82,14 @@ function plotLeader(doc: SheetDoc, l: Leader, opts: PlotOptions, tag: string): P
   const style = { width: narrow, dash: [], dashOffset: 0, color };
   const out: Primitive[] = [{ kind: 'polyline', points: pts, closed: false, style, tag }];
   const tip = pts[0];
-  const w = norm(sub(tip, pts[1]));
+  const w = segmentDirection(pts, 0, 1);
   if (l.terminator === 'arrow') {
-    const al = ARROW_LENGTH_FACTOR * narrow;
-    const base = sub(tip, scale(w, al));
-    const q = scale(perp(w), al * Math.tan(ARROW_ANGLE / 2));
-    out.push({ kind: 'fill', points: [tip, add(base, q), sub(base, q)], color, tag });
+    if (w) {
+      const al = ARROW_LENGTH_FACTOR * narrow;
+      const base = sub(tip, scale(w, al));
+      const q = scale(perp(w), al * Math.tan(ARROW_ANGLE / 2));
+      out.push({ kind: 'fill', points: [tip, add(base, q), sub(base, q)], color, tag });
+    }
   } else if (l.terminator === 'dot') {
     const r = (LEADER_DOT_FACTOR * narrow) / 2;
     const n = 16;
@@ -97,7 +108,7 @@ function plotLeader(doc: SheetDoc, l: Leader, opts: PlotOptions, tag: string): P
     return out;
   }
   // item number: centre the text box on the leader's extension, a gap beyond its end
-  const u = norm(sub(last, prev));
+  const u = segmentDirection(pts, pts.length - 1, -1) ?? { x: 1, y: 0 };
   const t = Math.min(Math.abs(u.x) > 1e-9 ? tw / 2 / Math.abs(u.x) : Infinity, Math.abs(u.y) > 1e-9 ? h / 2 / Math.abs(u.y) : Infinity);
   out.push({ kind: 'text', pos: add(last, scale(u, gap + t)), text: l.text, height: h, angle: 0, align: 'center', baseline: 'middle', color: BLACK, tag });
   return out;

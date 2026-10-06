@@ -2,25 +2,25 @@
 // Hatches are associative: when an entity of their boundary changes, the region around the picked point is found again.
 import { distanceTo, findRegion, midpoint } from '../../geom';
 import type { Curve, Vec2 } from '../../geom/types';
-import { newId } from '../../model/doc';
+import { layerVisible, newId } from '../../model/doc';
 import { hatchSheetSegments } from '../../plot';
 import type { Entity, Hatch, HatchAssoc, LineTypeId, SheetDoc } from '../../model/types';
 import { fmt } from '../input';
-import { visibleEntities } from '../xform';
 import type { CommandContext, CommandGen } from './types';
 
 /** Line types that bound a cut surface: visible edges, thin lines and break-out freehand lines. */
 const BOUNDARY_TYPES: ReadonlySet<LineTypeId> = new Set(['visible', 'thin', 'freehand']);
 
+/** Entities that can bound a cut surface in `viewId`, whether or not their layer is visible. */
 function boundaryEntities(doc: SheetDoc, viewId: string): Entity[] {
-  return visibleEntities(doc).filter((e) => e.viewId === viewId && BOUNDARY_TYPES.has(e.lineType));
+  return doc.entities.filter((e) => e.viewId === viewId && BOUNDARY_TYPES.has(e.lineType));
 }
 
 function pointOn(c: Curve): Vec2 {
   return midpoint(c) ?? { x: c.kind === 'circle' ? c.c.x + c.r : 0, y: c.kind === 'circle' ? c.c.y : 0 };
 }
 
-/** Fingerprint of the boundary entities; changes when one is edited, retyped, hidden or erased. */
+/** Fingerprint of the boundary entities; changes when one is edited, retyped or erased, not when its layer is hidden. */
 function boundaryKey(doc: SheetDoc, viewId: string, ids: string[]): string {
   const ents = new Map(boundaryEntities(doc, viewId).map((e) => [e.id, e]));
   return JSON.stringify(ids.map((id) => ents.get(id)?.geom ?? null));
@@ -30,8 +30,9 @@ function boundaryKey(doc: SheetDoc, viewId: string, ids: string[]): string {
  * Loops around `seed` (view-local) and the association that lets them follow later edits; null when the
  * point is not enclosed.
  */
-export function hatchRegion(doc: SheetDoc, viewId: string, seed: Vec2): { loops: Curve[][]; assoc: HatchAssoc } | null {
-  const ents = boundaryEntities(doc, viewId);
+export function hatchRegion(doc: SheetDoc, viewId: string, seed: Vec2, includeHidden = false): { loops: Curve[][]; assoc: HatchAssoc } | null {
+  const candidates = boundaryEntities(doc, viewId);
+  const ents = includeHidden ? candidates : candidates.filter((e) => layerVisible(doc, e.layer));
   const loops = findRegion(ents.map((e) => e.geom), seed);
   if (!loops) return null;
   const tol = 1e-6 * Math.max(1, ...loops.flat().map((c) => Math.hypot(pointOn(c).x, pointOn(c).y)));
@@ -49,7 +50,7 @@ export function updateAssociativeHatches(doc: SheetDoc): number {
   for (const h of doc.annotations) {
     if (h.kind !== 'hatch' || !h.assoc) continue;
     if (boundaryKey(doc, h.viewId, h.assoc.boundary) === h.assoc.key) continue;
-    const r = hatchRegion(doc, h.viewId, h.assoc.seed);
+    const r = hatchRegion(doc, h.viewId, h.assoc.seed, true);
     if (r) {
       h.loops = r.loops;
       h.assoc = r.assoc;

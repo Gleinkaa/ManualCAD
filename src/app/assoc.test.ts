@@ -213,6 +213,70 @@ describe('associative HATCH',
       expect(h.assoc!.key).toBe(key0);
       expect(h.loops).toBe(loops0);
     });
+
+    it('COPY re-associates the copy with its copied boundary, not the source', () => {
+      const { doc, runner, type } = setup();
+      type('REC', '0,0', '40,20');
+      type('H', '10,10', '');
+      const src = hatch(doc);
+      const srcEnts = doc.entities.map((e) => e.id);
+
+      runner.start('COPY', [...srcEnts, src.id]);
+      type('0,0', '100,0', '');
+
+      const cp = doc.annotations.find((a): a is Hatch => a.kind === 'hatch' && a.id !== src.id)!;
+      const copiedEnts = doc.entities.filter((e) => !srcEnts.includes(e.id)).map((e) => e.id);
+      expect(copiedEnts).toHaveLength(4);
+      expect(cp.assoc).toBeDefined();
+      expect(cp.assoc!.boundary.every((id) => copiedEnts.includes(id))).toBe(true);
+
+      runner.start('MOVE', copiedEnts);
+      type('0,0', '5,0');
+      expect(bbox(cp.loops)).toEqual({ minX: 105, maxX: 145, minY: 0, maxY: 20 });
+      expect(bbox(src.loops)).toEqual({ minX: 0, maxX: 40, minY: 0, maxY: 20 });
+    });
+
+    it('MIRROR without erasing re-associates the image with its mirrored boundary', () => {
+      const { doc, runner, type } = setup();
+      type('REC', '0,0', '40,20');
+      type('H', '10,10', '');
+      const src = hatch(doc);
+      const srcEnts = doc.entities.map((e) => e.id);
+
+      runner.start('MIRROR', [...srcEnts, src.id]);
+      type('-10,-10', '-10,30', 'N');
+
+      const cp = doc.annotations.find((a): a is Hatch => a.kind === 'hatch' && a.id !== src.id)!;
+      const copiedEnts = doc.entities.filter((e) => !srcEnts.includes(e.id)).map((e) => e.id);
+      expect(copiedEnts).toHaveLength(4);
+      expect(cp.assoc).toBeDefined();
+      expect(cp.assoc!.boundary.every((id) => copiedEnts.includes(id))).toBe(true);
+      expect(bbox(cp.loops)).toEqual({ minX: -60, maxX: -20, minY: 0, maxY: 20 });
+    });
+
+    it('hiding the boundary layer keeps the association, and later edits still follow', () => {
+      const { doc, runner, type, log } = setup();
+      type('REC', '0,0', '40,20');
+      type('H', '10,10', '');
+      const h = hatch(doc);
+      const key0 = h.assoc!.key;
+      const rectEnts = doc.entities.map((e) => e.id);
+      const layer = doc.layers.find((l) => l.name === '0')!;
+
+      layer.visible = false;
+      type('L', '100,100', '120,100', '');
+      expect(h.assoc).toBeDefined();
+      expect(h.assoc!.key).toBe(key0);
+      expect(log).not.toContain(LOST);
+
+      layer.visible = true;
+      type('L', '200,200', '220,200', '');
+      expect(h.assoc).toBeDefined();
+
+      runner.start('MOVE', rectEnts);
+      type('0,0', '5,0');
+      expect(bbox(h.loops)).toEqual({ minX: 5, maxX: 45, minY: 0, maxY: 20 });
+    });
   });
 
 describe('PARTSLIST host vs command line', () => {

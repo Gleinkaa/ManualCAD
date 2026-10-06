@@ -112,6 +112,28 @@ describe('plotLeader item number', () => {
   });
 });
 
+describe('plotLeader stays finite on degenerate points', () => {
+  it('extends the item number along the last non-degenerate segment when the last two points coincide', () => {
+    const doc = sheet();
+    const l = leader({ style: 'item', text: '2', height: 7, points: [p(0, 0), p(20, 0), p(20, 0)] });
+    const [t] = of(plotAnnotation(doc, l, print), 'text');
+    expect(Number.isFinite(t.pos.x)).toBe(true);
+    expect(Number.isFinite(t.pos.y)).toBe(true);
+    expect(t.pos.x).toBeGreaterThan(140);
+    expect(t.pos.y).toBeCloseTo(160);
+  });
+
+  it('omits the arrow and keeps the text finite when every point coincides', () => {
+    const doc = sheet();
+    const l = leader({ style: 'item', terminator: 'arrow', text: '2', height: 7, points: [p(5, 5), p(5, 5)] });
+    const prims = plotAnnotation(doc, l, print);
+    expect(of(prims, 'fill')).toHaveLength(0);
+    const [t] = of(prims, 'text');
+    expect(Number.isFinite(t.pos.x)).toBe(true);
+    expect(Number.isFinite(t.pos.y)).toBe(true);
+  });
+});
+
 describe('hatching is interrupted behind text (ISO 128-50)', () => {
   const note = (): TextNote => ({ kind: 'text', id: 't1', viewId: 'v-front', layer: '0', pos: p(20, 10), text: 'Ø20', height: 3.5, angle: 0, align: 'left' });
   const hatch = (): Hatch => ({ kind: 'hatch', id: 'h1', viewId: 'v-front', layer: '0', loops: [rect(0, 0, 40, 20)], angle: 45, spacing: 2 });

@@ -3,6 +3,12 @@ import { mirror as mirrorCurve, translate } from '../geom';
 import type { Vec2 } from '../geom/types';
 import type { Annotation } from './types';
 
+/** Point a hatch's boundary ids at the images of its entities (COPY/MIRROR); ids without an image stay as they are. */
+export function remapHatchBoundary(a: Annotation, map: Map<string, string>): Annotation {
+  if (a.kind !== 'hatch' || !a.assoc) return a;
+  return { ...a, assoc: { ...a.assoc, boundary: a.assoc.boundary.map((id) => map.get(id) ?? id) } };
+}
+
 export function translateAnnotation(a: Annotation, d: Vec2): Annotation {
   if (a.kind === 'text') return { ...a, pos: { x: a.pos.x + d.x, y: a.pos.y + d.y } };
   if (a.kind === 'leader') return { ...a, points: a.points.map((p) => ({ x: p.x + d.x, y: p.y + d.y })) };
