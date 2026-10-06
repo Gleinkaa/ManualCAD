@@ -9,7 +9,7 @@ export * from './types';
 export type { PlotOptions } from './sheet';
 export { plotSheet, viewLabel, labelHeight } from './sheet';
 export { plotAnnotation, hatchSheetSegments } from './annot';
-export { plotFrame, frameGeometry, titleBlockFields, titleBlockValue, partsListCells, FRAME, TITLE_BLOCK, PARTS_LIST, PARTS_COLUMNS } from './frame';
+export { plotFrame, frameGeometry, titleBlockFields, titleBlockValue, FRAME, TITLE_BLOCK, PARTS_LIST, PARTS_COLUMNS } from './frame';
 export { renderCanvas, type CanvasTransform } from './canvas';
 export { FONT_FAMILY, loadFonts, textWidth, fontSizeForCapHeight } from './font';
 export { SCREEN_COLORS } from './style';

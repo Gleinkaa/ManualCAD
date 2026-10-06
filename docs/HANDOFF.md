@@ -39,7 +39,7 @@ Files saved before this session load unchanged: `parse()` fills in `annotations:
 2. **Hatch boundaries are not associative.** After moving geometry, erase the hatch and run HATCH again.
 3. **DIMANGULAR needs two lines.** A slope measured against a missing edge (the 30° on ZA 38) needs a thin helper line, which is how the end-to-end test does it. AutoCAD's 3-point form is missing.
 4. **No leaders.** Notes such as "Senkung ⌀20 × 8 tief" are free text; ISO 128-22 leaders with a dot or arrow are a natural next step, and so are item number balloons.
-5. **Parts list is command-line only.** `partsListCells` is exported, ready for a click-to-edit dialog like the title block's.
+5. **Parts list is command-line only.** A click-to-edit dialog like the title block's would need a sheet-mm cell hit-test API.
 6. **`chrome-devtools-axi` failed here** with a pageId validation error. Use Playwright with `/usr/bin/chromium` instead.
 7. **Judgement calls A–D from the drafting-aids review are still open:**
    - PER onto a line's extension;

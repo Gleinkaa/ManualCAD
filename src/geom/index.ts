@@ -12,7 +12,7 @@ export { intersectsBox, insideBox, intersect } from './intersect';
 export { snapCandidates, perpendicularFoot, perpendicularFeet, tangentPoints } from './snap';
 
 // --- construction & transforms ---
-export { freehandCurve, biarc } from './freehand';
+export { freehandCurve } from './freehand';
 export { arcFrom3Points, arcFromCenter, translate, rotate, mirror, scaleCurve } from './transform';
 
 // --- regions & hatching ---

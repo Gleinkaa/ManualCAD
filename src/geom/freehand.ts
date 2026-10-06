@@ -29,7 +29,7 @@ function tangentArc(p: Vec2, t: Vec2, q: Vec2): Curve {
 }
 
 /** Biarc from p0 (tangent t0) to p1 (tangent t1), equal tangent lengths. */
-export function biarc(p0: Vec2, t0: Vec2, p1: Vec2, t1: Vec2): Curve[] {
+function biarc(p0: Vec2, t0: Vec2, p1: Vec2, t1: Vec2): Curve[] {
   const v = sub(p1, p0);
   const t = add(t0, t1);
   const vt = dot(v, t);

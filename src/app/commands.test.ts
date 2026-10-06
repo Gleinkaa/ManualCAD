@@ -510,4 +510,12 @@ describe('HATCH', () => {
     expect(log).toContain('No closed boundary found around the point.');
     expect(doc.annotations).toHaveLength(2);
   });
+
+  it('reports a spacing that yields no lines instead of storing an empty hatch', () => {
+    const { doc, type, log } = setup();
+    type('REC', '0,0', '40,20');
+    type('H', 'S', '0.001', '5,5', '');
+    expect(doc.annotations).toHaveLength(0);
+    expect(log).toContain('Hatch spacing yields no lines in this region; adjust the spacing.');
+  });
 });

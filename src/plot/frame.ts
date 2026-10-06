@@ -82,21 +82,6 @@ export function frameGeometry(doc: SheetDoc): FrameGeometry {
   return { sheet, frame, titleBlock };
 }
 
-/** Sheet-mm rectangles of the parts-list cells, row 0 lowest (for hit testing in the app). */
-export function partsListCells(doc: SheetDoc): { row: number; field: keyof PartsListRow; x: number; y: number; w: number; h: number }[] {
-  const { titleBlock: tb } = frameGeometry(doc);
-  const out: { row: number; field: keyof PartsListRow; x: number; y: number; w: number; h: number }[] = [];
-  (doc.partsList ?? []).forEach((_, row) => {
-    let x = tb.x0;
-    const y = tb.y1 + PARTS_LIST.headerHeight + row * PARTS_LIST.rowHeight;
-    for (const c of PARTS_COLUMNS) {
-      out.push({ row, field: c.field, x, y, w: c.w, h: PARTS_LIST.rowHeight });
-      x += c.w;
-    }
-  });
-  return out;
-}
-
 /** Sheet-mm rectangles of the editable title block fields (for hit testing in the app). */
 export function titleBlockFields(doc: SheetDoc): { field: TitleBlockField; x: number; y: number; w: number; h: number }[] {
   const { titleBlock: tb } = frameGeometry(doc);

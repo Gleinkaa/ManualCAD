@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newSheet } from '../model/doc';
 import type { SheetDoc } from '../model/types';
-import { fitDash, lineStyle, partsListCells, PARTS_COLUMNS, plotCurve, plotFrame, plotSheet, textWidth, titleBlockFields, viewLabel, type Primitive } from './index';
+import { fitDash, lineStyle, PARTS_COLUMNS, plotCurve, plotFrame, plotSheet, textWidth, titleBlockFields, viewLabel, type Primitive } from './index';
 import { arcBeziers } from './pdf';
 
 const screen = { includeConstruction: true, screenColors: true };
@@ -174,19 +174,6 @@ describe('parts list (ISO 7573)', () => {
 
   it('columns span exactly the title block width', () => {
     expect(PARTS_COLUMNS.reduce((s, c) => s + c.w, 0)).toBe(180);
-  });
-
-  it('sits directly on the title block, header at the bottom, row 1 lowest, rows 7 mm', () => {
-    const doc = za38();
-    const cells = partsListCells(doc);
-    // A4 portrait: title block x 20..200, top at y = 10 + 48 = 58; header 8 mm
-    expect(Math.min(...cells.map((c) => c.x))).toBe(20);
-    expect(Math.max(...cells.map((c) => c.x + c.w))).toBe(200);
-    const name1 = cells.find((c) => c.row === 0 && c.field === 'name')!;
-    const name2 = cells.find((c) => c.row === 1 && c.field === 'name')!;
-    expect(name1.y).toBe(66);
-    expect(name2.y).toBe(73);
-    expect(name1.h).toBe(7);
   });
 
   it('has a wide outline and header separator and thin inner rulings', () => {

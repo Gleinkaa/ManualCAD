@@ -1,6 +1,7 @@
 // HATCH: section hatching per ISO 128-50, by picking points inside closed boundaries.
 import { findRegion } from '../../geom';
 import { newId } from '../../model/doc';
+import { hatchSheetSegments } from '../../plot';
 import type { Hatch, LineTypeId } from '../../model/types';
 import { fmt } from '../input';
 import { visibleEntities } from '../xform';
@@ -46,6 +47,10 @@ export function* hatch(ctx: CommandContext): CommandGen {
       continue;
     }
     const h: Hatch = { kind: 'hatch', id: newId('a'), viewId, layer: s.layer, loops, angle: s.hatchAngle, spacing: s.hatchSpacing };
+    if (hatchSheetSegments(ctx.doc, h).length === 0) {
+      ctx.log('Hatch spacing yields no lines in this region; adjust the spacing.');
+      continue;
+    }
     ctx.doc.annotations.push(h);
     count++;
   }

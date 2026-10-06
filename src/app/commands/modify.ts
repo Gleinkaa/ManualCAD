@@ -343,7 +343,7 @@ export function* copy(ctx: CommandContext): CommandGen {
       options: [EXIT],
       allowEnter: true,
       base: b.p,
-      preview: (p) => ghost(ctx, ents, { x: p.x - b.p.x, y: p.y - b.p.y }),
+      preview: (p) => ghost(ctx, ents, { x: p.x - b.p.x, y: p.y - b.p.y }, annots),
     };
     if (t.kind !== 'point') return;
     const d = { x: t.p.x - b.p.x, y: t.p.y - b.p.y };
