@@ -64,7 +64,7 @@ function* fencePoints(ctx: CommandContext): SubGen<Vec2[] | null> {
   };
   for (;;) {
     const r = yield pts.length === 0
-      ? { kind: 'point', prompt: 'Specify first fence point' }
+      ? { kind: 'point', prompt: 'Specify first fence point', allowEnter: true }
       : {
           kind: 'point',
           prompt: 'Specify next fence point',

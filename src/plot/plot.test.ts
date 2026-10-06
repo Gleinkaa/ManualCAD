@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newSheet } from '../model/doc';
 import type { SheetDoc } from '../model/types';
-import { fitDash, lineStyle, plotCurve, plotFrame, plotSheet, titleBlockFields, viewLabel, type Primitive } from './index';
+import { fitDash, lineStyle, partsListCells, PARTS_COLUMNS, plotCurve, plotFrame, plotSheet, textWidth, titleBlockFields, viewLabel, type Primitive } from './index';
 import { arcBeziers } from './pdf';
 
 const screen = { includeConstruction: true, screenColors: true };
@@ -160,6 +160,59 @@ describe('plotFrame', () => {
     const doc = sheet({ titleBlock: { title: 'Sehr lange Benennung eines Bauteils mit Zusatz' } });
     const t = plotFrame(doc, print).find((p) => p.kind === 'text' && p.tag === 'titleblock:title');
     expect(t && t.kind === 'text' && t.height).toBeLessThan(7);
+  });
+});
+
+describe('parts list (ISO 7573)', () => {
+  const row = (item: string, name: string, material = '') => ({ item, quantity: '1', name, standard: '', material, stock: '', remark: '' });
+  const za38 = () =>
+    sheet({ format: 'A4', orientation: 'portrait', partsList: [row('1', 'Welle', 'S235JR'), row('2', 'Gabel', 'S235JR')] });
+
+  it('draws nothing when the list is empty', () => {
+    expect(plotFrame(sheet(), print).some((p) => p.tag?.startsWith('partslist'))).toBe(false);
+  });
+
+  it('columns span exactly the title block width', () => {
+    expect(PARTS_COLUMNS.reduce((s, c) => s + c.w, 0)).toBe(180);
+  });
+
+  it('sits directly on the title block, header at the bottom, row 1 lowest, rows 7 mm', () => {
+    const doc = za38();
+    const cells = partsListCells(doc);
+    // A4 portrait: title block x 20..200, top at y = 10 + 48 = 58; header 8 mm
+    expect(Math.min(...cells.map((c) => c.x))).toBe(20);
+    expect(Math.max(...cells.map((c) => c.x + c.w))).toBe(200);
+    const name1 = cells.find((c) => c.row === 0 && c.field === 'name')!;
+    const name2 = cells.find((c) => c.row === 1 && c.field === 'name')!;
+    expect(name1.y).toBe(66);
+    expect(name2.y).toBe(73);
+    expect(name1.h).toBe(7);
+  });
+
+  it('has a wide outline and header separator and thin inner rulings', () => {
+    const lines = plotFrame(za38(), print).filter((p): p is Extract<Primitive, { kind: 'polyline' }> => p.kind === 'polyline' && p.tag === 'partslist');
+    const wide = lines.filter((l) => l.style.width === 0.7);
+    const thin = lines.filter((l) => l.style.width === 0.25);
+    // outline (left + top as one polyline) ending at the list top y = 58 + 8 + 2 * 7 = 80
+    expect(wide.some((l) => l.points.length === 3 && l.points[1].y === 80 && l.points[2].x === 200)).toBe(true);
+    expect(wide.some((l) => l.points.every((q) => q.y === 66))).toBe(true);
+    // one row ruling between the two rows + six column rulings
+    expect(thin.filter((l) => l.points[0].y === l.points[1].y)).toHaveLength(1);
+    expect(thin.filter((l) => l.points[0].x === l.points[1].x)).toHaveLength(6);
+  });
+
+  it('shows German captions and the row values in their cells, fitted to the column', () => {
+    const prims = plotFrame(za38(), print);
+    const texts = prims.filter((p): p is Extract<Primitive, { kind: 'text' }> => p.kind === 'text');
+    expect(texts.map((t) => t.text)).toEqual(expect.arrayContaining(['Pos.', 'Menge', 'Benennung', 'Werkstoff', 'Rohmaße', 'Bemerkung', 'Welle', 'Gabel', 'S235JR']));
+    const gabel = texts.find((t) => t.tag === 'partslist:1:name')!;
+    expect(gabel.pos.y).toBeCloseTo(73 + 3.5);
+    for (const c of PARTS_COLUMNS) {
+      for (const cap of c.caption) {
+        const t = texts.find((x) => x.text === cap)!;
+        expect(textWidth(cap, t.height)).toBeLessThanOrEqual(c.w - 2);
+      }
+    }
   });
 });
 

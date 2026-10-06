@@ -121,6 +121,9 @@ export class App {
       onEnd: () => {
         if (this.before !== null) this.history.commit(this.before, this.doc);
         this.before = null;
+        // AutoCAD drops acquired tracking points when the command ends
+        this.acquired = [];
+        this.track = [];
         this.docChanged();
       },
     });

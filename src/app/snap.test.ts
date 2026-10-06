@@ -47,4 +47,16 @@ describe('findSnap priority', () => {
     const doc = docWith({ kind: 'line', a: { x: 0, y: 0 }, b: { x: 100, y: 0 } });
     expect(findSnap(doc, at(doc, 20, 0.5), 2, null)?.kind).toBe('nearest');
   });
+
+  it('offers the far perpendicular foot on a circle too', () => {
+    const doc = docWith({ kind: 'circle', c: { x: 150, y: 30 }, r: 20 });
+    const from = at(doc, 100, 40);
+    // far foot: centre + r * unit(centre - from)
+    const u = { x: 50 / Math.hypot(50, 10), y: -10 / Math.hypot(50, 10) };
+    const far = { x: 150 + 20 * u.x, y: 30 + 20 * u.y };
+    const hit = findSnap(doc, at(doc, far.x + 0.3, far.y + 0.2), 2, from);
+    expect(hit?.kind).toBe('perpendicular');
+    expect(hit?.point.x).toBeCloseTo(at(doc, far.x, far.y).x, 6);
+    expect(hit?.point.y).toBeCloseTo(at(doc, far.x, far.y).y, 6);
+  });
 });
