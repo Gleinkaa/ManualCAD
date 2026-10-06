@@ -24,8 +24,8 @@ const SCREEN: PlotOptions = { includeConstruction: true, screenColors: true };
 const APERTURE_PX = 10;
 const PICKBOX_PX = 5;
 const HIGHLIGHT = '#1e6fd9';
-/** Rubber-band preview colour: distinct from drawing (black), selection (blue) and the crosshair. */
-const PREVIEW = '#c2185b';
+/** Rubber-band preview colour: distinct from every screen line-type colour, selection blue and the crosshair. */
+const PREVIEW = '#0097a7';
 
 function loadAutosave(): SheetDoc | null {
   try {
