@@ -248,7 +248,16 @@ function findRow(doc: SheetDoc, item: string): number {
   return doc.partsList.findIndex((r) => r.item.trim().toLowerCase() === item.trim().toLowerCase());
 }
 
+/** PARTSLIST opens the dialog where there is one; -PARTSLIST (and tests) use the command line. */
 export function* partslist(ctx: CommandContext): CommandGen {
+  if (ctx.host.partsList) {
+    ctx.host.partsList();
+    return;
+  }
+  yield* partslistCommandLine(ctx);
+}
+
+export function* partslistCommandLine(ctx: CommandContext): CommandGen {
   const doc = ctx.doc;
   for (;;) {
     const r = yield {

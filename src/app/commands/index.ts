@@ -4,7 +4,7 @@ import { dimaligned, dimangular, dimdiameter, dimedit, dimlinear, dimradius } fr
 import { arc, circle, line, rectang } from './draw';
 import { hatch } from './hatch';
 import { chamfer, copy, erase, extend, fillet, mirror, move, offset, trim } from './modify';
-import { layer, ltype, partslist, titleblock, view, zoom } from './settings';
+import { layer, ltype, partslist, partslistCommandLine, titleblock, view, zoom } from './settings';
 import type { CommandFn } from './types';
 
 export const COMMANDS: Record<string, CommandFn> = {
@@ -38,6 +38,7 @@ export const COMMANDS: Record<string, CommandFn> = {
   ZOOM: zoom,
   TITLEBLOCK: titleblock,
   PARTSLIST: partslist,
+  '-PARTSLIST': partslistCommandLine,
 };
 
 /** Commands the app handles itself (files, undo); they never enter the command runner. */
@@ -90,6 +91,7 @@ export const ALIASES: Record<string, string> = {
   TB: 'TITLEBLOCK',
   PARTS: 'PARTSLIST',
   BOM: 'PARTSLIST',
+  '-PARTS': '-PARTSLIST',
   U: 'UNDO',
   QSAVE: 'SAVE',
   SAVEAS: 'SAVE',

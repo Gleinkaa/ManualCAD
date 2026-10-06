@@ -35,8 +35,12 @@ The table of the parts shown on the sheet, directly above the title block, per I
 _Avoid_: BOM table, item list
 
 **Item number**:
-The number that identifies a part in the parts list and on the drawing (German: Positionsnummer, "Teil").
+The number that identifies a part in the parts list and on the drawing (German: Positionsnummer, "Teil"). Placed with BALLOON (AutoCAD Mechanical's command name) on a leader line ending in a dot, lettered at twice the dimension text height (ISO 6433).
 _Avoid_: balloon, part ID
+
+**Leader line**:
+A narrow line from a point on the part to a note or item number, per ISO 128-22 (German: Hinweislinie). It ends with a dot inside an outline, an arrowhead on an outline, and nothing on a dimension line; a note stands on a short horizontal reference line.
+_Avoid_: callout, pointer
 
 **Construction line**:
 A thin helper line that is never plotted, the equivalent of light pencil lines on a drawing board.
@@ -73,7 +77,7 @@ The narrow freehand line (ISO 128-2 type 01.1) that bounds a partial section or 
 _Avoid_: break line, spline, wavy line
 
 **Hatching**:
-Narrow parallel lines, normally at 45°, that mark cut material in a section, per ISO 128-50 (German: Schraffur). The boundary is taken when the hatching is created and does not follow later edits.
+Narrow parallel lines, normally at 45°, that mark cut material in a section, per ISO 128-50 (German: Schraffur). Hatching is associative: when an edge of its boundary is edited, the region around the originally picked point is found again; if that point is no longer enclosed, the hatching keeps its last boundary and stops following edits. Hatching is interrupted around text and dimension values inside it.
 _Avoid_: fill, pattern
 
 **Associative dimension**:

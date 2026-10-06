@@ -87,6 +87,7 @@ export function defaultSettings(doc: SheetDoc): AppSettings {
 export interface HostActions {
   zoomExtents?(): void;
   titleBlock?(): void;
+  partsList?(): void;
 }
 
 export class CommandContext {
