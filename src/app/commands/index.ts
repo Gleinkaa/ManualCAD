@@ -1,4 +1,5 @@
 // Command registry: AutoCAD English names and aliases.
+import { sketch, text } from './annotate';
 import { dimaligned, dimdiameter, dimlinear, dimradius } from './dims';
 import { arc, circle, line, rectang } from './draw';
 import { chamfer, copy, erase, extend, fillet, mirror, move, offset, trim } from './modify';
@@ -19,6 +20,8 @@ export const COMMANDS: Record<string, CommandFn> = {
   COPY: copy,
   MIRROR: mirror,
   ERASE: erase,
+  TEXT: text,
+  SKETCH: sketch,
   DIMLINEAR: dimlinear,
   DIMALIGNED: dimaligned,
   DIMRADIUS: dimradius,
@@ -50,6 +53,9 @@ export const ALIASES: Record<string, string> = {
   CP: 'COPY',
   MI: 'MIRROR',
   E: 'ERASE',
+  DT: 'TEXT',
+  DTEXT: 'TEXT',
+  SK: 'SKETCH',
   DLI: 'DIMLINEAR',
   DAL: 'DIMALIGNED',
   DRA: 'DIMRADIUS',

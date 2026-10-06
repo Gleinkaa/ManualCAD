@@ -262,3 +262,61 @@ describe('TRIM / EXTEND Fence', () => {
     expect(lines(doc, 10)).toEqual([[0, 50]]);
   });
 });
+
+describe('TEXT', () => {
+  it('places lines of text in the current view, below each other, with ISO heights and control codes', () => {
+    const doc = newSheet();
+    doc.views[0].scale = 2;
+    const { runner, type, log } = setup(doc);
+    type('DT', '10,20', '4', '0', 'Senkung %%c20 x 17 tief', 'Teil 1', '');
+    expect(runner.active).toBe(false);
+    expect(log.some((l) => /not in the ISO 3098 series; using 3.5/.test(l))).toBe(true);
+    const texts = doc.annotations.filter((a) => a.kind === 'text');
+    expect(texts.map((t) => t.text)).toEqual(['Senkung ⌀20 x 17 tief', 'Teil 1']);
+    expect(texts[0]).toMatchObject({ pos: { x: 10, y: 20 }, height: 3.5, angle: 0, align: 'left', viewId: 'v-front' });
+    // 1.6 × 3.5 paper mm lower = 2.8 view mm at 2:1
+    expect(texts[1].pos.y).toBeCloseTo(20 - 2.8);
+  });
+
+  it('justifies and rotates', () => {
+    const { doc, type } = setup();
+    type('TEXT', 'J', 'C', '0,0', '5', '90', 'A', '');
+    expect(doc.annotations[0]).toMatchObject({ align: 'center', height: 5, angle: expect.closeTo(Math.PI / 2) });
+  });
+
+  it('moves, copies, mirrors and erases with the other objects', () => {
+    const { doc, ctx, runner, type } = setup();
+    type('DT', '10,10', '3.5', '0', 'X', '');
+    const id = doc.annotations[0].id;
+    ctx.preselection = [];
+    runner.start('MOVE', [id]);
+    type('0,0', '5,0');
+    expect(doc.annotations[0]).toMatchObject({ pos: { x: 15, y: 10 } });
+    runner.start('COPY', [id]);
+    type('0,0', '0,10', '');
+    expect(doc.annotations.map((a) => a.kind === 'text' && a.pos.y)).toEqual([10, 20]);
+    runner.start('MIRROR', [id]);
+    type('0,0', '0,10', 'Y');
+    expect(doc.annotations.find((a) => a.id === id)).toMatchObject({ pos: { x: -15, y: 10 }, align: 'right' });
+    runner.start('ERASE', [id]);
+    expect(doc.annotations).toHaveLength(1);
+  });
+});
+
+describe('SKETCH', () => {
+  it('draws a smooth freehand chain of arcs with the freehand line type', () => {
+    const { doc, runner, type } = setup();
+    type('SK', '0,0', '10,5', '20,-5', '30,0', '');
+    expect(runner.active).toBe(false);
+    expect(doc.entities.length).toBeGreaterThanOrEqual(3);
+    expect(doc.entities.every((e) => e.lineType === 'freehand')).toBe(true);
+    expect(doc.entities.some((e) => e.geom.kind === 'arc')).toBe(true);
+  });
+
+  it('undoes the last point and refuses a single point', () => {
+    const { doc, type, log } = setup();
+    type('SK', '0,0', '10,0', 'U', '');
+    expect(doc.entities).toHaveLength(0);
+    expect(log.at(-1)).toMatch(/two different points/);
+  });
+});
