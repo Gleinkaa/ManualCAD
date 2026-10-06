@@ -12,12 +12,14 @@ import { History, snapshot } from './history';
 import { applyOrtho, applyPolar, fmt } from './input';
 import { drawCrosshair, drawMarker, drawSelectionBox, drawSnapMarker, drawTrackLine, drawViewOrigin, tooltip } from './overlay';
 import { CommandRunner } from './runner';
+import { decodeSession, docHash, encodeSession, PERSISTED_UNDO, type SessionView } from './session';
 import { boxSelect, pick, pickEntity } from './selection';
 import { findSnap, SNAP_LABELS, type SnapHit } from './snap';
 import { buildUI, el, lineTypeLabel, openTitleBlockDialog, setOptions, type UIRefs } from './ui';
 import { Viewport } from './viewport';
 
 const AUTOSAVE_KEY = 'manualcad.autosave';
+const SESSION_KEY = 'manualcad.session';
 const SCREEN: PlotOptions = { includeConstruction: true, screenColors: true };
 const APERTURE_PX = 10;
 const PICKBOX_PX = 5;
@@ -27,6 +29,14 @@ function loadAutosave(): SheetDoc | null {
   try {
     const json = localStorage.getItem(AUTOSAVE_KEY);
     return json ? parse(json) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
@@ -77,12 +87,20 @@ export class App {
   private plotError = false;
   private frame = 0;
   private fitted = false;
+  private savedView: SessionView | null = null;
+  private sessionTimer = 0;
 
   constructor(root: HTMLElement) {
     this.ui = buildUI(root);
     this.g = this.ui.canvas.getContext('2d')!;
     this.doc = loadAutosave() ?? newSheet();
-    this.settings = defaultSettings(this.doc);
+    const session = decodeSession(readStorage(SESSION_KEY), this.doc, defaultSettings(this.doc));
+    this.settings = session.settings;
+    this.snapOn = session.toggles.snap;
+    this.orthoOn = session.toggles.ortho;
+    this.polarOn = session.toggles.polar;
+    this.savedView = session.view;
+    if (session.history) this.history.restore(session.history.undo, session.history.redo);
     this.ctx = new CommandContext(() => this.doc, this.settings, (m) => this.log(m), {
       zoomExtents: () => this.zoomExtents(),
       titleBlock: () => this.titleBlock(),
@@ -129,6 +147,33 @@ export class App {
     }
     this.refreshUI();
     this.redraw();
+  }
+
+  /** Persist viewport, settings, toggles and undo history (debounced; immediately with `now`). */
+  private saveSession(now = false): void {
+    if (this.sessionTimer) clearTimeout(this.sessionTimer);
+    this.sessionTimer = 0;
+    if (!now) {
+      this.sessionTimer = window.setTimeout(() => this.saveSession(true), 400);
+      return;
+    }
+    const vp = this.vp;
+    const centre = vp.toSheet(vp.width / 2, vp.height / 2);
+    const base = {
+      view: this.fitted ? { cx: centre.x, cy: centre.y, zoom: vp.zoom / this.dpr } : this.savedView,
+      settings: this.settings,
+      toggles: { snap: this.snapOn, ortho: this.orthoOn, polar: this.polarOn },
+    };
+    const h = this.history.stacks(PERSISTED_UNDO);
+    try {
+      localStorage.setItem(SESSION_KEY, encodeSession({ ...base, history: { doc: docHash(this.doc), ...h } }));
+    } catch {
+      try {
+        localStorage.setItem(SESSION_KEY, encodeSession({ ...base, history: null }));
+      } catch {
+        // best effort
+      }
+    }
   }
 
   /** An undoable change outside of commands (toolbar, dialogs). */
@@ -204,6 +249,7 @@ export class App {
   zoomExtents(): void {
     const s = sheetSize(this.doc.format, this.doc.orientation);
     this.vp.fit(s.w, s.h, 0.03);
+    this.saveSession();
     this.redraw();
   }
 
@@ -283,6 +329,7 @@ export class App {
     const v = getView(doc, settings.currentViewId);
     ui.viewInfo.textContent = `${v.name} ${formatScale(v.scale)} · ${doc.format} · LG ${doc.lineGroup} · ${lineTypeLabel(settings.lineType)}`;
     this.refreshPrompt();
+    this.saveSession();
   }
 
   /** Line type shared by all selected entities (shown in the toolbar while something is selected). */
@@ -373,10 +420,13 @@ export class App {
       ev.preventDefault();
       const p = this.px(ev);
       this.vp.zoomAt(p.x, p.y, Math.pow(1.0015, -ev.deltaY * (ev.deltaMode === 1 ? 33 : 1)));
+      this.saveSession();
       this.updateCursor();
       this.redraw();
     }, { passive: false });
 
+    window.addEventListener('pagehide', () => this.saveSession(true));
+    document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && this.saveSession(true));
     new ResizeObserver(() => this.resize()).observe(ui.canvasWrap);
     this.resize();
     ui.input.focus();
@@ -514,6 +564,7 @@ export class App {
   private onUp(ev: PointerEvent): void {
     if (ev.button === 1 && this.panning) {
       this.panning = null;
+      this.saveSession();
       this.ui.canvas.releasePointerCapture(ev.pointerId);
       this.ui.canvas.classList.remove('panning');
       return;
@@ -633,7 +684,13 @@ export class App {
     c.height = h;
     this.vp.resize(w, h);
     if (!this.fitted) {
-      this.zoomExtents();
+      if (this.savedView) {
+        this.vp.zoom = this.savedView.zoom * this.dpr;
+        this.vp.panX = this.savedView.cx - w / 2 / this.vp.zoom;
+        this.vp.panY = this.savedView.cy - h / 2 / this.vp.zoom;
+      } else {
+        this.zoomExtents();
+      }
       this.fitted = true;
     } else if (centre) {
       this.vp.panX = centre.x - w / 2 / this.vp.zoom;

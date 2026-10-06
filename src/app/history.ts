@@ -34,6 +34,16 @@ export class History {
     return JSON.parse(next) as SheetDoc;
   }
 
+  /** The newest `limit` undo snapshots and the redo stack, for persisting. */
+  stacks(limit = this.limit): { undo: string[]; redo: string[] } {
+    return { undo: this.undoStack.slice(-limit), redo: this.redoStack.slice(-limit) };
+  }
+
+  restore(undo: string[], redo: string[]): void {
+    this.undoStack = undo.slice(-this.limit);
+    this.redoStack = redo.slice(-this.limit);
+  }
+
   clear(): void {
     this.undoStack = [];
     this.redoStack = [];
