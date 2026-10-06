@@ -66,6 +66,9 @@ export function decodeSession(json: string | null, doc: SheetDoc, defaults: AppS
   if (num(s.chamferA) && s.chamferA >= 0) d.chamferA = s.chamferA;
   if (num(s.chamferB) && s.chamferB >= 0) d.chamferB = s.chamferB;
   if (s.offsetDistance === null || (num(s.offsetDistance) && s.offsetDistance > 0)) d.offsetDistance = s.offsetDistance;
+  if (num(s.textHeight) && s.textHeight > 0) d.textHeight = s.textHeight;
+  if (num(s.hatchAngle)) d.hatchAngle = s.hatchAngle;
+  if (num(s.hatchSpacing) && s.hatchSpacing > 0) d.hatchSpacing = s.hatchSpacing;
 
   const t = (raw.toggles ?? {}) as Partial<Session['toggles']>;
   if (typeof t.snap === 'boolean') out.toggles.snap = t.snap;

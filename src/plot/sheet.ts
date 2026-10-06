@@ -3,6 +3,7 @@ import { plotDimension } from '../dim';
 import { getView, toSheet } from '../model/doc';
 import { formatScale, LINE_GROUPS, LINE_TYPES } from '../model/standards';
 import type { LineTypeId, SheetDoc, View } from '../model/types';
+import { plotAnnotation } from './annot';
 import { plotFrame } from './frame';
 import { BLACK, fitPattern, SCREEN_COLORS, strokeStyle } from './style';
 import type { Primitive } from './types';
@@ -99,6 +100,10 @@ export function plotSheet(doc: SheetDoc, opts: PlotOptions): Primitive[] {
       min: { x: Math.min(prev.min.x, b.min.x), y: Math.min(prev.min.y, b.min.y) },
       max: { x: Math.max(prev.max.x, b.max.x), y: Math.max(prev.max.y, b.max.y) },
     } : b);
+  }
+  for (const a of doc.annotations) {
+    if (!layerVisible(doc, a.layer)) continue;
+    out.push(...plotAnnotation(doc, a, opts));
   }
   const dimColor = opts.screenColors ? SCREEN_COLORS.thin : BLACK;
   for (const d of doc.dimensions) {

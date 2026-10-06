@@ -1,8 +1,9 @@
 // Modify commands: OFFSET, TRIM, EXTEND, FILLET, CHAMFER, MOVE, COPY, MIRROR, ERASE.
 import { chamfer as geomChamfer, distanceTo, intersect, extend as geomExtend, fillet as geomFillet, mirror as geomMirror, offset as geomOffset, translate, trim as geomTrim } from '../../geom';
 import type { Curve, Vec2 } from '../../geom/types';
+import { mirrorAnnotation, translateAnnotation } from '../../model/annot';
 import { newId, resolveAnchor, toSheet } from '../../model/doc';
-import type { AnchorPoint, DimAnchor, Dimension, Entity, LinearDimension } from '../../model/types';
+import type { Annotation, AnchorPoint, DimAnchor, Dimension, Entity, LinearDimension } from '../../model/types';
 import { fmt } from '../input';
 import { visibleEntities } from '../xform';
 import { selectObjects, type CommandContext, type CommandGen, type Preview, type SubGen } from './types';
@@ -260,11 +261,12 @@ export function* chamfer(ctx: CommandContext): CommandGen {
 
 // --- move / copy / mirror / erase ---
 
-function splitIds(ctx: CommandContext, ids: string[]): { ents: Entity[]; dims: Dimension[] } {
+function splitIds(ctx: CommandContext, ids: string[]): { ents: Entity[]; dims: Dimension[]; annots: Annotation[] } {
   const set = new Set(ids);
   return {
     ents: ctx.doc.entities.filter((e) => set.has(e.id)),
     dims: ctx.doc.dimensions.filter((d) => set.has(d.id)),
+    annots: ctx.doc.annotations.filter((a) => set.has(a.id)),
   };
 }
 
@@ -274,11 +276,14 @@ function localDelta(ctx: CommandContext, viewId: string, d: Vec2): Vec2 {
   return { x: d.x / s, y: d.y / s };
 }
 
-function ghost(ctx: CommandContext, ents: Entity[], d: Vec2): Preview {
-  return { curves: ents.map((e) => ({ curve: translate(e.geom, localDelta(ctx, e.viewId, d)), lineType: e.lineType, viewId: e.viewId })) };
+function ghost(ctx: CommandContext, ents: Entity[], d: Vec2, annots: Annotation[] = []): Preview {
+  return {
+    curves: ents.map((e) => ({ curve: translate(e.geom, localDelta(ctx, e.viewId, d)), lineType: e.lineType, viewId: e.viewId })),
+    annotations: annots.map((a) => translateAnnotation(a, localDelta(ctx, a.viewId, d))),
+  };
 }
 
-function* baseAndSecond(ctx: CommandContext, ents: Entity[]): SubGen<{ base: Vec2; to: Vec2 } | null> {
+function* baseAndSecond(ctx: CommandContext, ents: Entity[], annots: Annotation[]): SubGen<{ base: Vec2; to: Vec2 } | null> {
   const b = yield { kind: 'point', prompt: 'Specify base point' };
   if (b.kind !== 'point') return null;
   const t = yield {
@@ -286,7 +291,7 @@ function* baseAndSecond(ctx: CommandContext, ents: Entity[]): SubGen<{ base: Vec
     prompt: 'Specify second point or <use first point as displacement>',
     allowEnter: true,
     base: b.p,
-    preview: (p) => ghost(ctx, ents, { x: p.x - b.p.x, y: p.y - b.p.y }),
+    preview: (p) => ghost(ctx, ents, { x: p.x - b.p.x, y: p.y - b.p.y }, annots),
   };
   if (t.kind === 'enter') {
     // AutoCAD: the base point read as a displacement (in current-view mm) from the origin.
@@ -308,12 +313,13 @@ function shiftAnchor(ctx: CommandContext, a: DimAnchor, viewId: string, d: Vec2,
 export function* move(ctx: CommandContext): CommandGen {
   const ids = yield* selectObjects(ctx);
   if (ids.length === 0) return;
-  const { ents, dims } = splitIds(ctx, ids);
-  const r = yield* baseAndSecond(ctx, ents);
+  const { ents, dims, annots } = splitIds(ctx, ids);
+  const r = yield* baseAndSecond(ctx, ents, annots);
   if (!r) return;
   const d = { x: r.to.x - r.base.x, y: r.to.y - r.base.y };
   const moved = new Set(ents.map((e) => e.id));
   for (const e of ents) e.geom = translate(e.geom, localDelta(ctx, e.viewId, d));
+  for (const a of annots) Object.assign(a, translateAnnotation(a, localDelta(ctx, a.viewId, d)));
   for (const dim of dims) {
     if (dim.kind === 'linear') {
       shiftAnchor(ctx, dim.a, dim.viewId, d, moved);
@@ -332,7 +338,7 @@ function copyAnchor(ctx: CommandContext, a: DimAnchor, viewId: string, d: Vec2, 
 export function* copy(ctx: CommandContext): CommandGen {
   const ids = yield* selectObjects(ctx);
   if (ids.length === 0) return;
-  const { ents, dims } = splitIds(ctx, ids);
+  const { ents, dims, annots } = splitIds(ctx, ids);
   const b = yield { kind: 'point', prompt: 'Specify base point' };
   if (b.kind !== 'point') return;
   for (;;) {
@@ -351,6 +357,7 @@ export function* copy(ctx: CommandContext): CommandGen {
       const c = ctx.addEntity(translate(e.geom, localDelta(ctx, e.viewId, d)), { viewId: e.viewId, layer: e.layer, lineType: e.lineType });
       map.set(e.id, c.id);
     }
+    for (const a of annots) ctx.doc.annotations.push({ ...translateAnnotation(structuredClone(a), localDelta(ctx, a.viewId, d)), id: newId('a') });
     for (const dim of dims) {
       if (dim.kind === 'linear') {
         ctx.doc.dimensions.push({
@@ -449,8 +456,8 @@ function dimsToMirror(ctx: CommandContext, selected: Dimension[], ents: Entity[]
 
 export function* mirror(ctx: CommandContext): CommandGen {
   const ids = yield* selectObjects(ctx);
-  const { ents, dims: selectedDims } = splitIds(ctx, ids);
-  if (ents.length === 0 && selectedDims.length === 0) return;
+  const { ents, dims: selectedDims, annots } = splitIds(ctx, ids);
+  if (ents.length === 0 && selectedDims.length === 0 && annots.length === 0) return;
   const dims = dimsToMirror(ctx, selectedDims, ents);
   const a = yield { kind: 'point', prompt: 'Specify first point of mirror line' };
   if (a.kind !== 'point') return;
@@ -468,7 +475,11 @@ export function* mirror(ctx: CommandContext): CommandGen {
     preview: (p) =>
       p.x === a.p.x && p.y === a.p.y
         ? {}
-        : { curves: make(p).map(({ e, curve }) => ({ curve, lineType: e.lineType, viewId: e.viewId })), dims: previewDims(p) },
+        : {
+            curves: make(p).map(({ e, curve }) => ({ curve, lineType: e.lineType, viewId: e.viewId })),
+            dims: previewDims(p),
+            annotations: annots.map((x) => mirrorAnnotation(x, ctx.localIn(x.viewId, a.p), ctx.localIn(x.viewId, p))),
+          },
   };
   if (b.kind !== 'point') return;
   if (b.p.x === a.p.x && b.p.y === a.p.y) {
@@ -489,6 +500,11 @@ export function* mirror(ctx: CommandContext): CommandGen {
     if (erase) Object.assign(d, m);
     else ctx.doc.dimensions.push({ ...m, id: newId('d') });
   }
+  for (const x of annots) {
+    const m = mirrorAnnotation(structuredClone(x), ctx.localIn(x.viewId, a.p), ctx.localIn(x.viewId, b.p));
+    if (erase) Object.assign(x, m);
+    else ctx.doc.annotations.push({ ...m, id: newId('a') });
+  }
 }
 
 /** Remove entities/dimensions; radial dims of removed entities go too, linear anchors freeze at their position. */
@@ -506,6 +522,7 @@ export function eraseIds(ctx: CommandContext, ids: string[]): void {
   }
   doc.entities = doc.entities.filter((e) => !set.has(e.id));
   doc.dimensions = doc.dimensions.filter((d) => !set.has(d.id) && !(d.kind !== 'linear' && set.has(d.entityId)));
+  doc.annotations = doc.annotations.filter((a) => !set.has(a.id));
 }
 
 export function* erase(ctx: CommandContext): CommandGen {

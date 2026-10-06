@@ -19,6 +19,7 @@ export function newSheet(): SheetDoc {
     views: [{ id: 'v-front', name: 'Front view', scale: 1, origin: { x: 120, y: 160 }, link: null }],
     entities: [],
     dimensions: [],
+    annotations: [],
   };
 }
 
@@ -95,5 +96,6 @@ export function serialize(doc: SheetDoc): string {
 export function parse(json: string): SheetDoc {
   const doc = JSON.parse(json) as SheetDoc;
   if (doc.version !== 1) throw new Error(`unsupported file version ${String(doc.version)}`);
+  doc.annotations ??= []; // files written before annotations existed
   return doc;
 }

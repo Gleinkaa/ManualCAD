@@ -14,5 +14,9 @@ export { snapCandidates, perpendicularFoot, tangentPoints } from './snap';
 // --- construction & transforms ---
 export { arcFrom3Points, arcFromCenter, translate, rotate, mirror, scaleCurve } from './transform';
 
+// --- regions & hatching ---
+export { findRegion } from './region';
+export { hatchSegments } from './hatch';
+
 // --- edit operations (AutoCAD semantics) ---
 export { offset, trim, extend, fillet, chamfer } from './edit';

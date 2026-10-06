@@ -8,6 +8,7 @@ import { plotCurve as plotCurveTagged, type PlotOptions } from './sheet';
 export * from './types';
 export type { PlotOptions } from './sheet';
 export { plotSheet, viewLabel, labelHeight } from './sheet';
+export { plotAnnotation, hatchSheetSegments } from './annot';
 export { plotFrame, frameGeometry, titleBlockFields, titleBlockValue, FRAME, TITLE_BLOCK } from './frame';
 export { renderCanvas, type CanvasTransform } from './canvas';
 export { FONT_FAMILY, loadFonts, textWidth, fontSizeForCapHeight } from './font';

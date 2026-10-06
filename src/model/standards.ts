@@ -45,6 +45,7 @@ export const LINE_TYPES: Record<LineTypeId, LineTypeDef> = {
   hidden: { id: 'hidden', label: 'Hidden edge', isoNo: '02.1', weight: 'narrow', pattern: ['dash', 'gap'], plotted: true },
   center: { id: 'center', label: 'Centre line', isoNo: '04.1', weight: 'narrow', pattern: ['longDash', 'gap', 'dot', 'gap'], plotted: true },
   phantom: { id: 'phantom', label: 'Phantom', isoNo: '05.1', weight: 'narrow', pattern: ['longDash', 'gap', 'dot', 'gap', 'dot', 'gap'], plotted: true },
+  freehand: { id: 'freehand', label: 'Freehand (break)', isoNo: '01.1', weight: 'narrow', pattern: [], plotted: true },
   construction: { id: 'construction', label: 'Construction', isoNo: null, weight: 'narrow', pattern: [], plotted: false },
 };
 
@@ -55,6 +56,12 @@ export const DASH_LENGTHS: Record<DashElement, number> = {
   dash: 12,
   longDash: 24,
 };
+
+/** Text heights per ISO 3098 (series ratio √2), paper mm. */
+export const TEXT_HEIGHTS: number[] = [1.8, 2.5, 3.5, 5, 7, 10, 14, 20];
+
+/** Default hatch line spacing on paper, mm (ISO 128-50: chosen to suit the size of the hatched area). */
+export const HATCH_SPACING_DEFAULT = 2;
 
 /** Standard scales per ISO 5455. */
 export const STANDARD_SCALES: number[] = [50, 20, 10, 5, 2, 1, 1 / 2, 1 / 5, 1 / 10, 1 / 20, 1 / 50, 1 / 100];
@@ -73,5 +80,8 @@ export const NORM_RULES: NormRule[] = [
   { id: 'DIM-TEXT-ABOVE', source: 'ISO 129-1', text: 'Dimension values stand above the dimension line, readable from the bottom or right.' },
   { id: 'DIM-UNITS', source: 'ISO 129-1', text: 'Lengths are in mm without unit symbol.' },
   { id: 'SHEET-FRAME', source: 'ISO 5457', text: 'Drawing frame with 20 mm filing margin on the left and 10 mm elsewhere.' },
+  { id: 'LT-FREEHAND', source: 'ISO 128-2', text: 'Limits of partial sections and break-outs are narrow freehand lines; they never coincide with edges or centre lines.' },
+  { id: 'HATCH-ANGLE', source: 'ISO 128-50', text: 'Cut surfaces are hatched with narrow continuous lines, preferably at 45° to the main outline; one part keeps the same hatching in all its views.' },
+  { id: 'HATCH-TEXT', source: 'ISO 128-50', text: 'Hatching is interrupted where dimension values or other text sit inside a hatched area.' },
   { id: 'TB-POSITION', source: 'ISO 7200', text: 'The title block sits in the bottom-right corner of the drawing area.' },
 ];

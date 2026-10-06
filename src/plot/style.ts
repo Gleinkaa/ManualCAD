@@ -11,6 +11,7 @@ export const SCREEN_COLORS: Record<LineTypeId, string> = {
   hidden: '#8a5a2b',
   center: '#9b2f3f',
   phantom: '#6b4f96',
+  freehand: '#2f7d4f',
   construction: '#7fb4e6',
 };
 

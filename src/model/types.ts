@@ -13,6 +13,7 @@ export type LineTypeId =
   | 'hidden'       // 02.1 dashed narrow: hidden edges
   | 'center'       // 04.1 long-dashed dotted narrow: centre lines, symmetry axes
   | 'phantom'      // 05.1 long-dashed double-dotted narrow: adjacent parts, extreme positions
+  | 'freehand'     // 01.1 freehand narrow: limits of partial or interrupted views and sections (break-outs)
   | 'construction';
 
 export interface Layer {
@@ -84,6 +85,37 @@ export interface RadialDimension {
 
 export type Dimension = LinearDimension | RadialDimension;
 
+/** Single-line text, ISO 3098 type B. Position is view-local; height is paper mm (cap height). */
+export interface TextNote {
+  kind: 'text';
+  id: string;
+  viewId: string;
+  layer: string;
+  pos: Vec2;                 // view-local insertion point
+  text: string;
+  height: number;            // paper mm, from the ISO 3098 series
+  angle: number;             // radians, CCW
+  align: 'left' | 'center' | 'right';
+}
+
+/**
+ * Section hatching per ISO 128-50: parallel narrow continuous lines inside closed boundary loops.
+ * Loops are view-local and filled even-odd, so inner loops (islands, holes) stay free.
+ * The boundary is captured when the hatch is created; it does not follow later geometry edits.
+ */
+export interface Hatch {
+  kind: 'hatch';
+  id: string;
+  viewId: string;
+  layer: string;
+  loops: Curve[][];          // each loop a closed chain of curves, view-local
+  angle: number;             // degrees, normally 45 or 135
+  spacing: number;           // paper mm between hatch lines
+}
+
+/** Sheet objects that are neither part geometry nor dimensions. */
+export type Annotation = TextNote | Hatch;
+
 export type TitleBlockField =
   | 'owner'          // legal owner / company / school
   | 'title'          // part name
@@ -108,4 +140,5 @@ export interface SheetDoc {
   views: View[];
   entities: Entity[];
   dimensions: Dimension[];
+  annotations: Annotation[];
 }

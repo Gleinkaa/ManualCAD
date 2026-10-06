@@ -136,10 +136,11 @@ export const LTYPE_OPTIONS: Option[] = [
   { key: 'H', label: 'Hidden' },
   { key: 'C', label: 'Center' },
   { key: 'P', label: 'Phantom' },
+  { key: 'F', label: 'Freehand' },
   { key: 'CO', label: 'COnstruction' },
 ];
 
-const LTYPE_BY_KEY: Record<string, LineTypeId> = { V: 'visible', T: 'thin', H: 'hidden', C: 'center', P: 'phantom', CO: 'construction' };
+const LTYPE_BY_KEY: Record<string, LineTypeId> = { V: 'visible', T: 'thin', H: 'hidden', C: 'center', P: 'phantom', F: 'freehand', CO: 'construction' };
 
 /** Set the line type of the pre-selection, or the current line type. */
 export function* ltype(ctx: CommandContext): CommandGen {

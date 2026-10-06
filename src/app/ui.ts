@@ -49,7 +49,7 @@ export interface UIRefs {
   commandButtons: HTMLButtonElement[];
 }
 
-export const LINE_TYPE_ORDER: LineTypeId[] = ['visible', 'thin', 'hidden', 'center', 'phantom', 'construction'];
+export const LINE_TYPE_ORDER: LineTypeId[] = ['visible', 'thin', 'hidden', 'center', 'phantom', 'freehand', 'construction'];
 
 export function lineTypeLabel(id: LineTypeId): string {
   const d = LINE_TYPES[id];
