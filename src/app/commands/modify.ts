@@ -1,5 +1,5 @@
 // Modify commands: OFFSET, TRIM, EXTEND, FILLET, CHAMFER, MOVE, COPY, MIRROR, ERASE.
-import { chamfer as geomChamfer, distanceTo, extend as geomExtend, fillet as geomFillet, mirror as geomMirror, offset as geomOffset, translate, trim as geomTrim } from '../../geom';
+import { chamfer as geomChamfer, distanceTo, intersect, extend as geomExtend, fillet as geomFillet, mirror as geomMirror, offset as geomOffset, translate, trim as geomTrim } from '../../geom';
 import type { Curve, Vec2 } from '../../geom/types';
 import { newId, resolveAnchor, toSheet } from '../../model/doc';
 import type { AnchorPoint, DimAnchor, Dimension, Entity, LinearDimension } from '../../model/types';
@@ -52,7 +52,50 @@ export function* offset(ctx: CommandContext): CommandGen {
   }
 }
 
-/** Shared by TRIM and EXTEND: edge selection (Enter = all), then repeated picks. */
+/** Fence points (sheet mm), AutoCAD style: first point, next points with Undo, Enter to finish. */
+function* fencePoints(ctx: CommandContext): SubGen<Vec2[] | null> {
+  const pts: Vec2[] = [];
+  const segs = (extra: Vec2 | null): Preview => {
+    const all = extra ? [...pts, extra] : pts;
+    const curves = [];
+    for (let i = 0; i + 1 < all.length; i++) curves.push({ curve: { kind: 'line' as const, a: ctx.local(all[i]), b: ctx.local(all[i + 1]) }, lineType: 'thin' as const });
+    return { curves };
+  };
+  for (;;) {
+    const r = yield pts.length === 0
+      ? { kind: 'point', prompt: 'Specify first fence point' }
+      : {
+          kind: 'point',
+          prompt: 'Specify next fence point',
+          options: pts.length > 1 ? [{ key: 'U', label: 'Undo' }] : [],
+          allowEnter: true,
+          base: pts[pts.length - 1],
+          preview: (p: Vec2) => segs(p),
+        };
+    if (r.kind === 'point') pts.push(r.p);
+    else if (r.kind === 'option') pts.pop();
+    else if (r.kind === 'enter') return pts.length > 1 ? pts : null;
+    else return null;
+  }
+}
+
+/** Points (sheet mm) where the fence crosses visible entities, in fence order. */
+function fenceCrossings(ctx: CommandContext, fence: Vec2[]): { id: string; p: Vec2 }[] {
+  const out: { id: string; p: Vec2; t: number }[] = [];
+  for (let i = 0; i + 1 < fence.length; i++) {
+    const seg: Curve = { kind: 'line', a: fence[i], b: fence[i + 1] };
+    const dx = fence[i + 1].x - fence[i].x;
+    const dy = fence[i + 1].y - fence[i].y;
+    for (const e of visibleEntities(ctx.doc)) {
+      for (const p of intersect(seg, ctx.sheetCurve(e))) {
+        out.push({ id: e.id, p, t: i + ((p.x - fence[i].x) * dx + (p.y - fence[i].y) * dy) / (dx * dx + dy * dy || 1) });
+      }
+    }
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+/** Shared by TRIM and EXTEND: edge selection (Enter = all), then repeated picks or a Fence. */
 function* edgeEdit(ctx: CommandContext, mode: 'trim' | 'extend'): CommandGen {
   ctx.log(mode === 'trim' ? 'Select cutting edges ...' : 'Select boundary edges ...');
   let edges: string[];
@@ -65,42 +108,71 @@ function* edgeEdit(ctx: CommandContext, mode: 'trim' | 'extend'): CommandGen {
     edges = r.ids;
   }
   const all = edges.length === 0;
-  for (;;) {
-    const pick = yield {
-      kind: 'entity',
-      prompt: mode === 'trim' ? 'Select object to trim' : 'Select object to extend',
-      allowEnter: true,
-    };
-    if (pick.kind !== 'entity') return;
-    const target = ctx.entity(pick.id);
-    if (!target) continue;
+
+  /** Trim/extend `target` at the sheet point `p`; returns ids of new pieces, or null if nothing happened. */
+  const apply = (target: Entity, p: Vec2, quiet: boolean): string[] | null => {
     const edgeIds = all ? visibleEntities(ctx.doc).map((e) => e.id) : edges;
     const cutters = edgeIds
       .filter((id) => id !== target.id)
       .map((id) => ctx.entity(id))
       .filter((e): e is Entity => !!e)
       .map((e) => ctx.curveIn(e, target.viewId));
-    const lp = ctx.localIn(target.viewId, pick.p);
+    const lp = ctx.localIn(target.viewId, p);
     if (mode === 'trim') {
       const pieces = geomTrim(target.geom, lp, cutters);
       if (!pieces) {
-        ctx.log('Object does not intersect a cutting edge.');
-        continue;
+        if (!quiet) ctx.log('Object does not intersect a cutting edge.');
+        return null;
       }
       if (pieces.length === 0) {
         eraseIds(ctx, [target.id]);
-        continue;
+        return [];
       }
       target.geom = pieces[0];
-      for (const p of pieces.slice(1)) ctx.addEntity(p, { viewId: target.viewId, layer: target.layer, lineType: target.lineType });
-    } else {
-      const c = geomExtend(target.geom, lp, cutters);
-      if (!c) {
-        ctx.log('Object does not intersect a boundary edge.');
-        continue;
-      }
-      target.geom = c;
+      return pieces.slice(1).map((c) => ctx.addEntity(c, { viewId: target.viewId, layer: target.layer, lineType: target.lineType }).id);
     }
+    const c = geomExtend(target.geom, lp, cutters);
+    if (!c) {
+      if (!quiet) ctx.log('Object does not intersect a boundary edge.');
+      return null;
+    }
+    target.geom = c;
+    return [];
+  };
+
+  for (;;) {
+    const pick = yield {
+      kind: 'entity',
+      prompt: mode === 'trim' ? 'Select object to trim' : 'Select object to extend',
+      options: [{ key: 'F', label: 'Fence' }],
+      allowEnter: true,
+    };
+    if (pick.kind === 'option') {
+      const fence = yield* fencePoints(ctx);
+      if (!fence) continue;
+      // pieces split off a trimmed entity stay candidates for later crossings of the same entity
+      const family = new Map<string, string[]>();
+      const done = new Set<string>();
+      let n = 0;
+      for (const { id, p } of fenceCrossings(ctx, fence)) {
+        if (mode === 'extend' && done.has(id)) continue;
+        const ids = family.get(id) ?? [id];
+        const target = ids
+          .map((x) => ctx.entity(x))
+          .find((e): e is Entity => !!e && distanceTo(ctx.sheetCurve(e), p) <= 1e-6);
+        if (!target) continue;
+        const added = apply(target, p, true);
+        if (!added) continue;
+        n++;
+        done.add(id);
+        family.set(id, [...ids, ...added]);
+      }
+      ctx.log(n ? `${n} object(s) ${mode === 'trim' ? 'trimmed' : 'extended'}.` : 'Fence does not cross anything to ' + mode + '.');
+      continue;
+    }
+    if (pick.kind !== 'entity') return;
+    const target = ctx.entity(pick.id);
+    if (target) apply(target, pick.p, false);
   }
 }
 

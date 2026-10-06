@@ -226,3 +226,39 @@ describe('MIRROR with dimensions', () => {
     expect(m.kind === 'linear' && m.offset).toBeCloseTo(10);
   });
 });
+
+describe('TRIM / EXTEND Fence', () => {
+  const lines = (doc: SheetDoc, y: number) =>
+    doc.entities
+      .filter((e) => e.geom.kind === 'line' && Math.abs(e.geom.a.y - y) < 1e-9 && Math.abs(e.geom.b.y - y) < 1e-9)
+      .map((e) => (e.geom.kind === 'line' ? [Math.min(e.geom.a.x, e.geom.b.x), Math.max(e.geom.a.x, e.geom.b.x)].map((v) => Math.round(v * 1e6) / 1e6) : []))
+      .sort((p, q) => p[0] - q[0]);
+
+  it('trims every object the fence crosses', () => {
+    const { doc, type, runner } = setup();
+    for (const y of [0, 10, 20]) type('L', `0,${y}`, `100,${y}`, '');
+    type('L', '30,-10', '30,30', '');
+    type('L', '60,-10', '60,30', '');
+    type('TR', '', 'F', '45,-5', '45,25', '', '');
+    expect(runner.active).toBe(false);
+    for (const y of [0, 10, 20]) expect(lines(doc, y)).toEqual([[0, 30], [60, 100]]);
+  });
+
+  it('trims several crossings of the same object, including split-off pieces, with Undo of a fence point', () => {
+    const { doc, type } = setup();
+    type('L', '0,0', '100,0', '');
+    for (const x of [20, 40, 60, 80]) type('L', `${x},-3`, `${x},3`, '');
+    type('TR', '', 'F', '10,5', '10,-5', '90,-90', 'U', '50,-5', '50,5', '', '');
+    expect(lines(doc, 0)).toEqual([[20, 40], [60, 100]]);
+  });
+
+  it('extends every object the fence crosses, once each', () => {
+    const { doc, type } = setup();
+    type('L', '0,0', '20,0', '');
+    type('L', '0,10', '20,10', '');
+    type('L', '50,-10', '50,20', '');
+    type('EX', '', 'F', '15,-5', '15,15', '', '');
+    expect(lines(doc, 0)).toEqual([[0, 50]]);
+    expect(lines(doc, 10)).toEqual([[0, 50]]);
+  });
+});
