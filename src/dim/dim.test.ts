@@ -3,7 +3,7 @@ import type { Vec2 } from '../geom/types';
 import { newSheet } from '../model/doc';
 import type { Dimension, DimText, LinearDimension, RadialDimension, SheetDoc } from '../model/types';
 import type { Primitive } from '../plot/types';
-import { dimensionText, formatValue, measure, plotDimension, readableAngle } from './index';
+import { clampToArc, dimensionText, formatValue, measure, plotDimension, readableAngle } from './index';
 
 const noText = (): DimText => ({ override: null, prefix: '', suffix: '' });
 
@@ -13,6 +13,7 @@ function sheet(scale = 2): SheetDoc {
   doc.entities.push(
     { id: 'c', viewId: 'v', layer: '0', lineType: 'visible', geom: { kind: 'circle', c: { x: 0, y: 0 }, r: 10 } },
     { id: 'small', viewId: 'v', layer: '0', lineType: 'visible', geom: { kind: 'circle', c: { x: 50, y: 0 }, r: 1 } },
+    { id: 'arc', viewId: 'v', layer: '0', lineType: 'visible', geom: { kind: 'arc', c: { x: 0, y: 0 }, r: 10, start: 0, end: Math.PI / 2 } },
     { id: 'l', viewId: 'v', layer: '0', lineType: 'visible', geom: { kind: 'line', a: { x: 0, y: 0 }, b: { x: 1, y: 0 } } },
   );
   return doc;
@@ -189,7 +190,23 @@ describe('radial', () => {
     const [a1, a2] = of(prims, 'fill');
     close(a1.points[0], { x: 80, y: 100 });
     close(a2.points[0], { x: 120, y: 100 });
-    expect(of(prims, 'text')[0].text).toBe('⌀20');
+    const [t] = of(prims, 'text');
+    expect(t.text).toBe('⌀20');
+    // off the centre cross: centred between centre (100) and the right arrow base (117.5)
+    expect(t.pos.x).toBeCloseTo(108.75);
+  });
+
+  it('radius on an arc: angle outside the arc snaps to the nearer end', () => {
+    const arc = { kind: 'arc' as const, c: { x: 0, y: 0 }, r: 1, start: 0, end: Math.PI / 2 };
+    expect(clampToArc(Math.PI / 4, arc)).toBeCloseTo(Math.PI / 4);
+    expect(clampToArc(Math.PI, arc)).toBeCloseTo(Math.PI / 2);
+    expect(clampToArc(-0.1, arc)).toBeCloseTo(0);
+    const wrap = { ...arc, start: 1.5 * Math.PI, end: 0.5 * Math.PI };
+    expect(clampToArc(0.2, wrap)).toBeCloseTo(0.2);
+
+    const prims = plotDimension(sheet(2), radial('radius', 'arc', Math.PI));
+    const [a] = of(prims, 'fill');
+    close(a.points[0], { x: 100, y: 120 }); // arc end at 90°, radius 20 on the sheet
   });
 
   it('diameter with leader: arrows outside, text outside', () => {

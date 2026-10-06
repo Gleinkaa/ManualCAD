@@ -135,7 +135,7 @@ function plotLinear(doc: SheetDoc, dim: LinearDimension, c: Ctx): Primitive[] {
     if (Math.hypot(d.x, d.y) < EPS) continue;
     prims.push(line(c, p, add(P, scale(norm(d), c.overshoot))));
   }
-  prims.push(...dimensionLine(c, P1, P2, u, dimensionText(doc, dim), false, null));
+  prims.push(...dimensionLine(c, P1, P2, u, dimensionText(doc, dim), false, null, null));
   return prims;
 }
 
@@ -143,19 +143,28 @@ function plotLinear(doc: SheetDoc, dim: LinearDimension, c: Ctx): Primitive[] {
  * Dimension line between two terminator points with text. Arrows inside when line, text and both arrows fit;
  * otherwise arrows outside pointing in, and text outside beyond P2 when it does not fit either.
  * `textOut` forces arrows and text outside, with the text starting that far beyond P2.
+ * `from` (e.g. a circle centre): inside text is centred between `from` and P2's arrow if it fits there.
  */
-function dimensionLine(c: Ctx, P1: Vec2, P2: Vec2, u: Vec2, text: string, forceOutside: boolean, textOut: number | null): Primitive[] {
+function dimensionLine(
+  c: Ctx, P1: Vec2, P2: Vec2, u: Vec2, text: string, forceOutside: boolean, textOut: number | null, from: Vec2 | null,
+): Primitive[] {
   const L = dist(P1, P2);
   const tw = textWidth(text, c.h);
   const tail = c.al * (1 + OUTSIDE_TAIL_FACTOR);
-  const mid = scale(add(P1, P2), 0.5);
+  const textMid = (arrowsInside: boolean) => {
+    if (from) {
+      const free = dist(from, P2) - (arrowsInside ? c.al : 0);
+      if (free >= tw + 2 * c.gap) return add(from, scale(u, free / 2));
+    }
+    return scale(add(P1, P2), 0.5);
+  };
   if (!forceOutside && L >= 2 * c.al + tw + 2 * c.gap) {
-    return [line(c, P1, P2), arrow(c, P1, scale(u, -1)), arrow(c, P2, u), label(c, mid, u, text)];
+    return [line(c, P1, P2), arrow(c, P1, scale(u, -1)), arrow(c, P2, u), label(c, textMid(true), u, text)];
   }
   const prims = [arrow(c, P1, u), arrow(c, P2, scale(u, -1))];
   const start = sub(P1, scale(u, tail));
   if (textOut === null && L >= tw + 2 * c.gap) {
-    prims.push(line(c, start, add(P2, scale(u, tail))), label(c, mid, u, text));
+    prims.push(line(c, start, add(P2, scale(u, tail))), label(c, textMid(false), u, text));
   } else {
     const s0 = Math.max(textOut ?? 0, c.al + c.gap);
     prims.push(line(c, start, add(P2, scale(u, s0 + tw))), label(c, add(P2, scale(u, s0 + tw / 2)), u, text));
@@ -170,7 +179,8 @@ function plotRadius(doc: SheetDoc, dim: RadialDimension, c: Ctx): Primitive[] {
   const g = radialCurve(doc, dim);
   const C = toSheet(view, g.c);
   const R = g.r * view.scale;
-  const d = { x: Math.cos(dim.angle), y: Math.sin(dim.angle) };
+  const angle = g.kind === 'arc' ? clampToArc(dim.angle, g) : dim.angle;
+  const d = { x: Math.cos(angle), y: Math.sin(angle) };
   const P = add(C, scale(d, R));
   const text = dimensionText(doc, dim);
   const tw = textWidth(text, c.h);
@@ -189,6 +199,16 @@ function plotRadius(doc: SheetDoc, dim: RadialDimension, c: Ctx): Primitive[] {
   ];
 }
 
+/** `angle` if it lies on the arc, else the nearer arc end, so the arrow always touches the arc. */
+export function clampToArc(angle: number, arc: ArcCurve): number {
+  const TAU = 2 * Math.PI;
+  const mod = (x: number) => ((x % TAU) + TAU) % TAU;
+  const span = mod(arc.end - arc.start) || TAU;
+  const t = mod(angle - arc.start);
+  if (t <= span + 1e-12) return angle;
+  return t - span < TAU - t ? arc.end : arc.start;
+}
+
 function plotDiameter(doc: SheetDoc, dim: RadialDimension, c: Ctx): Primitive[] {
   const view = getView(doc, dim.viewId);
   const g = radialCurve(doc, dim);
@@ -198,7 +218,7 @@ function plotDiameter(doc: SheetDoc, dim: RadialDimension, c: Ctx): Primitive[] 
   const P1 = sub(C, scale(d, R));
   const P2 = add(C, scale(d, R));
   const out = dim.leader > 0;
-  return dimensionLine(c, P1, P2, d, dimensionText(doc, dim), out, out ? dim.leader : null);
+  return dimensionLine(c, P1, P2, d, dimensionText(doc, dim), out, out ? dim.leader : null, C);
 }
 
 // --- primitives ---
