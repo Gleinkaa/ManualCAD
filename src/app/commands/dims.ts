@@ -77,7 +77,7 @@ function dimView(ctx: CommandContext, inp: PointInput): string {
 function* twoAnchors(ctx: CommandContext): SubGen<{ viewId: string; a: DimAnchor; b: DimAnchor } | null> {
   const r1 = yield { kind: 'point', prompt: 'Specify first extension line origin or <select object>', allowEnter: true };
   if (r1.kind === 'enter') {
-    const r = yield { kind: 'entity', prompt: 'Select object to dimension', filter: (e) => e.geom.kind === 'line' };
+    const r = yield { kind: 'entity', prompt: 'Select line to dimension', filter: (e) => e.geom.kind === 'line' };
     if (r.kind !== 'entity') return null;
     const e = ctx.entity(r.id);
     if (!e || !endpoints(e.geom)) return null;

@@ -57,13 +57,13 @@ export function lineTypeLabel(id: LineTypeId): string {
 }
 
 const BUTTONS: [string, string, string][][] = [
-  [['NEW', 'New', 'New drawing'], ['OPEN', 'Open', 'Open .mcad (Ctrl+O)'], ['SAVE', 'Save', 'Save .mcad (Ctrl+S)'], ['PLOT', 'PDF', 'Export PDF'], ['TITLEBLOCK', 'Title block', 'Edit title block (TB), or double-click it'], ['PARTSLIST', 'Parts list', 'Edit parts list (PARTS), or double-click it; -PARTSLIST on the command line']],
+  [['NEW', 'New', 'New drawing (NEW); UNDO restores the previous one'], ['OPEN', 'Open', 'Open .mcad (Ctrl+O)'], ['SAVE', 'Save', 'Save .mcad (Ctrl+S)'], ['PLOT', 'PDF', 'Export PDF'], ['TITLEBLOCK', 'Title block', 'Edit title block (TB), or double-click it'], ['PARTSLIST', 'Parts list', 'Edit parts list (PARTS), or double-click it; -PARTSLIST on the command line']],
   [['LINE', 'Line', 'LINE (L)'], ['CIRCLE', 'Circle', 'CIRCLE (C)'], ['ARC', 'Arc', 'ARC (A)'], ['RECTANG', 'Rect', 'RECTANG (REC)'], ['HATCH', 'Hatch', 'HATCH (H)']],
   [['OFFSET', 'Offset', 'OFFSET (O)'], ['TRIM', 'Trim', 'TRIM (TR)'], ['EXTEND', 'Extend', 'EXTEND (EX)'], ['FILLET', 'Fillet', 'FILLET (F)'], ['CHAMFER', 'Chamfer', 'CHAMFER (CHA)']],
   [['MOVE', 'Move', 'MOVE (M)'], ['COPY', 'Copy', 'COPY (CO)'], ['MIRROR', 'Mirror', 'MIRROR (MI)'], ['ERASE', 'Erase', 'ERASE (E / Del)']],
   [['TEXT', 'Text', 'TEXT (DT)'], ['SKETCH', 'Freehand', 'SKETCH (SK): freehand break line, ISO 128-2 01.1'], ['LEADER', 'Leader', 'LEADER (LE): note on a leader line, ISO 128-22'], ['BALLOON', 'Item no.', 'BALLOON (BAL): item number on a leader, ISO 6433']],
   [['DIMLINEAR', 'Linear', 'DIMLINEAR (DLI)'], ['DIMALIGNED', 'Aligned', 'DIMALIGNED (DAL)'], ['DIMRADIUS', 'Radius', 'DIMRADIUS (DRA)'], ['DIMDIAMETER', 'Diameter', 'DIMDIAMETER (DDI)'], ['DIMANGULAR', 'Angular', 'DIMANGULAR (DAN)'], ['DIMEDIT', 'Dim text', 'DIMEDIT (DED)']],
-  [['VIEW', 'View', 'VIEW (V)'], ['ZOOM E', 'Fit', 'ZOOM Extents'], ['UNDO', 'Undo', 'UNDO (Ctrl+Z)'], ['REDO', 'Redo', 'REDO (Ctrl+Y)']],
+  [['VIEW', 'View', 'VIEW (V)'], ['ZOOM E', 'Fit', 'ZOOM Extents (Z E), or double-click the middle mouse button'], ['UNDO', 'Undo', 'UNDO (Ctrl+Z)'], ['REDO', 'Redo', 'REDO (Ctrl+Y)']],
 ];
 
 export function buildUI(root: HTMLElement): UIRefs {

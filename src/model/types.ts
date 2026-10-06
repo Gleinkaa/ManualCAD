@@ -128,7 +128,7 @@ export interface TextNote {
 /**
  * Section hatching per ISO 128-50: parallel narrow continuous lines inside closed boundary loops.
  * Loops are view-local and filled even-odd, so inner loops (islands, holes) stay free.
- * The boundary is captured when the hatch is created; it does not follow later geometry edits.
+ * With `assoc`, the loops are found again around the picked point when a boundary entity changes (app/commands/hatch.ts).
  */
 export interface Hatch {
   kind: 'hatch';

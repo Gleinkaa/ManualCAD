@@ -310,7 +310,7 @@ export class App {
   private submit(): void {
     const text = this.ui.input.value;
     this.ui.input.value = '';
-    this.runner.text(text);
+    if (!this.runner.text(text)) this.ui.input.value = text.trim();
     this.afterInput();
   }
 

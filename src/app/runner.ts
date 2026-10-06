@@ -48,6 +48,8 @@ export class CommandRunner {
   /** Objects gathered during a "Select objects" request. */
   gathering: string[] = [];
   private gen: CommandGen | null = null;
+  /** Set when the last typed text was rejected as invalid input. */
+  private rejected = false;
 
   readonly ctx: CommandContext;
   private readonly host: RunnerHost;
@@ -92,8 +94,14 @@ export class CommandRunner {
     this.finish();
   }
 
-  /** Text from the command line (Enter pressed). Empty text = Enter. */
-  text(raw: string): void {
+  /** Text from the command line (Enter pressed). Empty text = Enter. Returns false when the text was rejected, so the UI can leave it in the input for correction. */
+  text(raw: string): boolean {
+    this.rejected = false;
+    this.feedText(raw);
+    return !this.rejected;
+  }
+
+  private feedText(raw: string): void {
     const text = raw.trim();
     if (!this.gen || !this.request) {
       this.ctx.log(`Command: ${text}`);
@@ -124,7 +132,7 @@ export class CommandRunner {
       case 'point': {
         const p = this.parsePoint(text, req.base ?? null);
         if (p) this.feedPoint(p, null);
-        else this.invalid(req.options?.length ? 'Point or option keyword required.' : 'Invalid point.');
+        else this.invalid(req.base ? `Requires a point or a distance${req.options?.length ? ', or an option keyword' : ''}.` : req.options?.length ? 'Point or option keyword required.' : 'Invalid point.');
         return;
       }
       case 'number': {
@@ -190,7 +198,7 @@ export class CommandRunner {
     } else if (req.kind === 'entity') {
       const id = this.host.pick(p, req.filter);
       if (id) this.step({ kind: 'entity', id, p });
-      else this.ctx.log('No object found.');
+      else this.ctx.log(req.filter && this.host.pick(p) ? 'Object is not valid for this command.' : 'No object found.');
     }
   }
 
@@ -217,6 +225,7 @@ export class CommandRunner {
   }
 
   private invalid(msg: string): void {
+    this.rejected = true;
     this.ctx.log(msg);
   }
 

@@ -1,47 +1,44 @@
-# Handoff: partial sections for ZA 38 (2026-10-06)
+# Handoff: leaders, item numbers, associative hatching, UX pass (2026-10-06)
 
-The goal of this session was everything needed to draw textbook exercise **ZA 38 "Aufbrechen von Werkstück-Details"**: two parts with partial sections, on A4 at 1:1. ZA 38 is the first real-world test.
-- **Source and transcription:** `docs/testcases/` (photo and `ZA38.md`).
-- **Branch:** `feat/za38-partial-sections`, based on `b73b2ea`.
+This session continued from the ZA 38 session (PR #1, `feat/za38-partial-sections`: partial sections, SKETCH, TEXT, HATCH, DIMANGULAR, parts list, SVG export; its feature list is in the PR description and `git log`).
+- **Branch:** `feat/ux-pass`, stacked on `feat/za38-partial-sections`.
+- **ZA 38 source and transcription:** `docs/testcases/` (photo and `ZA38.md`).
 
 ## Current state
 
 - **CI:** `.github/workflows/ci.yml` runs `npm ci`, typecheck, test and build on every PR and on pushes to `master`, and uploads the ZA 38 SVG render as the `za38-svg` artifact.
-- **Checks:** `npm test` gives 193 passing and 1 skipped (the SVG render script). `npm run typecheck` and `npm run build` are clean.
-- **End-to-end test** (`src/app/za38.test.ts`, fixture in `src/app/testcases/za38.ts`):
-  - Draws the whole exercise through typed commands only.
-  - Checks every dimension value from the book, the five hatched cut regions (bores left free), the parts list and the title block.
+- **Checks:** `npm test` gives 239 passing and 1 skipped (the SVG render script). `npm run typecheck` and `npm run build` are clean.
+- **End-to-end test** (`src/app/za38.test.ts`, fixture in `src/app/testcases/za38.ts`): draws the whole exercise through typed commands only and checks every dimension value from the book, the five hatched cut regions, the parts list and the title block.
 - **Visual checks:**
   - Write the SVG with `ZA38_SVG=/tmp/za38.svg npx vitest run scripts/render-za38.test.ts`.
   - In the running app, `await (await import('/src/app/testcases/za38.ts')).drawZA38()` from the dev console gives the document. Load it with `window.manualcad.replaceDoc(doc, true)`.
-- **Browser run:** done in Vite with Playwright. ZA 38 rendered on the canvas and exported to PDF; the PDF was checked as an image. TEXT, SKETCH, HATCH, DIMANGULAR, DIMLINEAR Text, and PARTSLIST were also driven by real keyboard and mouse input. There were no console errors.
+- **Browser runs (Playwright, Vite):**
+  - A full UX audit drove every toolbar button, every command name and alias, and a complete small part through to PDF at 1024, 1280 and 1600 px width. There were no console errors.
+  - LEADER, BALLOON, DIMANGULAR 3-point, FILLET on a hatched boundary and the parts list dialog were checked on screen, including hatching breaking around a rotated dimension value.
 
 ## New in this session
 
 | Feature | Where |
 |---|---|
-| `freehand` line type (ISO 128-2 01.1, narrow) | `model/standards.ts`, LTYPE `F`, line-type box |
-| SKETCH (SK): freehand line through clicked points, as a smooth chain of tangent arcs (biarcs), so trim, snaps and hatch boundaries work unchanged | `geom/freehand.ts`, `app/commands/annotate.ts` |
-| Annotations: `doc.annotations` (`TextNote`, `Hatch`), plotted and selectable, and handled by MOVE, COPY, MIRROR and ERASE. MIRROR keeps text readable (MIRRTEXT = 0) | `model/annot.ts`, `plot/annot.ts`, `app/selection.ts`, `app/commands/modify.ts` |
-| TEXT (DT, DTEXT): ISO 3098 heights (other values snap to the series), Justify L/C/R, rotation, multi-line, `%%c` → ⌀, `%%d` → °, `%%p` → ± | `app/commands/annotate.ts` |
-| HATCH (H): pick an internal point. Finds the smallest closed region and its islands. Angle and Spacing options. Only visible, thin and freehand lines bound a region | `geom/region.ts`, `geom/hatch.ts`, `app/commands/hatch.ts` |
-| DIMANGULAR (DAN): associative, with the angle picked from the location point as in AutoCAD | `dim/index.ts`, `app/commands/dims.ts` |
-| Dimension text option T/M on every dimension (`<>` = measured value), and DIMEDIT (DED) New | `app/commands/dims.ts` (`parseDimText`) |
-| Parts list (ISO 7573) above the title block; PARTSLIST (PARTS, BOM) Add/Edit/Delete/List | `plot/frame.ts`, `app/commands/settings.ts` |
-| VIEW LAbel: turns a view's label off (e.g. a second part on the sheet). Labels now clear the view's dimensions | `plot/sheet.ts`, `app/commands/settings.ts` |
-| `sheetToSvg`: SVG at true paper size | `plot/svg.ts` |
-| Old handoff items 1–3: PER offers both feet on a circle; Enter at the first fence point goes back to the selection prompt; tracking points clear when a command ends | `geom/snap.ts`, `app/commands/modify.ts`, `app/app.ts` |
+| CI workflow | `.github/workflows/ci.yml` |
+| LEADER (LE, QLEADER, MLEADER, MLD): note on a horizontal reference line (ISO 128-22). The terminator comes from where the tip lands: arrowhead on an outline (snapped to an object, except a centre), dot inside. The Terminator option forces Arrow/Dot/None | `model/types.ts` (`Leader`), `plot/annot.ts`, `app/commands/annotate.ts` |
+| BALLOON (BAL, ITEM): item number (ISO 6433) on a straight leader, at twice the dimension text height. The default is the first parts list item not yet placed; it warns when the number is missing from a non-empty parts list | `app/commands/annotate.ts` |
+| DIMANGULAR 3-point form: Enter at the first prompt, then the vertex and two endpoints. The 30° on ZA 38 no longer needs a helper line | `app/commands/dims.ts` |
+| Hatching is interrupted around notes, leader texts and dimension values (Norm rule HATCH-TEXT) | `geom/hatch.ts` (`clipOutsideConvex`), `plot/annot.ts` (`textBox`) |
+| Associative hatching: a hatch keeps its picked point and the ids of its boundary entities. When one of them changes, the region is found again at the end of the command. If the point is no longer enclosed, the hatch keeps its loops, stops following and says so | `app/commands/hatch.ts`, `app/runner.ts` |
+| Parts list dialog: PARTSLIST opens it, `-PARTSLIST` keeps the command line. Double-click the title block or the parts list on the sheet to edit them | `app/ui.ts`, `app/app.ts`, `app/commands/settings.ts` |
+| Fixes from the audit: rejected input stays in the command line for correction; "Requires a point or a distance" at distance prompts; "Object is not valid for this command." when the pick hits the wrong kind of object; clearer tooltips | `app/runner.ts`, `app/app.ts`, `app/ui.ts` |
 
-Files saved before this session load unchanged: `parse()` fills in `annotations: []` and `partsList: []`.
+Files saved before this session load unchanged: hatches without `assoc` keep their fixed loops.
 
 ## Known limitations and next steps
 
-1. **Hatching does not avoid text** (ISO 128-50: interrupt hatching behind dimension values). The rule is in `NORM_RULES` as `HATCH-TEXT`, but it is not implemented yet. `hatchSegments` would need text boxes as extra islands.
-2. **Hatch boundaries are not associative.** After moving geometry, erase the hatch and run HATCH again.
-3. **DIMANGULAR needs two lines.** A slope measured against a missing edge (the 30° on ZA 38) needs a thin helper line, which is how the end-to-end test does it. AutoCAD's 3-point form is missing.
-4. **No leaders.** Notes such as "Senkung ⌀20 × 8 tief" are free text; ISO 128-22 leaders with a dot or arrow are a natural next step, and so are item number balloons.
-5. **Parts list is command-line only.** A click-to-edit dialog like the title block's would need a sheet-mm cell hit-test API.
-6. **`chrome-devtools-axi` failed here** with a pageId validation error. Use Playwright with `/usr/bin/chromium` instead.
+1. **Associativity follows the picked point, not the boundary objects.** If the boundary geometry is moved without the hatch, the point can end up outside, and the hatch then stops following. Moving both together works.
+2. **Leader texts are single-line.** For a tip on a dimension line, the terminator is not chosen automatically; use Terminator → None.
+3. **The sheet stays German** (title block, parts list headers) while the UI is English. This is deliberate for Austrian drawings and was raised by the audit. A sheet-language setting is the fix if English sheets are ever needed.
+4. **The toolbar wraps to three rows at 1600 px.** It works, but one menu per group (Draw, Modify, Annotate, Dimension) would be tidier.
+5. **NEW asks no confirmation.** UNDO restores the previous drawing, and the message says so.
+6. **`chrome-devtools-axi` failed earlier** with a pageId validation error. Use Playwright with `/usr/bin/chromium`.
 7. **Judgement calls A–D from the drafting-aids review are still open:**
    - PER onto a line's extension;
    - tiered snap priority versus closest-wins;
