@@ -5,6 +5,7 @@ import { mirrorAnnotation, remapHatchBoundary, rotateAnnotation, rotatePoint, sc
 import { dimensionAnchors, newId, resolveAnchor, toSheet } from '../../model/doc';
 import type { Annotation, AnchorPoint, DimAnchor, Dimension, Entity, LinearDimension } from '../../model/types';
 import { fmt } from '../input';
+import { refreshHatchKey } from './hatch';
 import { visibleEntities } from '../xform';
 import { selectObjects, type CommandContext, type CommandGen, type Preview, type SubGen } from './types';
 
@@ -376,6 +377,7 @@ export function copySelection(ctx: CommandContext, { ents, dims, annots }: Selec
   for (const a of annots) {
     const copy = { ...remapHatchBoundary(translateAnnotation(structuredClone(a), localDelta(ctx, a.viewId, d)), map), id: newId('a') };
     ctx.doc.annotations.push(copy);
+    if (copy.kind === 'hatch') refreshHatchKey(ctx.doc, copy);
     out.annots.push(copy);
   }
   for (const dim of dims) {
@@ -540,7 +542,11 @@ export function applyMirror(ctx: CommandContext, { ents, dims: selectedDims, ann
       if (x.kind === 'hatch' && m.kind === 'hatch' && !m.assoc) delete x.assoc;
       Object.assign(x, m);
     }
-    else ctx.doc.annotations.push({ ...m, id: newId('a') });
+    else {
+      const copy = { ...m, id: newId('a') };
+      ctx.doc.annotations.push(copy);
+      if (copy.kind === 'hatch') refreshHatchKey(ctx.doc, copy);
+    }
   }
 }
 
@@ -621,8 +627,11 @@ export function applySimilarity(ctx: CommandContext, sel: Selection, base: Vec2,
   }
   for (const a of sel.annots) {
     const m = remapHatchBoundary(x.annot(copyMode ? structuredClone(a) : a, about(a.viewId)), map);
-    if (copyMode) ctx.doc.annotations.push({ ...m, id: newId('a') });
-    else {
+    if (copyMode) {
+      const copy = { ...m, id: newId('a') };
+      ctx.doc.annotations.push(copy);
+      if (copy.kind === 'hatch') refreshHatchKey(ctx.doc, copy);
+    } else {
       if (a.kind === 'hatch' && m.kind === 'hatch' && !m.assoc) delete a.assoc;
       Object.assign(a, m);
     }

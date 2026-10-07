@@ -308,3 +308,25 @@ describe('SCALE', () => {
     expect(doc.dimensions[1].kind === 'linear' && doc.dimensions[1].a.ref?.entityId).toBe(doc.entities[1].id);
   });
 });
+
+describe('copied hatches keep their copied boundary', () => {
+  it('a rotated copy overlapping the source keeps a hatch of the whole copied outline', () => {
+    const doc = newSheet();
+    const log: string[] = [];
+    const ctx = new CommandContext(() => doc, defaultSettings(doc), (m) => log.push(m));
+    const runner = new CommandRunner(ctx, { pick: () => null, hostCommand: () => {}, takeSelection: () => [], onStart: () => {}, onEnd: () => {} });
+    const type = (...lines: string[]) => lines.forEach((l) => runner.text(l));
+    type('REC', '0,0', '60,40', 'C', '30,20', '8', 'H');
+    runner.click(toSheet(doc.views[0], { x: 5, y: 5 }), null);
+    type('');
+    const ids = [...doc.entities.map((e) => e.id), ...doc.annotations.map((a) => a.id)];
+    runner.start('ROTATE', ids);
+    type('0,0', 'C', '30');
+    const hatches = doc.annotations.filter((a): a is Hatch => a.kind === 'hatch');
+    expect(hatches).toHaveLength(2);
+    // the copied outline with its copied hole, not the sliver where copy and source overlap
+    expect(hatches[1].loops.map((l) => l.length)).toEqual([4, 1]);
+    expect(hatches[1].assoc).toBeDefined();
+    expect(log.some((m) => /lost their boundary/.test(m))).toBe(false);
+  });
+});

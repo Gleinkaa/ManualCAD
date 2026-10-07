@@ -122,6 +122,11 @@ export function diagnosisMessage(d: HatchDiagnosis): string {
   }
 }
 
+/** After a hatch was copied or transformed together with its whole boundary, its loops already fit: refresh the fingerprint so nothing is re-found. */
+export function refreshHatchKey(doc: SheetDoc, h: Hatch): void {
+  if (h.assoc) h.assoc.key = boundaryKey(doc, h.viewId, h.assoc.boundary);
+}
+
 /**
  * Re-find the region of every associative hatch whose boundary changed since its loops were found.
  * A hatch whose point is no longer enclosed keeps its last loops and loses its association.
