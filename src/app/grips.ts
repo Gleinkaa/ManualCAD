@@ -2,7 +2,7 @@
 import { angleOf, arcEnd, arcStart, makeArc } from '../geom/curve';
 import { translate } from '../geom';
 import type { Curve, Vec2 } from '../geom/types';
-import { angularGeometry } from '../dim';
+import { angularGeometry, linearAxes } from '../dim';
 import { getView, resolveAnchor, toLocal, toSheet } from '../model/doc';
 import type { AnchorPoint, Annotation, Dimension, Entity, SheetDoc } from '../model/types';
 import { add, dist, norm, polar, scale, sub } from '../geom/vec';
@@ -43,14 +43,6 @@ function curveGrips(c: Curve): { kind: GripKind; index: number; p: Vec2 }[] {
   }
 }
 
-/** Unit normal of a linear dimension's offset (see dim/plotLinear), sheet space. */
-function linearNormal(orientation: 'horizontal' | 'vertical' | 'aligned', A: Vec2, B: Vec2): Vec2 {
-  if (orientation === 'horizontal') return { x: 0, y: 1 };
-  if (orientation === 'vertical') return { x: 1, y: 0 };
-  const u = dist(A, B) < 1e-12 ? { x: 1, y: 0 } : norm(sub(B, A));
-  return { x: -u.y, y: u.x };
-}
-
 /** Grips of a dimension (sheet mm): its measured points and one point on its dimension line, text or arc. */
 export function dimensionGrips(doc: SheetDoc, dim: Dimension): { kind: GripKind; index: number; p: Vec2 }[] {
   const view = getView(doc, dim.viewId);
@@ -61,7 +53,7 @@ export function dimensionGrips(doc: SheetDoc, dim: Dimension): { kind: GripKind;
     return [
       { kind: 'anchor', index: 0, p: A },
       { kind: 'anchor', index: 1, p: B },
-      { kind: 'dimline', index: 0, p: add(M, scale(linearNormal(dim.orientation, A, B), dim.offset)) },
+      { kind: 'dimline', index: 0, p: add(M, scale(linearAxes(dim.orientation, A, B).n, dim.offset)) },
     ];
   }
   if (dim.kind === 'angular') {

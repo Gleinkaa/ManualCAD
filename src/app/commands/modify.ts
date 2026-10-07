@@ -3,7 +3,8 @@ import { chamfer as geomChamfer, distanceTo, intersect, extend as geomExtend, fi
 import type { Curve, Vec2 } from '../../geom/types';
 import { mirrorAnnotation, remapHatchBoundary, rotateAnnotation, rotatePoint, scaleAnnotation, scalePoint, translateAnnotation } from '../../model/annot';
 import { dimensionAnchors, newId, resolveAnchor, toSheet } from '../../model/doc';
-import type { Annotation, AnchorPoint, DimAnchor, Dimension, Entity, LinearDimension } from '../../model/types';
+import type { Annotation, AnchorPoint, DimAnchor, Dimension, Entity } from '../../model/types';
+import { linearAxes, mirrorLinearOrientation, rotateLinearOrientation } from '../../dim';
 import { fmt } from '../input';
 import { refreshHatchKey } from './hatch';
 import { visibleEntities } from '../xform';
@@ -408,14 +409,6 @@ function mirrorPt(p: Vec2, a: Vec2, b: Vec2): Vec2 {
   return { x: 2 * f.x - p.x, y: 2 * f.y - p.y };
 }
 
-/** Unit normal along which a linear dimension's offset is measured (see dim/plotLinear). */
-function dimNormal(orientation: LinearDimension['orientation'], A: Vec2, B: Vec2): Vec2 {
-  if (orientation === 'horizontal') return { x: 0, y: 1 };
-  if (orientation === 'vertical') return { x: 1, y: 0 };
-  const l = Math.hypot(B.x - A.x, B.y - A.y);
-  return l < 1e-12 ? { x: 0, y: 1 } : { x: -(B.y - A.y) / l, y: (B.x - A.x) / l };
-}
-
 /**
  * Mirror of `dim` across the sheet line a-b. `idMap` maps mirrored entity ids to the ids of their mirror images
  * (the same id when mirrored in place); anchors on other entities are frozen at their mirrored position.
@@ -446,17 +439,13 @@ function mirrorDim(ctx: CommandContext, dim: Dimension, a: Vec2, b: Vec2, idMap:
   }
   const A = toSheet(view, resolveAnchor(ctx.doc, dim.a));
   const B = toSheet(view, resolveAnchor(ctx.doc, dim.b));
-  const n = dimNormal(dim.orientation, A, B);
+  const n = linearAxes(dim.orientation, A, B).n;
   const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
   const D = mirrorPt({ x: M.x + n.x * dim.offset, y: M.y + n.y * dim.offset }, a, b);
-  let orientation = dim.orientation;
-  if (orientation !== 'aligned') {
-    const deg = (((Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI) % 180 + 180) % 180;
-    if (Math.abs(deg - 45) < 1e-6 || Math.abs(deg - 135) < 1e-6) orientation = orientation === 'horizontal' ? 'vertical' : 'horizontal';
-  }
+  const orientation = mirrorLinearOrientation(dim.orientation, Math.atan2(b.y - a.y, b.x - a.x));
   const A2 = mirrorPt(A, a, b);
   const B2 = mirrorPt(B, a, b);
-  const n2 = dimNormal(orientation, A2, B2);
+  const n2 = linearAxes(orientation, A2, B2).n;
   const M2 = { x: (A2.x + B2.x) / 2, y: (A2.y + B2.y) / 2 };
   return {
     ...structuredClone(dim),
@@ -588,7 +577,10 @@ function xformDim(ctx: CommandContext, dim: Dimension, map: Map<string, string>,
     const target = an.ref ? map.get(an.ref.entityId) : undefined;
     return { ref: target && an.ref ? { entityId: target, point: an.ref.point } : null, fallback: pt(p) };
   };
-  if (dim.kind === 'linear') return { ...structuredClone(dim), a: anchor(dim.a), b: anchor(dim.b) };
+  if (dim.kind === 'linear') {
+    const orientation = dAngle === 0 ? dim.orientation : rotateLinearOrientation(dim.orientation, dAngle);
+    return { ...structuredClone(dim), orientation, a: anchor(dim.a), b: anchor(dim.b) };
+  }
   if (dim.kind === 'angular') {
     return { ...structuredClone(dim), leg1: { a: anchor(dim.leg1.a), b: anchor(dim.leg1.b) }, leg2: { a: anchor(dim.leg2.a), b: anchor(dim.leg2.b) } };
   }

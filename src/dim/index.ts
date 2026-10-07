@@ -3,7 +3,7 @@ import { add, cross, dist, dot, norm, perp, scale, sub } from '../geom';
 import type { CircleCurve, ArcCurve, Vec2 } from '../geom/types';
 import { getView, resolveAnchor, toSheet } from '../model/doc';
 import { LINE_GROUPS } from '../model/standards';
-import type { AngularDimension, Dimension, LinearDimension, RadialDimension, SheetDoc } from '../model/types';
+import type { AngularDimension, Dimension, LinearDimension, LinearOrientation, RadialDimension, SheetDoc } from '../model/types';
 import type { Primitive, StrokeStyle } from '../plot/types';
 import {
   ARROW_ANGLE,
@@ -21,14 +21,47 @@ export * from './rules';
 const COLOR = '#000';
 const EPS = 1e-9;
 
+/**
+ * Measurement axis `u` and offset normal `n` of a linear dimension in the space of `A` and `B` (view-local or
+ * sheet, both views are scale+translation only): horizontal (1,0)/(0,1), vertical (0,1)/(1,0), aligned the unit
+ * vector a→b and its left normal, a rotated dimension the normal at `angle` and its right normal.
+ */
+export function linearAxes(orientation: LinearOrientation, A: Vec2, B: Vec2): { u: Vec2; n: Vec2 } {
+  if (orientation === 'horizontal') return { u: { x: 1, y: 0 }, n: { x: 0, y: 1 } };
+  if (orientation === 'vertical') return { u: { x: 0, y: 1 }, n: { x: 1, y: 0 } };
+  if (orientation === 'aligned') {
+    const u = dist(A, B) < EPS ? { x: 1, y: 0 } : norm(sub(B, A));
+    return { u, n: perp(u) };
+  }
+  const n = { x: Math.cos(orientation.angle), y: Math.sin(orientation.angle) };
+  return { u: { x: -n.y, y: n.x }, n };
+}
+
+/** Orientation of a linear dimension rotated by `angle` (radians); an aligned dimension keeps following its anchors. */
+export function rotateLinearOrientation(orientation: LinearOrientation, angle: number): LinearOrientation {
+  if (orientation === 'aligned') return 'aligned';
+  const base = orientation === 'horizontal' ? Math.PI / 2 : orientation === 'vertical' ? 0 : orientation.angle;
+  return { angle: base + angle };
+}
+
+/** Orientation of a linear dimension mirrored across a line at `lineAngle` (radians, sheet space). */
+export function mirrorLinearOrientation(orientation: LinearOrientation, lineAngle: number): LinearOrientation {
+  if (orientation === 'aligned') return 'aligned';
+  const base = orientation === 'horizontal' ? Math.PI / 2 : orientation === 'vertical' ? 0 : orientation.angle;
+  // `mirrorDim` recomputes the offset from the mirrored dimension-line point, so the reflected normal may be
+  // taken mod 180° and a paper axis can go back to its named form; the recomputed offset carries the side.
+  const a = ((2 * lineAngle - base) % Math.PI + Math.PI) % Math.PI;
+  if (Math.abs(a - Math.PI / 2) < EPS) return 'horizontal';
+  if (a < EPS || Math.PI - a < EPS) return 'vertical';
+  return { angle: a };
+}
+
 /** The measured value in real mm (radius, diameter or distance), using associated geometry. */
 export function measure(doc: SheetDoc, dim: Dimension): number {
   if (dim.kind === 'linear') {
     const a = resolveAnchor(doc, dim.a);
     const b = resolveAnchor(doc, dim.b);
-    if (dim.orientation === 'horizontal') return Math.abs(b.x - a.x);
-    if (dim.orientation === 'vertical') return Math.abs(b.y - a.y);
-    return dist(a, b);
+    return Math.abs(dot(sub(b, a), linearAxes(dim.orientation, a, b).u));
   }
   if (dim.kind === 'angular') {
     const g = angularGeometry(doc, dim);
@@ -117,18 +150,7 @@ function plotLinear(doc: SheetDoc, dim: LinearDimension, c: Ctx): Primitive[] {
   const view = getView(doc, dim.viewId);
   const A = toSheet(view, resolveAnchor(doc, dim.a));
   const B = toSheet(view, resolveAnchor(doc, dim.b));
-  let u: Vec2;
-  let n: Vec2;
-  if (dim.orientation === 'horizontal') {
-    u = { x: 1, y: 0 };
-    n = { x: 0, y: 1 };
-  } else if (dim.orientation === 'vertical') {
-    u = { x: 0, y: 1 };
-    n = { x: 1, y: 0 };
-  } else {
-    u = dist(A, B) < EPS ? { x: 1, y: 0 } : norm(sub(B, A));
-    n = perp(u);
-  }
+  const { u, n } = linearAxes(dim.orientation, A, B);
   // The dimension line runs at `offset` from the midpoint of the measured points, along n.
   const M = scale(add(A, B), 0.5);
   const foot = (p: Vec2) => add(p, scale(n, dot(sub(M, p), n) + dim.offset));

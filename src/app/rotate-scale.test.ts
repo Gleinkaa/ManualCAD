@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { measure } from '../dim';
+import { dimensionText, measure } from '../dim';
 import { rotateAnnotation, scaleAnnotation } from '../model/annot';
 import { newSheet, resolveAnchor, toSheet } from '../model/doc';
 import type { Hatch, LinearDimension, SheetDoc } from '../model/types';
@@ -101,8 +101,8 @@ describe('ROTATE', () => {
     const cp = doc.dimensions[1];
     if (cp.kind !== 'linear') throw new Error('linear');
     expect(cp.a.ref?.entityId).toBe(doc.entities[1].id);
-    expect(cp.orientation).toBe('horizontal');
     expect(resolveAnchor(doc, cp.b).y).toBeCloseTo(40);
+    expect(measure(doc, cp)).toBeCloseTo(40);
     expect(doc.dimensions[0]).toMatchObject({ a: { ref: { entityId: src.id } } });
   });
 
@@ -202,8 +202,22 @@ describe('ROTATE', () => {
     expect(d1.b.ref).toBeNull();
     expect(d1.b.fallback.x).toBeCloseTo(0);
     expect(d1.b.fallback.y).toBeCloseTo(40);
-    expect(d1.orientation).toBe('horizontal');
+    expect(measure(doc, d1)).toBeCloseTo(40);
     expect(d1.offset).toBe(-10);
+  });
+
+  it('keeps the measured value of a frozen horizontal dimension rotated by an arbitrary angle', () => {
+    const { doc, runner, type } = setup();
+    type('L', '0,0', '40,10', '');
+    const line = doc.entities[0];
+    doc.dimensions.push(lin('d1', line.id, -10));
+    runner.start('ROTATE', [line.id, 'd1']);
+    type('0,0', '45');
+    const d1 = doc.dimensions[0];
+    if (d1.kind !== 'linear') throw new Error('linear');
+    // a horizontal dimension measures the horizontal projection, unchanged by the rotation of its anchors
+    expect(measure(doc, d1)).toBeCloseTo(40);
+    expect(dimensionText(doc, d1)).toBe('40');
   });
 });
 

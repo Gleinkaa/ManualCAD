@@ -214,6 +214,19 @@ describe('MIRROR with dimensions', () => {
     expect(d2.angle).toBeCloseTo((3 * Math.PI) / 4);
   });
 
+  it('keeps the measured value of a horizontal dimension mirrored across an oblique line', () => {
+    const { doc, runner, type } = setup();
+    type('L', '0,0', '40,0', '');
+    const src = doc.entities[0];
+    doc.dimensions.push({ ...lin('d1', src.id, -10), a: { ref: null, fallback: { x: 0, y: 0 } }, b: { ref: null, fallback: { x: 40, y: 0 } } });
+    runner.start('MIRROR', ['d1']);
+    type('0,0', '10,3', 'N');   // not a 45° line: the old code left the orientation unchanged
+    const m = doc.dimensions[1];
+    if (m.kind !== 'linear') throw new Error('linear');
+    expect(measure(doc, m)).toBeCloseTo(40);
+    expect(dimensionText(doc, m)).toBe('40');
+  });
+
   it('mirrors selected dimensions alone', () => {
     const { doc, runner, type } = setup();
     type('L', '0,0', '40,0', '');

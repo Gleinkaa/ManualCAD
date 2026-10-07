@@ -59,6 +59,14 @@ export interface DimText {
   suffix: string;            // e.g. " h6"
 }
 
+/**
+ * A linear dimension's measurement direction: a fixed paper axis, the direction of its two anchors, or an axis
+ * rotated out of the paper grid. The rotated form stores the direction of the offset normal (radians, sheet
+ * space), so a rotated horizontal dimension is `{ angle: Math.PI / 2 + φ }` and a vertical one `{ angle: φ }`;
+ * keeping the normal instead of the measured axis preserves the sign of `offset` under every isometry.
+ */
+export type LinearOrientation = 'horizontal' | 'vertical' | 'aligned' | { angle: number };
+
 export interface LinearDimension {
   kind: 'linear';
   id: string;
@@ -66,7 +74,7 @@ export interface LinearDimension {
   layer: string;
   a: DimAnchor;
   b: DimAnchor;
-  orientation: 'horizontal' | 'vertical' | 'aligned';
+  orientation: LinearOrientation;
   /** Signed distance of the dimension line from the midpoint of the two measured sheet points, in SHEET mm, perpendicular to the measured direction (+y horizontal, +x vertical, left normal of a→b aligned). */
   offset: number;
   text: DimText;
