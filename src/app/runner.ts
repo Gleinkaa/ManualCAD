@@ -2,7 +2,7 @@
 import type { Vec2 } from '../geom/types';
 import { toLocal, toSheet } from '../model/doc';
 import type { Entity } from '../model/types';
-import { COMMANDS, resolveCommand } from './commands';
+import { COMMANDS, isHiddenCommand, resolveCommand } from './commands';
 import { updateAssociativeHatches } from './commands/hatch';
 import type { CommandContext, CommandGen, Input, Option, Request } from './commands/types';
 import { fmt, parseCoordinate, resolveInput } from './input';
@@ -77,7 +77,7 @@ export class CommandRunner {
       this.host.hostCommand(name);
       return;
     }
-    this.lastCommand = name;
+    if (!isHiddenCommand(name)) this.lastCommand = name;
     this.name = name;
     this.host.onStart(name);
     this.ctx.preselection = preselection ?? this.host.takeSelection();

@@ -51,7 +51,7 @@ export const ICONS: Record<string, string> = {
   DIMLINEAR:
     '<path d="M3.5 3.5v11M16.5 3.5v11" stroke-width="1"/><path d="M3.5 10h13"/><path d="M3.5 10l3.5-1.2v2.4zM16.5 10L13 8.8v2.4z" fill="currentColor"/>',
   DIMALIGNED:
-    '<g transform="rotate(-30 10 10)"><path d="M3.5 6v8M16.5 6v8" stroke-width="1"/><path d="M3.5 11h13"/><path d="M3.5 11l3-1v2zM16.5 11l-3-1v2z" fill="currentColor"/></g>',
+    '<g transform="rotate(-40 10 10)"><path d="M3 7v6M17 7v6" stroke-width="1"/><path d="M3 10h14"/><path d="M3 10l4-1.5v3zM17 10l-4-1.5v3z" fill="currentColor"/></g>',
   DIMRADIUS:
     '<circle cx="8" cy="12" r="5.5"/><path d="M8 12l8-8"/><path d="M11.9 8.1l-1.7 3.3-1.6-1.6z" fill="currentColor"/><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"/>',
   DIMDIAMETER:
@@ -59,9 +59,9 @@ export const ICONS: Record<string, string> = {
   DIMANGULAR:
     '<path d="M3 17h14M3 17L11 4.5"/><path d="M12 17A9 9 0 0 0 7.85 9.42"/><path d="M12 17l-1-3h2zM7.85 9.42l3.05.78-1 1.6z" fill="currentColor"/>',
   DIMEDIT:
-    '<path d="M2.5 12.5v5M17.5 12.5v5" stroke-width="1"/><path d="M2.5 15h15"/><path d="M2.5 15l3-1v2zM17.5 15l-3-1v2z" fill="currentColor"/><path d="M5 11l.5-2.5L11 3l2.2 2.2-5.5 5.5z"/><path d="M5.5 8.5l2.2 2.2" stroke-width="1"/>',
+    '<path d="M2.5 12v5.5M12.5 12v5.5" stroke-width="1"/><path d="M2.5 15h10"/><path d="M2.5 15l3.2-1.3v2.6zM12.5 15l-3.2-1.3v2.6z" fill="currentColor"/><path d="M7.5 10.5l.7-3.2L14.5 1l3.2 3.2-6.3 6.3z"/><path d="M8.2 7.3l3.2 3.2" stroke-width="1"/>',
   HATCHEDIT:
-    '<rect x="2.5" y="8.5" width="9" height="9"/><path d="M2.5 11.5l3-3M2.5 14.5l6-6M2.5 17.5l9-9M5.5 17.5l6-6M8.5 17.5l3-3" stroke-width="1"/><path d="M10.5 10.5l.5-2.5 5-5 2.2 2.2-5 5z"/><path d="M11 8l2.2 2.2" stroke-width="1"/>',
+    '<rect x="2.5" y="7.5" width="10" height="10"/><path d="M2.5 10.5l3-3M2.5 13.5l6-6M2.5 16.5l9-9M5.5 17.5l7-7M8.5 17.5l4-4M11.5 17.5l1-1" stroke-width="1"/><path d="M9.5 10.5l.7-3.2L16.5 1l3.2 3.2-6.3 6.3z" fill="#fff"/><path d="M10.2 7.3l3.2 3.2" stroke-width="1"/>',
   // --- views / navigation -------------------------------------------------
   VIEW:
     '<rect x="2.5" y="5" width="9" height="10"/><circle cx="7" cy="10" r="2.5"/><rect x="14" y="5" width="3.5" height="10"/><path d="M14 7.5h3.5M14 12.5h3.5" stroke-width="1" stroke-dasharray="1 1"/>',

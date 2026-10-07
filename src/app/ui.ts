@@ -343,9 +343,10 @@ const BASICS: [string, string][] = [
   ['Object snap', 'SNAP (F3) finds endpoints, midpoints, centres, quadrants, intersections, perpendiculars and tangents. Type END, MID, CEN, QUA, INT, PER, TAN or NEA at a point prompt for one point only.'],
   ['Ortho and polar', 'ORTHO (F8) locks to horizontal/vertical and tracks snapped points across views like a T-square; POLAR (F10) tracks every 15°.'],
   ['Selecting', 'Click an object, or drag a window (left to right: inside) or crossing (right to left: touching). Shift removes. Select first, then a command, or the other way round. Delete erases the selection.'],
+  ['Grips', 'Selected objects show blue grips. Drag an endpoint to stretch a line, a midpoint or centre to move it, a quadrant to resize a circle; grips that meet at a corner move together, and hatches and dimensions follow.'],
   ['Mouse', 'Wheel zooms at the cursor. Middle button drags to pan; double-click it to fit the sheet. Right-click = Enter. Double-click a hatch, text, dimension, the title block or the parts list to edit it.'],
   ['Line types', 'Line type and width come from the meaning of a line (visible edge, centre line …) and the sheet\'s line group, never chosen freely. Select objects and change the Line type box to retype them.'],
-  ['Hatching', 'A cut surface must be a closed outline of visible, thin or freehand lines. HATCH previews the area under the cursor; if it is not closed, the open ends are marked in red.'],
+  ['Hatching', 'A cut surface must be a closed outline of visible, thin or freehand lines. HATCH previews the area under the cursor; if it is not closed, the open ends are marked in red; the Gap option bridges small gaps.'],
 ];
 
 /** Modal command reference: basics, then every command with its aliases, grouped. */

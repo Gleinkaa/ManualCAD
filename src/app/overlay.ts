@@ -159,3 +159,17 @@ export function drawTrackLine(ctx: CanvasRenderingContext2D, a: Vec2, b: Vec2, d
   ctx.stroke();
   ctx.restore();
 }
+
+/** Grip square (AutoCAD-like): filled blue, red when hot (hovered or being dragged). */
+export function drawGrip(ctx: CanvasRenderingContext2D, p: Vec2, hot: boolean, dpr: number): void {
+  const s = 4 * dpr;
+  ctx.save();
+  ctx.fillStyle = hot ? '#d33a2f' : '#1e6fd9';
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = dpr;
+  const x = Math.round(p.x);
+  const y = Math.round(p.y);
+  ctx.fillRect(x - s, y - s, 2 * s, 2 * s);
+  ctx.strokeRect(x - s + 0.5, y - s + 0.5, 2 * s - 1, 2 * s - 1);
+  ctx.restore();
+}

@@ -2,7 +2,7 @@
 
 This session followed the 2026-10-06 UX pass (PR #2, `feat/ux-pass`). Its notes are kept below, under "Previous handoff".
 - **Branch:** `feat/ux-hatch-help`, on `master` after PR #2.
-- **Checks:** `npm test` gives 290 passing and 1 skipped; `npm run typecheck` and `npm run build` are clean.
+- **Checks:** `npm test` gives 296 passing and 1 skipped; `npm run typecheck` and `npm run build` are clean.
 - **Browser runs (Playwright, `/usr/bin/chromium`, the copy under `~/.hermes/hermes-agent/node_modules/playwright`):** every screen below was driven and screenshotted at 1400 and 1100 px width with no console errors; the rollover pick costs 0.5 ms per mouse move on ZA 38 (101 entities, 26 dimensions), the hatch preview under 0.1 ms.
 
 ## Why: "how do I hatch an area?"
@@ -33,14 +33,22 @@ HATCH worked before, but only told the user *that* nothing was found. Now:
 
 Messages changed: "N hatch(es) created." → "1 hatch created." / "2 hatches created."; "No closed boundary found around the point." → the three diagnosis texts in `diagnosisMessage`.
 
+## Second pass (same day): grips, gap tolerance, icons
+
+| Feature | Where |
+|---|---|
+| **Grips.** Selected objects show blue squares: line ends and midpoint, circle centre and quadrants, arc ends, midpoint and centre, text insertion point, leader points. Hovering turns one red; clicking it starts the hidden GRIPSTRETCH command (point prompt with base, snaps/ortho/polar work, live ghost). All selected grips at the same spot move together, so a corner stretches both lines. Associative dimensions and hatches follow through the existing anchor and `updateAssociativeHatches` paths | `app/grips.ts` (`objectGrips`, `stretchCurve`, `applyGrip`), `app/commands/grips.ts`, `app/app.ts` (`startGripDrag`, `hotGrip`), `app/overlay.ts` (`drawGrip`) |
+| HATCH Gap option (AutoCAD HPGAPTOL, default 0): open ends closer than the tolerance are joined by bridge lines before the region is found; the hatch remembers the tolerance in `assoc.gap` so re-finding after edits uses it. The failure message now names the smallest gap and the option | `app/commands/hatch.ts` (`bridgeGaps`, `hatchRegion(..., gap)`), `commands/types.ts` (`hatchGap`), `session.ts`, `model/types.ts` |
+| Redrawn DIMALIGNED, DIMEDIT and HATCHEDIT icons (larger arrowheads, bigger pencil) | `app/icons.ts` |
+| Hidden commands (`GRIPSTRETCH`) stay out of HELP, autocomplete and Enter-repeat | `app/commands/index.ts` (`isHiddenCommand`), `app/runner.ts` |
+
 ## Known limitations and next steps
 
-1. **No grips.** Dragging an endpoint to stretch a line is still not possible; STRETCH does not exist either. This is the biggest remaining gap for AutoCAD users.
-2. **Gap tolerance.** HATCH marks gaps but does not bridge them (AutoCAD HPGAPTOL). Easy to add in `hatchRegion` if training drawings turn out to need it.
+1. **Grips cover entities, text and leaders.** Dimensions have no grips yet (moving a dimension line or its text still needs ERASE and redraw); hatches follow their boundary instead. STRETCH (window stretch of many ends) does not exist; coincident grips cover the common corner case.
+2. **Grip drags are single-point.** AutoCAD's Shift-select of several grips, and the grip modes (rotate/scale/mirror by Enter cycling) are not built.
 3. **Autocomplete ranks substring matches too** (typing `di` also lists HATCHEDIT and TEXTEDIT after the DIM* commands). Drop rank 3 in `suggestCommands` if that annoys.
 4. **The toolbar wraps to two rows below ~1250 px.** Still usable; icon-only buttons could lose their captions at narrow widths.
-5. **Icons:** DIMALIGNED, DIMEDIT and HATCHEDIT are the least readable at 20 px (see the icon subagent's notes in the commit); tooltips and captions carry the meaning.
-6. The items 1–7 of the previous handoff still apply where not superseded (toolbar item 5 is done; `chrome-devtools-axi` item 7 still true).
+5. The items 1–7 of the previous handoff still apply where not superseded (toolbar item 5 is done; `chrome-devtools-axi` item 7 still true).
 
 ## How to resume
 

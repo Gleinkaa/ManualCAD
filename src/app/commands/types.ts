@@ -68,6 +68,7 @@ export interface AppSettings {
   textHeight: number;              // paper mm, ISO 3098 series
   hatchAngle: number;              // degrees
   hatchSpacing: number;            // paper mm
+  hatchGap: number;                // view mm: open ends closer than this are bridged (0 = none, like AutoCAD)
 }
 
 export function defaultSettings(doc: SheetDoc): AppSettings {
@@ -82,6 +83,7 @@ export function defaultSettings(doc: SheetDoc): AppSettings {
     textHeight: 3.5,
     hatchAngle: 45,
     hatchSpacing: HATCH_SPACING_DEFAULT,
+    hatchGap: 0,
   };
 }
 
@@ -96,6 +98,8 @@ export interface HostActions {
 
 export class CommandContext {
   preselection: string[] = [];
+  /** Grips being dragged, set by the app just before GRIPSTRETCH starts. */
+  grip: import('./grips').GripDrag | null = null;
 
   private readonly getDoc: () => SheetDoc;
   readonly settings: AppSettings;

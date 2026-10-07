@@ -2,6 +2,7 @@
 import { balloon, leader, sketch, text, textedit } from './annotate';
 import { dimaligned, dimangular, dimdiameter, dimedit, dimlinear, dimradius } from './dims';
 import { arc, circle, line, rectang } from './draw';
+import { gripstretch } from './grips';
 import { hatch, hatchedit } from './hatch';
 import { chamfer, copy, erase, extend, fillet, mirror, move, offset, rotate, scaleCmd, trim } from './modify';
 import { layer, ltype, partslist, partslistCommandLine, titleblock, view, zoom } from './settings';
@@ -43,7 +44,15 @@ export const COMMANDS: Record<string, CommandFn> = {
   TITLEBLOCK: titleblock,
   PARTSLIST: partslist,
   '-PARTSLIST': partslistCommandLine,
+  GRIPSTRETCH: gripstretch,
 };
+
+/** Registered commands that are not typed by users: started by the app, kept out of HELP and autocomplete. */
+const HIDDEN_COMMANDS: ReadonlySet<string> = new Set(['GRIPSTRETCH']);
+
+export function isHiddenCommand(name: string): boolean {
+  return HIDDEN_COMMANDS.has(name);
+}
 
 /** Commands the app handles itself (files, undo, help, pan); they never enter the command runner. */
 export const HOST_COMMANDS = ['UNDO', 'REDO', 'SAVE', 'OPEN', 'NEW', 'PLOT', 'EXPORTPDF', 'HELP', 'PAN'] as const;
@@ -128,7 +137,7 @@ export const COMMAND_INFO: CommandInfo[] = [
   { name: 'CIRCLE', group: 'Draw', summary: 'Circle by centre and radius (Diameter option), or 2P by two diameter end points.' },
   { name: 'ARC', group: 'Draw', summary: 'Arc through three points, or Center: centre, start, end (counter-clockwise).' },
   { name: 'RECTANG', group: 'Draw', summary: 'Rectangle by two corners, or Dimensions: length and width.' },
-  { name: 'HATCH', group: 'Draw', summary: 'Section hatching (ISO 128-50): pick a point inside a closed outline; the area previews under the cursor. Angle, Spacing, Flip (45°↔135°).' },
+  { name: 'HATCH', group: 'Draw', summary: 'Section hatching (ISO 128-50): pick a point inside a closed outline; the area previews under the cursor. Angle, Spacing, Flip (45°↔135°), Gap tolerance.' },
   { name: 'SKETCH', group: 'Draw', summary: 'Freehand break line (ISO 128-2 01.1) through clicked points, for partial sections.' },
   { name: 'OFFSET', group: 'Modify', summary: 'Parallel copy at a distance (or Through a point): pick the object, then the side.' },
   { name: 'TRIM', group: 'Modify', summary: 'Cut objects at cutting edges: select edges (Enter = all), then click the parts to remove, or Fence.' },
@@ -175,7 +184,7 @@ export function aliasesOf(name: string): string[] {
 /** Known command names: the catalogue, registered commands and host commands. */
 export function allCommandNames(): string[] {
   const names = new Set<string>([...COMMAND_INFO.map((c) => c.name), ...Object.keys(COMMANDS), ...HOST_COMMANDS]);
-  return [...names].filter((n) => n in COMMANDS || (HOST_COMMANDS as readonly string[]).includes(n));
+  return [...names].filter((n) => !HIDDEN_COMMANDS.has(n) && (n in COMMANDS || (HOST_COMMANDS as readonly string[]).includes(n)));
 }
 
 /** Autocomplete: commands and aliases starting with `prefix` (case-insensitive), exact and alias matches first. */
@@ -187,7 +196,7 @@ export function suggestCommands(prefix: string, limit = 8): { name: string; alia
   const seen = new Set<string>();
   const push = (name: string, alias: string | null, rank: number) => {
     if (seen.has(name)) return;
-    if (!(name in COMMANDS) && !(HOST_COMMANDS as readonly string[]).includes(name)) return;
+    if (HIDDEN_COMMANDS.has(name) || (!(name in COMMANDS) && !(HOST_COMMANDS as readonly string[]).includes(name))) return;
     seen.add(name);
     out.push({ name, alias, summary: info.get(name) ?? '', rank });
   };

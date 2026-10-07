@@ -146,6 +146,8 @@ export interface HatchAssoc {
   seed: Vec2;                // view-local internal point picked by HATCH
   boundary: string[];        // ids of the entities the loops lie on
   key: string;               // fingerprint of those entities when the loops were found
+  /** Gap tolerance (view mm) the region was found with; open ends closer than this were bridged. Absent = 0. */
+  gap?: number;
 }
 
 /**

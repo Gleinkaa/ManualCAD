@@ -32,22 +32,54 @@ function boundaryKey(doc: SheetDoc, viewId: string, ids: string[]): string {
  * Loops around `seed` (view-local) and the association that lets them follow later edits; null when the
  * point is not enclosed.
  */
-export function hatchRegion(doc: SheetDoc, viewId: string, seed: Vec2, includeHidden = false): { loops: Curve[][]; assoc: HatchAssoc } | null {
+export function hatchRegion(doc: SheetDoc, viewId: string, seed: Vec2, includeHidden = false, gap = 0): { loops: Curve[][]; assoc: HatchAssoc; bridged: number } | null {
   const candidates = boundaryEntities(doc, viewId);
   const ents = includeHidden ? candidates : candidates.filter((e) => layerVisible(doc, e.layer));
-  const loops = findRegion(ents.map((e) => e.geom), seed);
+  const curves = ents.map((e) => e.geom);
+  let loops = findRegion(curves, seed);
+  let bridged = 0;
+  if (!loops && gap > 0) {
+    const bridges = bridgeGaps(openEnds(curves), gap);
+    if (bridges.length > 0) {
+      loops = findRegion([...curves, ...bridges], seed);
+      bridged = bridges.length;
+    }
+  }
   if (!loops) return null;
   const tol = 1e-6 * Math.max(1, ...loops.flat().map((c) => Math.hypot(pointOn(c).x, pointOn(c).y)));
   const boundary = ents.filter((e) => loops.some((l) => l.some((c) => distanceTo(e.geom, pointOn(c)) <= tol))).map((e) => e.id);
-  return { loops, assoc: { seed, boundary, key: boundaryKey(doc, viewId, boundary) } };
+  const assoc: HatchAssoc = { seed, boundary, key: boundaryKey(doc, viewId, boundary) };
+  if (gap > 0) assoc.gap = gap;
+  return { loops, assoc, bridged };
+}
+
+/** Lines closing pairs of open ends that are at most `gap` apart (nearest pairs first, each end used once). */
+export function bridgeGaps(ends: Vec2[], gap: number): Curve[] {
+  const pairs: { i: number; j: number; d: number }[] = [];
+  for (let i = 0; i < ends.length; i++) {
+    for (let j = i + 1; j < ends.length; j++) {
+      const d = dist(ends[i], ends[j]);
+      if (d > 0 && d <= gap) pairs.push({ i, j, d });
+    }
+  }
+  pairs.sort((a, b) => a.d - b.d);
+  const used = new Set<number>();
+  const out: Curve[] = [];
+  for (const { i, j } of pairs) {
+    if (used.has(i) || used.has(j)) continue;
+    used.add(i);
+    used.add(j);
+    out.push({ kind: 'line', a: ends[i], b: ends[j] });
+  }
+  return out;
 }
 
 /** Why no region was found around `seed`, so the user can fix the drawing instead of guessing. */
 export type HatchDiagnosis =
   /** The area closes only with line types that never bound a cut surface (hidden, centre, phantom, construction). */
   | { reason: 'linetype'; types: LineTypeId[] }
-  /** The boundary has gaps: the open ends nearest the point (view-local), nearest first. */
-  | { reason: 'open'; ends: Vec2[] }
+  /** The boundary has gaps: the open ends nearest the point (view-local), nearest first, and the smallest gap between two ends (view mm, null when there is only one end). */
+  | { reason: 'open'; ends: Vec2[]; smallest: number | null }
   /** Nothing around the point at all. */
   | { reason: 'none' };
 
@@ -62,7 +94,16 @@ export function diagnoseHatch(doc: SheetDoc, viewId: string, seed: Vec2): HatchD
   }
   const ends = openEnds(visible.filter((e) => BOUNDARY_TYPES.has(e.lineType)).map((e) => e.geom));
   if (ends.length === 0) return { reason: 'none' };
-  return { reason: 'open', ends: ends.sort((a, b) => dist(a, seed) - dist(b, seed)) };
+  return { reason: 'open', ends: ends.sort((a, b) => dist(a, seed) - dist(b, seed)), smallest: smallestGap(ends) };
+}
+
+function smallestGap(ends: Vec2[]): number | null {
+  let best: number | null = null;
+  for (let i = 0; i < ends.length; i++) for (let j = i + 1; j < ends.length; j++) {
+    const d = dist(ends[i], ends[j]);
+    if (d > 0 && (best === null || d < best)) best = d;
+  }
+  return best;
 }
 
 /** Message for a diagnosis, naming the repair. */
@@ -72,8 +113,10 @@ export function diagnosisMessage(d: HatchDiagnosis): string {
       const names = d.types.map((t) => LINE_TYPES[t].label.toLowerCase()).join(' and ');
       return `The area is closed only by ${names} lines. A cut surface is bounded by visible edges (01.2), thin or freehand lines: change the line type of the outline (select it, then choose the line type) or draw the edge again.`;
     }
-    case 'open':
-      return `The boundary is not closed: ${d.ends.length} open end${d.ends.length === 1 ? '' : 's'} marked in red. Close the gap (EXTEND, TRIM, FILLET with radius 0, or redraw with object snap) and pick again.`;
+    case 'open': {
+      const size = d.smallest !== null && d.smallest < 5 ? ` (smallest ${fmt(d.smallest, 2)} mm)` : '';
+      return `The boundary is not closed: ${d.ends.length} open end${d.ends.length === 1 ? '' : 's'} marked in red${size}. Close the gap (EXTEND, TRIM, FILLET with radius 0, or redraw with object snap) and pick again, or set a Gap tolerance.`;
+    }
     case 'none':
       return 'No boundary around that point. Pick a point inside a closed outline of visible edges.';
   }
@@ -89,7 +132,7 @@ export function updateAssociativeHatches(doc: SheetDoc): number {
   for (const h of doc.annotations) {
     if (h.kind !== 'hatch' || !h.assoc) continue;
     if (boundaryKey(doc, h.viewId, h.assoc.boundary) === h.assoc.key) continue;
-    const r = hatchRegion(doc, h.viewId, h.assoc.seed, true);
+    const r = hatchRegion(doc, h.viewId, h.assoc.seed, true, h.assoc.gap ?? 0);
     if (r) {
       h.loops = r.loops;
       h.assoc = r.assoc;
@@ -108,6 +151,7 @@ export function flipAngle(angle: number): number {
 
 /** Options shared by HATCH and HATCHEDIT, plus a prompt tail showing the current values. */
 const STYLE_OPTIONS: Option[] = [{ key: 'A', label: 'Angle' }, { key: 'S', label: 'Spacing' }, { key: 'F', label: 'Flip' }];
+const GAP_OPTION: Option = { key: 'G', label: 'Gap' };
 
 /** Handle Angle / Spacing / Flip; returns true when `key` was one of them. */
 function* styleOption(ctx: CommandContext, key: string, cur: { angle: number; spacing: number }): SubGen<boolean> {
@@ -142,17 +186,17 @@ export function* hatch(ctx: CommandContext): CommandGen {
     const viewId = s.currentViewId;
     const seed = ctx.local(p);
     if (last && last.viewId === viewId && dist(last.seed, seed) < 1e-9) return last.hatch;
-    const region = hatchRegion(ctx.doc, viewId, seed);
+    const region = hatchRegion(ctx.doc, viewId, seed, false, s.hatchGap);
     const h: Hatch | null = region && { kind: 'hatch', id: 'preview', viewId, layer: s.layer, loops: region.loops, angle: s.hatchAngle, spacing: s.hatchSpacing, assoc: region.assoc };
     last = { seed, viewId, hatch: h };
     return h;
   };
   for (;;) {
-    const options = [...STYLE_OPTIONS];
+    const options = [...STYLE_OPTIONS, GAP_OPTION];
     if (created.length > 0) options.push({ key: 'U', label: 'Undo' });
     const r = yield {
       kind: 'point',
-      prompt: `Pick a point inside the area to hatch (angle ${fmt(s.hatchAngle, 0)}°, spacing ${fmt(s.hatchSpacing, 2)})`,
+      prompt: `Pick a point inside the area to hatch (angle ${fmt(s.hatchAngle, 0)}°, spacing ${fmt(s.hatchSpacing, 2)}${s.hatchGap > 0 ? `, gap ${fmt(s.hatchGap, 2)}` : ''})`,
       options,
       allowEnter: true,
       preview: (p): Preview => {
@@ -164,6 +208,15 @@ export function* hatch(ctx: CommandContext): CommandGen {
       if (r.key === 'U') {
         const id = created.pop();
         ctx.doc.annotations = ctx.doc.annotations.filter((a) => a.id !== id);
+        continue;
+      }
+      if (r.key === 'G') {
+        const g = yield { kind: 'number', prompt: 'Specify gap tolerance (view mm, 0 = boundaries must close exactly)', default: s.hatchGap };
+        if (g.kind === 'number') {
+          if (g.value >= 0) s.hatchGap = g.value;
+          else ctx.log('The gap tolerance must not be negative.');
+        }
+        last = null;
         continue;
       }
       const cur = { angle: s.hatchAngle, spacing: s.hatchSpacing };
@@ -179,7 +232,7 @@ export function* hatch(ctx: CommandContext): CommandGen {
     }
     const viewId = s.currentViewId;
     const seed = ctx.local(r.p);
-    const region = hatchRegion(ctx.doc, viewId, seed);
+    const region = hatchRegion(ctx.doc, viewId, seed, false, s.hatchGap);
     if (!region) {
       const d = diagnoseHatch(ctx.doc, viewId, seed);
       const view = ctx.viewOf(viewId);
@@ -195,6 +248,7 @@ export function* hatch(ctx: CommandContext): CommandGen {
     }
     ctx.doc.annotations.push(h);
     created.push(h.id);
+    if (region.bridged > 0) ctx.log(`${region.bridged} gap${region.bridged === 1 ? '' : 's'} bridged (tolerance ${fmt(s.hatchGap, 2)} mm); the outline itself is still open.`);
   }
 }
 

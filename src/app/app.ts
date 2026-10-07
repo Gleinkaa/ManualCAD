@@ -10,7 +10,8 @@ import { resolveCommand, suggestCommands } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
 import { History, snapshot } from './history';
 import { applyOrtho, applyPolar, fmt } from './input';
-import { drawCrosshair, drawMarker, drawSelectionBox, drawSnapMarker, drawTrackLine, drawViewOrigin, tooltip } from './overlay';
+import { drawCrosshair, drawGrip, drawMarker, drawSelectionBox, drawSnapMarker, drawTrackLine, drawViewOrigin, tooltip } from './overlay';
+import { nearestGrip, objectGrips, type Grip } from './grips';
 import { CommandRunner } from './runner';
 import { decodeSession, docHash, encodeSession, PERSISTED_UNDO, type SessionView } from './session';
 import { boxSelect, pick, pickEntity } from './selection';
@@ -24,6 +25,7 @@ const SESSION_KEY = 'manualcad.session';
 const SCREEN: PlotOptions = { includeConstruction: true, screenColors: true };
 const APERTURE_PX = 10;
 const PICKBOX_PX = 5;
+const GRIP_PX = 6;
 const HIGHLIGHT = '#1e6fd9';
 /** Rollover highlight of the object under the pick box: lighter than the selection, so both are told apart. */
 const HOVER = '#6fa3e8';
@@ -87,6 +89,8 @@ export class App {
   private track: Vec2[] = [];                // tracking origins drawn as dashed lines
   private acquired: Vec2[] = [];             // snap points acquired for tracking
   private hover: string | null = null;       // object under the pick box (rollover highlight)
+  private grips: Grip[] = [];                // grips of the selection while no command runs
+  private hotGrip: Grip | null = null;       // grip under the cursor, or the one being dragged
   private windowStart: { sheet: Vec2; px: Vec2 } | null = null;
   private panning: Vec2 | null = null;
   private lastMiddle = 0;
@@ -442,7 +446,10 @@ export class App {
   private defaultHint(): string {
     if (this.panMode) return 'Pan: drag with the left button · Esc ends';
     const req = this.runner.request;
-    if (!req) return this.runner.lastCommand ? `Click to select, drag a window · Enter repeats ${this.runner.lastCommand} · Esc clears` : 'Click to select, drag a window · F1 help';
+    if (!req) {
+      if (this.selection.length > 0) return 'Drag a blue grip to stretch · Delete erases · Esc clears the selection';
+      return this.runner.lastCommand ? `Click to select, drag a window · Enter repeats ${this.runner.lastCommand} · Esc clears` : 'Click to select, drag a window · F1 help';
+    }
     switch (req.kind) {
       case 'point':
         return 'Click a point or type coordinates · right-click = Enter · Esc cancels';
@@ -479,6 +486,7 @@ export class App {
     ui.toggles.polar.classList.toggle('on', this.polarOn);
     const v = getView(doc, settings.currentViewId);
     ui.viewInfo.textContent = `${v.name} ${formatScale(v.scale)} · ${doc.format} · LG ${doc.lineGroup} · ${lineTypeLabel(settings.lineType)}`;
+    this.grips = this.runner.active && this.runner.name !== 'GRIPSTRETCH' ? [] : this.selection.flatMap((id) => objectGrips(doc, id));
     const n = this.runner.request?.kind === 'selection' ? this.runner.gathering.length : this.selection.length;
     ui.selInfo.textContent = n > 0 ? `${n} selected` : '';
     ui.canvas.classList.toggle('panmode', this.panMode);
@@ -777,6 +785,8 @@ export class App {
       this.runner.click(raw, null);
     } else if (this.windowStart) {
       this.finishWindow(raw, ev.shiftKey);
+    } else if (this.hotGrip) {
+      this.startGripDrag(this.hotGrip);
     } else {
       const id = pick(this.doc, raw, this.tol(PICKBOX_PX));
       if (id) this.addToSelection([id], ev.shiftKey);
@@ -802,6 +812,17 @@ export class App {
         this.afterInput();
       }
     }
+  }
+
+  /** Click on a grip: every selected grip at the same spot becomes hot and GRIPSTRETCH asks for the new point. */
+  private startGripDrag(grip: Grip): void {
+    const tol = this.tol(1);
+    const hot = this.grips.filter((g) => dist(g.p, grip.p) <= tol);
+    this.ctx.grip = { grips: hot, base: grip.p };
+    this.hotGrip = grip;
+    this.log('Command: GRIPSTRETCH');
+    this.runner.start('GRIPSTRETCH', []);
+    this.refreshUI();
   }
 
   private finishWindow(end: Vec2, remove: boolean): void {
@@ -840,7 +861,8 @@ export class App {
     if (req?.kind !== 'point') {
       this.eff = raw;
       this.runner.cursor = raw;
-      if (!this.panMode && !this.windowStart && !this.panning) this.hover = this.rollover(raw);
+      this.hotGrip = !req && !this.panMode && !this.windowStart && !this.panning ? nearestGrip(this.grips, raw, this.tol(GRIP_PX)) : null;
+      if (!this.panMode && !this.windowStart && !this.panning && !this.hotGrip) this.hover = this.rollover(raw);
       return;
     }
     const aperture = this.tol(APERTURE_PX);
@@ -1007,6 +1029,12 @@ export class App {
     for (const m of pv?.markers ?? []) drawMarker(g, vp.toScreen(m), dpr);
 
     if (this.windowStart && this.mousePx) drawSelectionBox(g, vp.toScreen(this.windowStart.sheet), this.mousePx, dpr);
+    const dragging = this.runner.name === 'GRIPSTRETCH' ? this.ctx.grip ?? null : null;
+    for (const gr of this.grips) {
+      const hot = this.hotGrip !== null && dist(gr.p, this.hotGrip.p) <= this.tol(1);
+      if (dragging && hot) continue; // the dragged grip follows the cursor in the preview
+      drawGrip(g, vp.toScreen(gr.p), hot, dpr);
+    }
 
     if (cur) {
       for (const a of this.track) drawTrackLine(g, vp.toScreen(a), cur, dpr);
