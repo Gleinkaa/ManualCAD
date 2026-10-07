@@ -16,7 +16,7 @@ export { freehandCurve } from './freehand';
 export { arcFrom3Points, arcFromCenter, translate, rotate, mirror, scaleCurve } from './transform';
 
 // --- regions & hatching ---
-export { findRegion } from './region';
+export { findRegion, openEnds } from './region';
 export { hatchSegments, clipOutsideConvex } from './hatch';
 
 // --- edit operations (AutoCAD semantics) ---

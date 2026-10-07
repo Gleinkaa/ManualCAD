@@ -205,7 +205,28 @@ export function* layer(ctx: CommandContext): CommandGen {
 }
 
 export function* zoom(ctx: CommandContext): CommandGen {
-  const r = yield { kind: 'text', prompt: 'Enter an option', options: [{ key: 'E', label: 'Extents' }, { key: 'A', label: 'All' }], default: 'E' };
+  const r = yield { kind: 'text', prompt: 'Enter an option', options: [{ key: 'E', label: 'Extents' }, { key: 'A', label: 'All' }, { key: 'W', label: 'Window' }], default: 'E' };
+  if (r.kind === 'option' && r.key === 'W') {
+    const a = yield { kind: 'point', prompt: 'Specify first corner' };
+    if (a.kind !== 'point') return;
+    const box = (p: Vec2): Vec2[] => [a.p, { x: p.x, y: a.p.y }, p, { x: a.p.x, y: p.y }];
+    const b = yield {
+      kind: 'point',
+      prompt: 'Specify opposite corner',
+      base: a.p,
+      preview: (p) => {
+        const c = box(p).map((q) => ctx.local(q));
+        return { curves: c.map((q, i) => ({ curve: { kind: 'line' as const, a: q, b: c[(i + 1) % 4] }, lineType: 'construction' as const })) };
+      },
+    };
+    if (b.kind !== 'point') return;
+    if (Math.abs(b.p.x - a.p.x) < 1e-6 || Math.abs(b.p.y - a.p.y) < 1e-6) {
+      ctx.log('The window has no size.');
+      return;
+    }
+    ctx.host.zoomWindow?.(a.p, b.p);
+    return;
+  }
   if (r.kind === 'option' || r.kind === 'text') ctx.host.zoomExtents?.();
 }
 

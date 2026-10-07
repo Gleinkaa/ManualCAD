@@ -6,25 +6,32 @@ import { getView, newSheet, parse, serialize, toLocal } from '../model/doc';
 import { formatScale, sheetSize } from '../model/standards';
 import type { LineGroupId, LineTypeId, Orientation, SheetDoc, SheetFormat } from '../model/types';
 import { exportPdf, frameGeometry, loadFonts, PARTS_LIST, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
-import { moveHighlight, suggest, type Suggestion } from './autocomplete';
-import { resolveCommand } from './commands';
+import { resolveCommand, suggestCommands } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
 import { History, snapshot } from './history';
 import { applyOrtho, applyPolar, fmt } from './input';
-import { drawCrosshair, drawMarker, drawSelectionBox, drawSnapMarker, drawTrackLine, drawViewOrigin, tooltip } from './overlay';
+import { drawCrosshair, drawGrip, drawMarker, drawSelectionBox, drawSnapMarker, drawTrackLine, drawViewOrigin, tooltip } from './overlay';
+import { nearestGrip, objectGrips, type Grip } from './grips';
 import { CommandRunner } from './runner';
 import { decodeSession, docHash, encodeSession, PERSISTED_UNDO, type SessionView } from './session';
 import { boxSelect, pick, pickEntity } from './selection';
 import { findSnap, SNAP_LABELS, type SnapHit } from './snap';
-import { buildUI, el, lineTypeLabel, openPartsListDialog, openTitleBlockDialog, setOptions, type UIRefs } from './ui';
+import { buildUI, el, lineTypeLabel, openHelpDialog, openPartsListDialog, openTitleBlockDialog, setOptions, type UIRefs } from './ui';
 import { Viewport } from './viewport';
+import { visibleEntities } from './xform';
 
 const AUTOSAVE_KEY = 'manualcad.autosave';
 const SESSION_KEY = 'manualcad.session';
 const SCREEN: PlotOptions = { includeConstruction: true, screenColors: true };
 const APERTURE_PX = 10;
 const PICKBOX_PX = 5;
+const GRIP_PX = 6;
+/** A second pointerdown within this time and distance of the last one is the second click of a double-click. */
+const DOUBLE_CLICK_MS = 400;
+const DOUBLE_CLICK_SLOP_PX = 4;
 const HIGHLIGHT = '#1e6fd9';
+/** Rollover highlight of the object under the pick box: lighter than the selection, so both are told apart. */
+const HOVER = '#6fa3e8';
 /** Rubber-band preview colour: distinct from every screen line-type colour, selection blue and the crosshair. */
 const PREVIEW = '#0097a7';
 
@@ -73,6 +80,8 @@ export class App {
   snapOn = true;
   orthoOn = false;
   polarOn = false;
+  /** PAN: the left button drags the sheet until Esc or Enter. */
+  panMode = false;
 
   private dpr = 1;
   private mousePx: Vec2 | null = null;
@@ -82,9 +91,14 @@ export class App {
   private hint: string | null = null;        // polar / tracking tooltip
   private track: Vec2[] = [];                // tracking origins drawn as dashed lines
   private acquired: Vec2[] = [];             // snap points acquired for tracking
+  private hover: string | null = null;       // object under the pick box (rollover highlight)
+  private grips: Grip[] = [];                // grips of the selection while no command runs
+  private hotGrip: Grip | null = null;       // grip under the cursor, or the one being dragged
+  private hotSet: Grip[] = [];               // grips collected with Shift+click, dragged together
   private windowStart: { sheet: Vec2; px: Vec2 } | null = null;
   private panning: Vec2 | null = null;
   private lastMiddle = 0;
+  private lastDown: { t: number; p: Vec2 } | null = null;
   private before: string | null = null;
   private prims: Primitive[] | null = null;
   private plotError = false;
@@ -92,8 +106,9 @@ export class App {
   private fitted = false;
   private savedView: SessionView | null = null;
   private sessionTimer = 0;
-  private suggestions: Suggestion[] = [];
-  private suggestIndex = -1;                 // highlighted suggestion, -1 = none
+  private suggestions: { name: string; alias: string | null; summary: string }[] = [];
+  private suggestIndex = -1;
+  private statusHint: string | null = null;  // hovered toolbar button
 
   constructor(root: HTMLElement) {
     this.ui = buildUI(root);
@@ -108,6 +123,7 @@ export class App {
     if (session.history) this.history.restore(session.history.undo, session.history.redo);
     this.ctx = new CommandContext(() => this.doc, this.settings, (m) => this.log(m), {
       zoomExtents: () => this.zoomExtents(),
+      zoomWindow: (a, b) => this.zoomWindow(a, b),
       titleBlock: () => this.titleBlock(),
       partsList: () => this.partsList(),
     });
@@ -128,11 +144,12 @@ export class App {
         // AutoCAD drops acquired tracking points when the command ends
         this.acquired = [];
         this.track = [];
+        this.hotSet = [];
         this.docChanged();
       },
     });
     this.bind();
-    this.log('ManualCAD ready. Type a command (LINE, CIRCLE, TRIM, DIMLINEAR, VIEW, ...) or use the toolbar.');
+    this.log('ManualCAD ready. Type a command (LINE, CIRCLE, HATCH, DIMLINEAR …) or use the toolbar. F1 or ? shows the command reference.');
     this.docChanged();
     void loadFonts().then(() => {
       this.prims = null;
@@ -244,6 +261,14 @@ export class App {
           (err: unknown) => this.log(`PDF export failed: ${err instanceof Error ? err.message : String(err)}`),
         );
         return;
+      case 'HELP':
+        openHelpDialog(() => this.ui.input.focus());
+        return;
+      case 'PAN':
+        this.panMode = true;
+        this.log('Drag with the left mouse button to pan; Esc or Enter ends it.');
+        this.refreshUI();
+        return;
     }
   }
 
@@ -263,11 +288,24 @@ export class App {
     );
   }
 
-  /** Double-click on the title block or the parts list (no command running) opens its editor. */
+  /** Double-click (no command running): edit the object under the cursor, or the title block / parts list. */
   private onDoubleClick(ev: MouseEvent): void {
-    if (this.runner.active) return;
+    if (this.runner.active || this.panMode) return;
     const px = this.px(ev);
     const p = this.vp.toSheet(px.x, px.y);
+    const id = pick(this.doc, p, this.tol(PICKBOX_PX));
+    if (id) {
+      const a = this.doc.annotations.find((x) => x.id === id);
+      const cmd = a ? (a.kind === 'hatch' ? 'HATCHEDIT' : 'TEXTEDIT') : this.doc.dimensions.some((d) => d.id === id) ? 'DIMEDIT' : null;
+      if (cmd) {
+        this.selection = [];
+        this.log(`Command: ${cmd}`);
+        this.runner.start(cmd, [id]);
+        this.afterInput();
+        this.ui.input.focus();
+      }
+      return;
+    }
     const { titleBlock: tb } = frameGeometry(this.doc);
     if (p.x < tb.x0 || p.x > tb.x1 || p.y < tb.y0) return;
     if (p.y <= tb.y1) this.titleBlock();
@@ -277,6 +315,12 @@ export class App {
   zoomExtents(): void {
     const s = sheetSize(this.doc.format, this.doc.orientation);
     this.vp.fit(s.w, s.h, 0.03);
+    this.saveSession();
+    this.redraw();
+  }
+
+  zoomWindow(a: Vec2, b: Vec2): void {
+    this.vp.fitBox(a, b);
     this.saveSession();
     this.redraw();
   }
@@ -291,7 +335,6 @@ export class App {
   }
 
   private afterInput(): void {
-    if (this.runner.active) this.closeSuggestions();
     this.prims = null;
     this.updateCursor();
     this.refreshPrompt();
@@ -312,27 +355,119 @@ export class App {
   }
 
   private submit(): void {
-    const text = this.ui.input.value;
+    let text = this.ui.input.value;
+    // Enter on a partial command name runs the highlighted suggestion (AutoCAD autocomplete).
+    if (!this.runner.active && text.trim() && !resolveCommand(text) && this.suggestions.length > 0) {
+      text = this.suggestions[Math.max(0, this.suggestIndex)].name;
+    }
     this.ui.input.value = '';
-    this.closeSuggestions();
+    this.clearSuggestions();
     if (!this.runner.text(text)) this.ui.input.value = text.trim();
     this.afterInput();
   }
 
   private escape(): void {
+    if (this.suggestions.length > 0 && this.ui.input.value) {
+      this.ui.input.value = '';
+      this.clearSuggestions();
+      return;
+    }
     if (this.windowStart) this.windowStart = null;
+    else if (this.hotSet.length > 0) this.hotSet = [];
+    else if (this.panMode) this.endPan();
     else if (this.runner.active) this.runner.cancel();
     else this.selection = [];
     this.ui.input.value = '';
-    this.closeSuggestions();
+    this.clearSuggestions();
     this.refreshUI();
     this.afterInput();
+  }
+
+  private endPan(): void {
+    this.panMode = false;
+    this.panning = null;
+    this.ui.canvas.classList.remove('panning');
+  }
+
+  // --- autocomplete ---
+
+  private updateSuggestions(): void {
+    const text = this.ui.input.value;
+    this.suggestions = this.runner.active || !text.trim() ? [] : suggestCommands(text);
+    this.suggestIndex = this.suggestions.length > 0 ? 0 : -1;
+    this.renderSuggestions();
+  }
+
+  private clearSuggestions(): void {
+    this.suggestions = [];
+    this.suggestIndex = -1;
+    this.renderSuggestions();
+  }
+
+  private renderSuggestions(): void {
+    const box = this.ui.suggest;
+    box.hidden = this.suggestions.length === 0;
+    box.replaceChildren(
+      ...this.suggestions.map((s, i) => {
+        const row = el('div', { class: `mc-suggest-row${i === this.suggestIndex ? ' active' : ''}` }, el('b', {}, s.name), el('i', {}, s.alias ?? ''), el('span', {}, s.summary));
+        row.addEventListener('pointerdown', (ev) => {
+          ev.preventDefault();
+          this.ui.input.value = s.name;
+          this.clearSuggestions();
+          this.submit();
+        });
+        return row;
+      }),
+    );
+  }
+
+  private moveSuggestion(delta: number): void {
+    if (this.suggestions.length === 0) return;
+    this.suggestIndex = (this.suggestIndex + delta + this.suggestions.length) % this.suggestions.length;
+    this.renderSuggestions();
   }
 
   // --- UI sync ---
 
   private refreshPrompt(): void {
     this.ui.prompt.textContent = this.runner.prompt;
+    const req = this.runner.request;
+    const opts = req?.options ?? [];
+    this.ui.chips.replaceChildren(
+      ...opts.map((o) => {
+        const b = el('button', { type: 'button', class: 'mc-chip', title: `Type ${o.key}` }, o.label);
+        b.addEventListener('click', () => {
+          this.runner.text(o.key);
+          this.afterInput();
+          this.ui.input.focus();
+        });
+        return b;
+      }),
+    );
+    const active = this.runner.name;
+    for (const b of this.ui.commandButtons) b.classList.toggle('active', (!!active && b.dataset.cmd?.split(' ')[0] === active) || (this.panMode && b.dataset.cmd === 'PAN'));
+    this.ui.hint.textContent = this.statusHint ?? this.defaultHint();
+  }
+
+  /** Mouse hint for the current state, shown in the status bar when no toolbar button is hovered. */
+  private defaultHint(): string {
+    if (this.panMode) return 'Pan: drag with the left button · Esc ends';
+    const req = this.runner.request;
+    if (!req) {
+      if (this.hotSet.length > 0) return `${this.hotSet.length} grip${this.hotSet.length === 1 ? '' : 's'} collected · click one to drag them together · Esc drops them`;
+      if (this.selection.length > 0) return 'Drag a blue grip to stretch, Shift+click collects several · Delete erases · Esc clears the selection';
+      return this.runner.lastCommand ? `Click to select, drag a window · Enter repeats ${this.runner.lastCommand} · Esc clears` : 'Click to select, drag a window · F1 help';
+    }
+    switch (req.kind) {
+      case 'point':
+        return 'Click a point or type coordinates · right-click = Enter · Esc cancels';
+      case 'entity':
+        return 'Click the object · Esc cancels';
+      case 'selection':
+        return 'Click objects or drag a window, Enter when done · Esc cancels';
+      default:
+        return 'Type a value, Enter accepts the default · Esc cancels';
+    }
   }
 
   private refreshUI(): void {
@@ -359,6 +494,10 @@ export class App {
     ui.toggles.polar.classList.toggle('on', this.polarOn);
     const v = getView(doc, settings.currentViewId);
     ui.viewInfo.textContent = `${v.name} ${formatScale(v.scale)} · ${doc.format} · LG ${doc.lineGroup} · ${lineTypeLabel(settings.lineType)}`;
+    this.grips = this.runner.active && this.runner.name !== 'GRIPSTRETCH' ? [] : this.selection.flatMap((id) => objectGrips(doc, id));
+    const n = this.runner.request?.kind === 'selection' ? this.runner.gathering.length : this.selection.length;
+    ui.selInfo.textContent = n > 0 ? `${n} selected` : '';
+    ui.canvas.classList.toggle('panmode', this.panMode);
     this.refreshPrompt();
     this.saveSession();
   }
@@ -410,7 +549,17 @@ export class App {
       this.settings.layer = name;
       this.refreshUI();
     });
-    for (const b of ui.commandButtons) b.addEventListener('click', () => this.run(b.dataset.cmd!));
+    for (const b of ui.commandButtons) {
+      b.addEventListener('click', () => this.run(b.dataset.cmd!));
+      b.addEventListener('pointerenter', () => {
+        this.statusHint = b.title;
+        ui.hint.textContent = b.title;
+      });
+      b.addEventListener('pointerleave', () => {
+        this.statusHint = null;
+        ui.hint.textContent = this.defaultHint();
+      });
+    }
     ui.toggles.snap.addEventListener('click', () => this.toggle('snap'));
     ui.toggles.ortho.addEventListener('click', () => this.toggle('ortho'));
     ui.toggles.polar.addEventListener('click', () => this.toggle('polar'));
@@ -433,12 +582,7 @@ export class App {
 
     ui.input.addEventListener('keydown', (ev) => this.onInputKey(ev));
     ui.input.addEventListener('input', () => this.updateSuggestions());
-    ui.input.addEventListener('blur', () => this.closeSuggestions());
-    ui.suggestions.addEventListener('mousedown', (ev) => {
-      ev.preventDefault(); // keep focus in the input
-      const li = (ev.target as HTMLElement).closest('li');
-      if (li) this.acceptSuggestion(Number(li.dataset.index));
-    });
+    ui.input.addEventListener('blur', () => this.clearSuggestions());
     document.addEventListener('keydown', (ev) => this.onGlobalKey(ev));
 
     const c = ui.canvas;
@@ -453,6 +597,11 @@ export class App {
     });
     c.addEventListener('contextmenu', (ev) => {
       ev.preventDefault();
+      if (this.panMode) {
+        this.endPan();
+        this.refreshUI();
+        return;
+      }
       this.runner.enter();
       this.afterInput();
     });
@@ -490,65 +639,29 @@ export class App {
     this.redraw();
   }
 
-  // --- Command name autocomplete ---
-
-  private updateSuggestions(): void {
-    const idle = !this.runner.active && this.runner.request?.kind !== 'text';
-    this.suggestions = idle ? suggest(this.ui.input.value) : [];
-    this.suggestIndex = -1;
-    this.renderSuggestions();
-  }
-
-  private closeSuggestions(): void {
-    if (this.suggestions.length === 0) return;
-    this.suggestions = [];
-    this.suggestIndex = -1;
-    this.renderSuggestions();
-  }
-
-  private acceptSuggestion(index: number): void {
-    const s = this.suggestions[index];
-    if (!s) return;
-    this.ui.input.value = s.insert;
-    this.closeSuggestions();
-  }
-
-  private renderSuggestions(): void {
-    const list = this.ui.suggestions;
-    list.replaceChildren(
-      ...this.suggestions.map((s, i) =>
-        el('li', { role: 'option', 'data-index': String(i), class: i === this.suggestIndex ? 'active' : '' }, el('span', {}, s.label), el('span', { class: 'mc-suggest-kind' }, s.kind)),
-      ),
-    );
-    list.hidden = this.suggestions.length === 0;
-  }
-
   private onInputKey(ev: KeyboardEvent): void {
     const input = this.ui.input;
     if (this.suggestions.length > 0) {
-      const k = ev.key;
-      if (k === 'ArrowDown' || k === 'ArrowUp') {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
         ev.preventDefault();
-        this.suggestIndex = moveHighlight(this.suggestIndex, this.suggestions.length, k === 'ArrowDown' ? 1 : -1);
-        this.renderSuggestions();
+        this.moveSuggestion(ev.key === 'ArrowDown' ? 1 : -1);
         return;
       }
-      if (k === 'Tab' || (k === 'Enter' && this.suggestIndex >= 0)) {
+      if (ev.key === 'Tab') {
         ev.preventDefault();
-        ev.stopPropagation();
-        this.acceptSuggestion(Math.max(this.suggestIndex, 0));
-        return;
-      }
-      if (k === 'Escape') {
-        ev.preventDefault();
-        ev.stopPropagation();
-        this.closeSuggestions();
+        input.value = this.suggestions[Math.max(0, this.suggestIndex)].name;
+        this.moveSuggestion(1);
         return;
       }
     }
     if (ev.key === 'Enter' || (ev.key === ' ' && !(this.runner.request?.kind === 'text' && input.value.trim() !== ''))) {
       ev.preventDefault();
       ev.stopPropagation();
+      if (this.panMode && input.value.trim() === '') {
+        this.endPan();
+        this.refreshUI();
+        return;
+      }
       this.submit();
     }
   }
@@ -558,6 +671,11 @@ export class App {
     if (target?.closest('dialog') || target === this.ui.layerNew) return;
     const ctrl = ev.ctrlKey || ev.metaKey;
     const k = ev.key;
+    if (k === 'F1') {
+      ev.preventDefault();
+      this.hostCommand('HELP');
+      return;
+    }
     if (k === 'F3' || k === 'F8' || k === 'F10') {
       ev.preventDefault();
       this.toggle(k === 'F3' ? 'snap' : k === 'F8' ? 'ortho' : 'polar');
@@ -576,6 +694,9 @@ export class App {
         this.log(`Command: ${map[lower]}`);
         this.hostCommand(map[lower]);
         this.afterInput();
+      } else if (lower === 'a' && !this.runner.active && !(target instanceof HTMLInputElement && target !== this.ui.input)) {
+        ev.preventDefault();
+        this.selectAll();
       }
       return;
     }
@@ -587,6 +708,11 @@ export class App {
     if (target !== this.ui.input && !(target instanceof HTMLSelectElement) && !(target instanceof HTMLInputElement)) {
       if (k === 'Enter' || k === ' ') {
         ev.preventDefault();
+        if (this.panMode) {
+          this.endPan();
+          this.refreshUI();
+          return;
+        }
         this.submit();
         return;
       }
@@ -597,6 +723,18 @@ export class App {
         this.updateSuggestions();
       }
     }
+  }
+
+  private selectAll(): void {
+    const hidden = new Set(this.doc.layers.filter((l) => !l.visible).map((l) => l.name));
+    this.selection = [
+      ...visibleEntities(this.doc).map((e) => e.id),
+      ...this.doc.dimensions.filter((d) => !hidden.has(d.layer)).map((d) => d.id),
+      ...this.doc.annotations.filter((a) => !hidden.has(a.layer)).map((a) => a.id),
+    ];
+    this.log(`${this.selection.length} selected.`);
+    this.refreshUI();
+    this.redraw();
   }
 
   private px(ev: MouseEvent): Vec2 {
@@ -619,6 +757,12 @@ export class App {
     this.redraw();
   }
 
+  private startDragPan(ev: PointerEvent, p: Vec2): void {
+    this.panning = p;
+    this.ui.canvas.setPointerCapture(ev.pointerId);
+    this.ui.canvas.classList.add('panning');
+  }
+
   private onDown(ev: PointerEvent): void {
     const p = this.px(ev);
     this.mousePx = p;
@@ -631,13 +775,19 @@ export class App {
         return;
       }
       this.lastMiddle = now;
-      this.panning = p;
-      this.ui.canvas.setPointerCapture(ev.pointerId);
-      this.ui.canvas.classList.add('panning');
+      this.startDragPan(ev, p);
       return;
     }
     if (ev.button !== 0) return;
+    if (this.panMode) {
+      ev.preventDefault();
+      this.startDragPan(ev, p);
+      return;
+    }
     this.updateCursor();
+    const now = performance.now();
+    const doubleClick = this.lastDown !== null && now - this.lastDown.t < DOUBLE_CLICK_MS && dist(p, this.lastDown.p) <= DOUBLE_CLICK_SLOP_PX * this.dpr;
+    this.lastDown = { t: now, p };
     const req = this.runner.request;
     const raw = this.raw!;
     if (req?.kind === 'point') {
@@ -646,6 +796,10 @@ export class App {
       this.runner.click(raw, null);
     } else if (this.windowStart) {
       this.finishWindow(raw, ev.shiftKey);
+    } else if (this.hotGrip && ev.shiftKey) {
+      this.toggleHotGrip(this.hotGrip);
+    } else if (this.hotGrip && !doubleClick) {
+      this.startGripDrag(this.hotGrip);
     } else {
       const id = pick(this.doc, raw, this.tol(PICKBOX_PX));
       if (id) this.addToSelection([id], ev.shiftKey);
@@ -657,11 +811,11 @@ export class App {
   }
 
   private onUp(ev: PointerEvent): void {
-    if (ev.button === 1 && this.panning) {
+    if ((ev.button === 1 || (ev.button === 0 && this.panMode)) && this.panning) {
       this.panning = null;
       this.saveSession();
       this.ui.canvas.releasePointerCapture(ev.pointerId);
-      this.ui.canvas.classList.remove('panning');
+      if (!this.panMode) this.ui.canvas.classList.remove('panning');
       return;
     }
     if (ev.button === 0 && this.windowStart && this.raw) {
@@ -671,6 +825,31 @@ export class App {
         this.afterInput();
       }
     }
+  }
+
+  private sameGrip(a: Grip, b: Grip): boolean {
+    return a.id === b.id && a.kind === b.kind && a.index === b.index;
+  }
+
+  /** Shift+click on a grip collects it (and the grips at the same spot) for a joint drag; a second Shift+click drops it. */
+  private toggleHotGrip(grip: Grip): void {
+    const tol = this.tol(1);
+    const spot = this.grips.filter((g) => dist(g.p, grip.p) <= tol);
+    const already = this.hotSet.some((g) => this.sameGrip(g, grip));
+    this.hotSet = already ? this.hotSet.filter((g) => !spot.some((h) => this.sameGrip(g, h))) : [...this.hotSet, ...spot.filter((g) => !this.hotSet.some((h) => this.sameGrip(g, h)))];
+    this.ui.hint.textContent = this.defaultHint();
+  }
+
+  /** Click on a grip: every selected grip at the same spot (plus the Shift-collected ones) becomes hot and GRIPSTRETCH asks for the new point. */
+  private startGripDrag(grip: Grip): void {
+    const tol = this.tol(1);
+    const spot = this.grips.filter((g) => dist(g.p, grip.p) <= tol);
+    const hot = [...this.hotSet, ...spot.filter((g) => !this.hotSet.some((h) => this.sameGrip(g, h)))];
+    this.ctx.grip = { grips: hot, base: grip.p, selection: [...this.selection] };
+    this.hotGrip = grip;
+    this.log('Command: GRIPSTRETCH');
+    this.runner.start('GRIPSTRETCH', []);
+    this.refreshUI();
   }
 
   private finishWindow(end: Vec2, remove: boolean): void {
@@ -685,18 +864,21 @@ export class App {
       this.runner.addSelection(ids, remove);
       const n = this.runner.gathering.length - before;
       this.log(remove ? `${-n} removed, ${this.runner.gathering.length} total` : `${ids.length} found, ${this.runner.gathering.length} total`);
+      this.refreshUI();
       return;
     }
     if (remove) this.selection = this.selection.filter((id) => !ids.includes(id));
     else for (const id of ids) if (!this.selection.includes(id)) this.selection.push(id);
+    this.hotSet = [];
     this.refreshUI();
   }
 
-  /** Recompute raw, snapped and constrained cursor positions. */
+  /** Recompute raw, snapped and constrained cursor positions, and the rollover object. */
   private updateCursor(): void {
     this.snapHit = null;
     this.hint = null;
     this.track = [];
+    this.hover = null;
     if (!this.mousePx) {
       this.raw = this.eff = null;
       return;
@@ -707,6 +889,8 @@ export class App {
     if (req?.kind !== 'point') {
       this.eff = raw;
       this.runner.cursor = raw;
+      this.hotGrip = !req && !this.panMode && !this.windowStart && !this.panning ? nearestGrip(this.grips, raw, this.tol(GRIP_PX)) : null;
+      if (!this.panMode && !this.windowStart && !this.panning && !this.hotGrip) this.hover = this.rollover(raw);
       return;
     }
     const aperture = this.tol(APERTURE_PX);
@@ -744,6 +928,20 @@ export class App {
     if (this.orthoOn) p = this.applyTracking(p, base, aperture);
     this.eff = p;
     this.runner.cursor = p;
+  }
+
+  /** Object under the pick box for rollover highlighting: what a click would pick right now. */
+  private rollover(p: Vec2): string | null {
+    const req = this.runner.request;
+    try {
+      if (req?.kind === 'entity') {
+        const filter = req.filter;
+        return pickEntity(this.doc, p, this.tol(PICKBOX_PX), filter ? (id) => filter(this.doc.entities.find((e) => e.id === id)!) : undefined);
+      }
+      return pick(this.doc, p, this.tol(PICKBOX_PX));
+    } catch {
+      return null;
+    }
   }
 
   /** Align the cursor with acquired snap points of any view (T-square projection). */
@@ -841,12 +1039,14 @@ export class App {
 
     const pv = this.preview();
     this.draw(this.sheetPrims(), t);
-    this.draw(this.highlightPrims(), t);
+    const selected = new Set(this.runner.request?.kind === 'selection' ? this.runner.gathering : this.selection);
+    if (this.hover && !selected.has(this.hover)) this.draw(this.highlightPrims(new Set([this.hover]), HOVER), t);
+    this.draw(this.highlightPrims(selected, HIGHLIGHT), t);
 
     // crosshair under the rubber band, so an ortho preview lying on it stays visible
     const req = this.runner.request;
     const cur = this.mousePx && this.eff ? vp.toScreen(this.eff) : null;
-    if (cur && this.mousePx) {
+    if (cur && this.mousePx && !this.panMode) {
       const pickbox = !req || req.kind === 'entity' || req.kind === 'selection' ? PICKBOX_PX * dpr : 0;
       drawCrosshair(g, req?.kind === 'point' ? cur : this.mousePx, w, h, pickbox, dpr);
     }
@@ -857,6 +1057,12 @@ export class App {
     for (const m of pv?.markers ?? []) drawMarker(g, vp.toScreen(m), dpr);
 
     if (this.windowStart && this.mousePx) drawSelectionBox(g, vp.toScreen(this.windowStart.sheet), this.mousePx, dpr);
+    const dragging = this.runner.name === 'GRIPSTRETCH' ? this.ctx.grip ?? null : null;
+    for (const gr of this.grips) {
+      const hot = (this.hotGrip !== null && dist(gr.p, this.hotGrip.p) <= this.tol(1)) || this.hotSet.some((h) => this.sameGrip(h, gr));
+      if (dragging && hot) continue; // the dragged grips follow the cursor in the preview
+      drawGrip(g, vp.toScreen(gr.p), hot, dpr);
+    }
 
     if (cur) {
       for (const a of this.track) drawTrackLine(g, vp.toScreen(a), cur, dpr);
@@ -878,17 +1084,15 @@ export class App {
     this.g.restore();
   }
 
-  private highlightPrims(): Primitive[] {
-    const ids = new Set(this.runner.request?.kind === 'selection' ? this.runner.gathering : this.selection);
+  private highlightPrims(ids: Set<string>, color: string): Primitive[] {
     if (ids.size === 0) return [];
     const z = this.vp.zoom;
     const out: Primitive[] = [];
     const recolor = (p: Primitive): Primitive => {
       if (p.kind === 'polyline' || p.kind === 'arc') {
-        return { ...p, style: { width: Math.max(p.style.width, (2 * this.dpr) / z), dash: [(6 * this.dpr) / z, (4 * this.dpr) / z], dashOffset: 0, color: HIGHLIGHT } };
+        return { ...p, style: { width: Math.max(p.style.width, (2 * this.dpr) / z), dash: [(6 * this.dpr) / z, (4 * this.dpr) / z], dashOffset: 0, color } };
       }
-      if (p.kind === 'text') return { ...p, color: HIGHLIGHT };
-      return { ...p, color: HIGHLIGHT };
+      return { ...p, color };
     };
     try {
       for (const e of this.doc.entities) if (ids.has(e.id)) out.push(...plotCurve(this.doc, e.viewId, e.geom, e.lineType, SCREEN).map(recolor));
@@ -943,4 +1147,3 @@ export class App {
     this.ui.coords.textContent = text;
   }
 }
-

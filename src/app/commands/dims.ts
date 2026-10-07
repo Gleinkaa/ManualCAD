@@ -2,7 +2,7 @@
 // Anchors associate to snapped entity points.
 import { cross, dist, endpoints } from '../../geom';
 import type { Vec2 } from '../../geom/types';
-import { dimensionText } from '../../dim';
+import { dimensionText, linearAxes } from '../../dim';
 import { newId, toSheet } from '../../model/doc';
 import type { AngularDimension, AngularLeg, DimAnchor, Dimension, DimText, Entity, LinearDimension, RadialDimension } from '../../model/types';
 import type { Option, PointInput } from './types';
@@ -40,17 +40,8 @@ function* askDimText(measured: string, current: DimText): SubGen<DimText> {
  */
 export function dimOffset(orientation: Orientation, a: Vec2, b: Vec2, loc: Vec2): number {
   const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  switch (orientation) {
-    case 'horizontal':
-      return loc.y - m.y;
-    case 'vertical':
-      return loc.x - m.x;
-    case 'aligned': {
-      const l = dist(a, b) || 1;
-      const n = { x: -(b.y - a.y) / l, y: (b.x - a.x) / l };
-      return (loc.x - m.x) * n.x + (loc.y - m.y) * n.y;
-    }
-  }
+  const n = linearAxes(orientation, a, b).n;
+  return (loc.x - m.x) * n.x + (loc.y - m.y) * n.y;
 }
 
 /** AutoCAD rule: cursor beyond the points vertically → horizontal dimension, beyond them sideways → vertical. */

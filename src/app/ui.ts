@@ -1,6 +1,8 @@
-// DOM construction: toolbar, canvas, command line, status bar, title block dialog.
+// DOM construction: toolbar, canvas, command line (with autocomplete and option chips), status bar, dialogs.
 import { LINE_TYPES } from '../model/standards';
 import type { LineTypeId, PartsListRow, TitleBlockField } from '../model/types';
+import { aliasesOf, COMMAND_INFO, type CommandGroup } from './commands';
+import { iconElement } from './icons';
 
 type Attrs = Record<string, string>;
 
@@ -41,10 +43,15 @@ export interface UIRefs {
   history: HTMLElement;
   prompt: HTMLElement;
   input: HTMLInputElement;
-  /** Command name autocomplete list, shown above the command line. */
-  suggestions: HTMLElement;
+  /** Clickable option keywords of the current prompt. */
+  chips: HTMLElement;
+  /** Autocomplete popup above the command line. */
+  suggest: HTMLElement;
   coords: HTMLElement;
   viewInfo: HTMLElement;
+  selInfo: HTMLElement;
+  /** What the hovered toolbar button does, or a mouse hint for the current state. */
+  hint: HTMLElement;
   toggles: Record<'snap' | 'ortho' | 'polar', HTMLButtonElement>;
   fileInput: HTMLInputElement;
   /** Buttons that run a command line string. */
@@ -58,20 +65,99 @@ export function lineTypeLabel(id: LineTypeId): string {
   return d.isoNo ? `${d.isoNo} ${d.label}` : d.label;
 }
 
-const BUTTONS: [string, string, string][][] = [
-  [['NEW', 'New', 'New drawing (NEW); UNDO restores the previous one'], ['OPEN', 'Open', 'Open .mcad (Ctrl+O)'], ['SAVE', 'Save', 'Save .mcad (Ctrl+S)'], ['PLOT', 'PDF', 'Export PDF'], ['TITLEBLOCK', 'Title block', 'Edit title block (TB), or double-click it'], ['PARTSLIST', 'Parts list', 'Edit parts list (PARTS), or double-click it; -PARTSLIST on the command line']],
-  [['LINE', 'Line', 'LINE (L)'], ['CIRCLE', 'Circle', 'CIRCLE (C)'], ['ARC', 'Arc', 'ARC (A)'], ['RECTANG', 'Rect', 'RECTANG (REC)'], ['HATCH', 'Hatch', 'HATCH (H)']],
-  [['OFFSET', 'Offset', 'OFFSET (O)'], ['TRIM', 'Trim', 'TRIM (TR)'], ['EXTEND', 'Extend', 'EXTEND (EX)'], ['FILLET', 'Fillet', 'FILLET (F)'], ['CHAMFER', 'Chamfer', 'CHAMFER (CHA)']],
-  [['MOVE', 'Move', 'MOVE (M)'], ['COPY', 'Copy', 'COPY (CO)'], ['MIRROR', 'Mirror', 'MIRROR (MI)'], ['ERASE', 'Erase', 'ERASE (E / Del)']],
-  [['TEXT', 'Text', 'TEXT (DT)'], ['SKETCH', 'Freehand', 'SKETCH (SK): freehand break line, ISO 128-2 01.1'], ['LEADER', 'Leader', 'LEADER (LE): note on a leader line, ISO 128-22'], ['BALLOON', 'Item no.', 'BALLOON (BAL): item number on a leader, ISO 6433']],
-  [['DIMLINEAR', 'Linear', 'DIMLINEAR (DLI)'], ['DIMALIGNED', 'Aligned', 'DIMALIGNED (DAL)'], ['DIMRADIUS', 'Radius', 'DIMRADIUS (DRA)'], ['DIMDIAMETER', 'Diameter', 'DIMDIAMETER (DDI)'], ['DIMANGULAR', 'Angular', 'DIMANGULAR (DAN)'], ['DIMEDIT', 'Dim text', 'DIMEDIT (DED)']],
-  [['VIEW', 'View', 'VIEW (V)'], ['ZOOM E', 'Fit', 'ZOOM Extents (Z E), or double-click the middle mouse button'], ['UNDO', 'Undo', 'UNDO (Ctrl+Z)'], ['REDO', 'Redo', 'REDO (Ctrl+Y)']],
+/** Toolbar: [command line string, label, tooltip]; a label starting with "|" is a separator inside the group. */
+type ButtonDef = [string, string, string];
+
+const GROUPS: { caption: string; buttons: (ButtonDef | '|')[] }[] = [
+  {
+    caption: 'File',
+    buttons: [
+      ['NEW', 'New', 'New drawing (NEW). UNDO restores the previous one'],
+      ['OPEN', 'Open', 'Open .mcad (OPEN, Ctrl+O)'],
+      ['SAVE', 'Save', 'Save .mcad (SAVE, Ctrl+S)'],
+      ['PLOT', 'PDF', 'Export PDF (PLOT)'],
+      '|',
+      ['TITLEBLOCK', 'Title block', 'Edit title block (TB), or double-click it on the sheet'],
+      ['PARTSLIST', 'Parts list', 'Edit parts list (PARTS), or double-click it on the sheet'],
+    ],
+  },
+  {
+    caption: 'Draw',
+    buttons: [
+      ['LINE', 'Line', 'Line (L)'],
+      ['CIRCLE', 'Circle', 'Circle (C)'],
+      ['ARC', 'Arc', 'Arc (A)'],
+      ['RECTANG', 'Rect', 'Rectangle (REC)'],
+      ['SKETCH', 'Freehand', 'Freehand break line (SK), ISO 128-2 01.1'],
+      '|',
+      ['HATCH', 'Hatch', 'Hatch a closed area (H): pick a point inside it, ISO 128-50'],
+    ],
+  },
+  {
+    caption: 'Modify',
+    buttons: [
+      ['OFFSET', 'Offset', 'Offset (O)'],
+      ['TRIM', 'Trim', 'Trim (TR)'],
+      ['EXTEND', 'Extend', 'Extend (EX)'],
+      ['FILLET', 'Fillet', 'Fillet (F); radius 0 joins two lines at a corner'],
+      ['CHAMFER', 'Chamfer', 'Chamfer (CHA)'],
+      '|',
+      ['MOVE', 'Move', 'Move (M)'],
+      ['COPY', 'Copy', 'Copy (CO)'],
+      ['ROTATE', 'Rotate', 'Rotate (RO)'],
+      ['SCALE', 'Scale', 'Scale (SC)'],
+      ['STRETCH', 'Stretch', 'Stretch the ends inside a crossing window (S)'],
+      ['MIRROR', 'Mirror', 'Mirror (MI)'],
+      ['ERASE', 'Erase', 'Erase (E, Delete)'],
+    ],
+  },
+  {
+    caption: 'Annotate',
+    buttons: [
+      ['TEXT', 'Text', 'Text (DT), ISO 3098'],
+      ['LEADER', 'Leader', 'Note on a leader line (LE), ISO 128-22'],
+      ['BALLOON', 'Item no.', 'Item number on a leader (BAL), ISO 6433'],
+    ],
+  },
+  {
+    caption: 'Dimension',
+    buttons: [
+      ['DIMLINEAR', 'Linear', 'Linear dimension (DLI)'],
+      ['DIMALIGNED', 'Aligned', 'Aligned dimension (DAL)'],
+      ['DIMRADIUS', 'Radius', 'Radius dimension (DRA)'],
+      ['DIMDIAMETER', 'Diameter', 'Diameter dimension (DDI)'],
+      ['DIMANGULAR', 'Angular', 'Angular dimension (DAN)'],
+      ['DIMEDIT', 'Dim text', 'Dimension text (DED), or double-click a dimension'],
+    ],
+  },
+  {
+    caption: 'View',
+    buttons: [
+      ['VIEW', 'View', 'Views: new, move, set current, scale (V)'],
+      ['ZOOM E', 'Fit', 'Zoom extents (Z E), or double-click the middle mouse button'],
+      ['ZOOM W', 'Window', 'Zoom window (Z W)'],
+      ['PAN', 'Pan', 'Pan with the left mouse button (P); Esc ends it'],
+      '|',
+      ['UNDO', 'Undo', 'Undo (Ctrl+Z)'],
+      ['REDO', 'Redo', 'Redo (Ctrl+Y)'],
+    ],
+  },
 ];
+
+/** Icon button for a command; falls back to its short label when no icon exists. */
+export function commandButton(cmd: string, label: string, title: string): HTMLButtonElement {
+  const b = el('button', { type: 'button', class: 'mc-tool', title, 'data-cmd': cmd, 'aria-label': label });
+  const icon = iconElement(cmd);
+  if (icon) b.append(icon);
+  else b.classList.add('mc-tool-text');
+  if (!icon) b.append(label);
+  return b;
+}
 
 export function buildUI(root: HTMLElement): UIRefs {
   const format = select('mc-format', 'Sheet format', ['A4', 'A3', 'A2', 'A1', 'A0'].map((f) => [f, f]));
   const orientation = select('mc-orientation', 'Orientation', [['landscape', 'Landscape'], ['portrait', 'Portrait']]);
-  const lineGroup = select('mc-linegroup', 'Line group (ISO 128-2)', [['0.5', '0.5'], ['0.7', '0.7']]);
+  const lineGroup = select('mc-linegroup', 'Line group (ISO 128-2): line widths 0.5/0.25 or 0.7/0.35 mm', [['0.5', '0.5'], ['0.7', '0.7']]);
   const view = select('mc-view', 'Current view', []);
   const lineType = select('mc-linetype', 'Line type for new objects, or for the selection', LINE_TYPE_ORDER.map((id) => [id, lineTypeLabel(id)]));
   const layer = select('mc-layer', 'Current layer', []);
@@ -80,50 +166,85 @@ export function buildUI(root: HTMLElement): UIRefs {
   const layers = el('details', { class: 'mc-layers' }, el('summary', { title: 'Layer visibility' }, 'Layers'), el('div', { class: 'mc-popup' }, layerList, layerNew));
 
   const commandButtons: HTMLButtonElement[] = [];
-  const groups = BUTTONS.map((g) =>
-    el(
-      'div',
-      { class: 'mc-group' },
-      ...g.map(([cmd, label, title]) => {
-        const b = el('button', { type: 'button', title, 'data-cmd': cmd }, label);
-        commandButtons.push(b);
-        return b;
-      }),
-    ),
-  );
+  const groups = GROUPS.map((g) => {
+    const row = el('div', { class: 'mc-tools' });
+    for (const b of g.buttons) {
+      if (b === '|') {
+        row.append(el('span', { class: 'mc-sep' }));
+        continue;
+      }
+      const btn = commandButton(b[0], b[1], b[2]);
+      commandButtons.push(btn);
+      row.append(btn);
+    }
+    return el('div', { class: 'mc-group' }, row, el('div', { class: 'mc-caption' }, g.caption));
+  });
+
+  const help = commandButton('HELP', 'Help', 'Command reference (F1, HELP)');
+  commandButtons.push(help);
 
   const settings = el(
     'div',
-    { class: 'mc-group mc-settings' },
+    { class: 'mc-settings' },
     labelled('Sheet', format),
     orientation,
     labelled('Line group', lineGroup),
+    el('span', { class: 'mc-sep' }),
     labelled('View', view),
     labelled('Line type', lineType),
     labelled('Layer', layer),
     layers,
   );
-  const toolbar = el('header', { class: 'mc-toolbar' }, el('div', { class: 'mc-row' }, el('strong', { class: 'mc-brand' }, 'ManualCAD'), settings), el('div', { class: 'mc-row' }, ...groups));
+  const toolbar = el(
+    'header',
+    { class: 'mc-toolbar' },
+    el('div', { class: 'mc-row mc-row-settings' }, el('strong', { class: 'mc-brand' }, 'ManualCAD'), settings, el('span', { class: 'mc-spacer' }), help),
+    el('div', { class: 'mc-row mc-row-tools' }, ...groups),
+  );
 
   const canvas = el('canvas', { class: 'mc-canvas', tabindex: '0' });
   const canvasWrap = el('main', { class: 'mc-canvas-wrap' }, canvas);
 
   const history = el('div', { class: 'mc-history' });
   const prompt = el('span', { class: 'mc-prompt' }, 'Command:');
-  const input = el('input', { class: 'mc-input', autocomplete: 'off', spellcheck: 'false' });
-  const suggestions = el('ul', { class: 'mc-suggest', role: 'listbox', hidden: '' });
-  const cmd = el('section', { class: 'mc-command' }, history, el('div', { class: 'mc-cmdline' }, prompt, input, suggestions));
+  const input = el('input', { class: 'mc-input', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Command line' });
+  const chips = el('span', { class: 'mc-chips' });
+  const suggest = el('div', { class: 'mc-suggest', hidden: '' });
+  const cmd = el('section', { class: 'mc-command' }, history, el('div', { class: 'mc-cmdline' }, suggest, prompt, input, chips));
 
   const coords = el('span', { class: 'mc-coords' }, '0.00, 0.00');
   const viewInfo = el('span', { class: 'mc-viewinfo' });
-  const toggle = (label: string, key: string) => el('button', { type: 'button', class: 'mc-toggle', title: `${label} (${key})` }, label);
-  const toggles = { snap: toggle('SNAP', 'F3'), ortho: toggle('ORTHO', 'F8'), polar: toggle('POLAR', 'F10') };
-  const status = el('footer', { class: 'mc-status' }, coords, viewInfo, el('span', { class: 'mc-spacer' }), toggles.snap, toggles.ortho, toggles.polar);
+  const selInfo = el('span', { class: 'mc-selinfo' });
+  const hint = el('span', { class: 'mc-hint' });
+  const toggle = (label: string, key: string, title: string) => el('button', { type: 'button', class: 'mc-toggle', title: `${title} (${key})` }, label);
+  const toggles = {
+    snap: toggle('SNAP', 'F3', 'Object snap: endpoints, midpoints, centres, intersections …'),
+    ortho: toggle('ORTHO', 'F8', 'Ortho: horizontal and vertical only, with tracking from snapped points'),
+    polar: toggle('POLAR', 'F10', 'Polar tracking every 15°'),
+  };
+  const status = el('footer', { class: 'mc-status' }, coords, viewInfo, selInfo, hint, el('span', { class: 'mc-spacer' }), toggles.snap, toggles.ortho, toggles.polar);
 
   const fileInput = el('input', { type: 'file', accept: '.mcad,.json,application/json', style: 'display:none' });
 
   root.replaceChildren(el('div', { class: 'mc-root' }, toolbar, canvasWrap, cmd, status, fileInput));
-  return { canvas, canvasWrap, format, orientation, lineGroup, view, lineType, layer, layerList, layerNew, history, prompt, input, suggestions, coords, viewInfo, toggles, fileInput, commandButtons };
+  return { canvas, canvasWrap, format, orientation, lineGroup, view, lineType, layer, layerList, layerNew, history, prompt, input, chips, suggest, coords, viewInfo, selInfo, hint, toggles, fileInput, commandButtons };
+}
+
+/** Modal dialog helper: the form submits with OK, Cancel and Esc close it; `onClose` runs after either. */
+function modal(title: string, body: Node[], buttons: Node[], onSubmit: () => void, onClose: () => void, cls = ''): HTMLDialogElement {
+  const ok = el('button', { type: 'submit', class: 'mc-primary' }, 'OK');
+  const cancel = el('button', { type: 'button' }, 'Cancel');
+  const form = el('form', { method: 'dialog' }, el('h3', {}, title), ...body, el('div', { class: 'mc-dialog-buttons' }, ...buttons, cancel, ok));
+  const dlg = el('dialog', { class: `mc-dialog ${cls}`.trim() }, form);
+  document.body.append(dlg);
+  cancel.addEventListener('click', () => dlg.close());
+  form.addEventListener('submit', onSubmit);
+  dlg.addEventListener('close', () => {
+    dlg.remove();
+    onClose();
+  });
+  dlg.showModal();
+  return dlg;
 }
 
 const TB_FIELDS: [TitleBlockField, string][] = [
@@ -149,22 +270,18 @@ export function openTitleBlockDialog(values: Partial<Record<TitleBlockField, str
     inputs.set(f, i);
     return el('label', { class: 'mc-tb-row' }, el('span', {}, label), i);
   });
-  const ok = el('button', { type: 'submit', class: 'mc-primary' }, 'OK');
-  const cancel = el('button', { type: 'button' }, 'Cancel');
-  const form = el('form', { method: 'dialog' }, el('h3', {}, 'Title block (ISO 7200)'), ...rows, el('div', { class: 'mc-dialog-buttons' }, cancel, ok));
-  const dlg = el('dialog', { class: 'mc-dialog' }, form);
-  document.body.append(dlg);
-  cancel.addEventListener('click', () => dlg.close());
-  form.addEventListener('submit', () => {
-    const out: Partial<Record<TitleBlockField, string>> = {};
-    for (const [f, i] of inputs) if (i.value.trim()) out[f] = i.value.trim();
-    onSave(out);
-  });
-  dlg.addEventListener('close', () => {
-    dlg.remove();
-    onClose();
-  });
-  dlg.showModal();
+  modal(
+    'Title block (ISO 7200)',
+    rows,
+    [],
+    () => {
+      const out: Partial<Record<TitleBlockField, string>> = {};
+      for (const [f, i] of inputs) if (i.value.trim()) out[f] = i.value.trim();
+      onSave(out);
+    },
+    onClose,
+  );
+  inputs.get('title')?.focus();
 }
 
 const PL_COLUMNS: [keyof PartsListRow, string, number][] = [
@@ -200,31 +317,48 @@ export function openPartsListDialog(rows: PartsListRow[], onSave: (rows: PartsLi
     tr.querySelector<HTMLInputElement>('input[name="name"]')?.focus();
   });
   const head = el('thead', {}, el('tr', {}, ...PL_COLUMNS.map(([, label]) => el('th', {}, label)), el('th', {})));
-  const ok = el('button', { type: 'submit', class: 'mc-primary' }, 'OK');
-  const cancel = el('button', { type: 'button' }, 'Cancel');
-  const form = el(
-    'form',
-    { method: 'dialog' },
-    el('h3', {}, 'Parts list (ISO 7573)'),
-    el('table', { class: 'mc-pl-table' }, head, body),
-    el('div', { class: 'mc-dialog-buttons' }, add, el('span', { class: 'mc-spacer' }), cancel, ok),
+  modal(
+    'Parts list (ISO 7573)',
+    [el('table', { class: 'mc-pl-table' }, head, body)],
+    [add, el('span', { class: 'mc-spacer' })],
+    () => {
+      const out: PartsListRow[] = [];
+      for (const tr of body.children) {
+        const r = blank('');
+        for (const i of tr.querySelectorAll('input')) r[i.name as keyof PartsListRow] = i.value.trim();
+        if (PL_COLUMNS.some(([f]) => f !== 'quantity' && r[f])) out.push(r);
+      }
+      onSave(out);
+    },
+    onClose,
   );
-  const dlg = el('dialog', { class: 'mc-dialog' }, form);
-  document.body.append(dlg);
-  cancel.addEventListener('click', () => dlg.close());
-  form.addEventListener('submit', () => {
-    const out: PartsListRow[] = [];
-    for (const tr of body.children) {
-      const r = blank('');
-      for (const i of tr.querySelectorAll('input')) r[i.name as keyof PartsListRow] = i.value.trim();
-      if (PL_COLUMNS.some(([f]) => f !== 'quantity' && r[f])) out.push(r);
-    }
-    onSave(out);
-  });
-  dlg.addEventListener('close', () => {
-    dlg.remove();
-    onClose();
-  });
-  dlg.showModal();
   if (rows.length === 0) add.click();
+}
+
+const GROUP_ORDER: CommandGroup[] = ['Draw', 'Modify', 'Annotate', 'Dimension', 'Sheet', 'File'];
+
+const BASICS: [string, string][] = [
+  ['Command line', 'Type a command or its alias and press Enter or Space. Enter on an empty line repeats the last command. Typing shows matching commands; Tab completes.'],
+  ['Prompts', 'Every prompt lists its options in [brackets]; type the capital letters or click the chip next to the input. Enter accepts a <default>. Esc cancels.'],
+  ['Points', 'Click, or type x,y (view mm), @dx,dy relative, @len<angle polar, or a bare number for a distance along the cursor direction.'],
+  ['Object snap', 'SNAP (F3) finds endpoints, midpoints, centres, quadrants, intersections, perpendiculars and tangents. Type END, MID, CEN, QUA, INT, PER, TAN or NEA at a point prompt for one point only.'],
+  ['Ortho and polar', 'ORTHO (F8) locks to horizontal/vertical and tracks snapped points across views like a T-square; POLAR (F10) tracks every 15°.'],
+  ['Selecting', 'Click an object, or drag a window (left to right: inside) or crossing (right to left: touching). Shift removes. Select first, then a command, or the other way round. Delete erases the selection.'],
+  ['Grips', 'Selected objects show blue grips. Drag an endpoint to stretch a line, a midpoint or centre to move it, a quadrant to resize a circle, a dimension line to move it. Grips that meet at a corner move together; Shift+click collects several grips, then drag one. While a grip is hot, Enter cycles Stretch, Move, Rotate, Scale and Mirror of the whole selection; Copy keeps the source. Hatches and associative dimensions follow.'],
+  ['Mouse', 'Wheel zooms at the cursor. Middle button drags to pan; double-click it to fit the sheet. Right-click = Enter. Double-click a hatch, text or leader, dimension, the title block or the parts list to edit it.'],
+  ['Line types', 'Line type and width come from the meaning of a line (visible edge, centre line …) and the sheet\'s line group, never chosen freely. Select objects and change the Line type box to retype them.'],
+  ['Hatching', 'A cut surface must be a closed outline of visible, thin or freehand lines. HATCH previews the area under the cursor; if it is not closed, the open ends are marked in red; the Gap option bridges small gaps.'],
+];
+
+/** Modal command reference: basics, then every command with its aliases, grouped. */
+export function openHelpDialog(onClose: () => void): void {
+  const basics = el('dl', { class: 'mc-help-basics' }, ...BASICS.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)]));
+  const groups = GROUP_ORDER.map((g) => {
+    const rows = COMMAND_INFO.filter((c) => c.group === g).map((c) =>
+      el('tr', {}, el('td', { class: 'mc-help-name' }, c.name), el('td', { class: 'mc-help-alias' }, aliasesOf(c.name).join(', ')), el('td', {}, c.summary)),
+    );
+    return el('section', {}, el('h4', {}, g), el('table', { class: 'mc-help-table' }, ...rows));
+  });
+  const dlg = modal('ManualCAD help', [el('div', { class: 'mc-help' }, basics, ...groups)], [], () => {}, onClose, 'mc-dialog-help');
+  dlg.querySelector<HTMLButtonElement>('button[type="button"]')?.remove();
 }

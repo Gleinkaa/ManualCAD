@@ -69,6 +69,7 @@ export function decodeSession(json: string | null, doc: SheetDoc, defaults: AppS
   if (num(s.textHeight) && s.textHeight > 0) d.textHeight = s.textHeight;
   if (num(s.hatchAngle)) d.hatchAngle = s.hatchAngle;
   if (num(s.hatchSpacing) && s.hatchSpacing > 0) d.hatchSpacing = s.hatchSpacing;
+  if (num(s.hatchGap) && s.hatchGap >= 0) d.hatchGap = s.hatchGap;
 
   const t = (raw.toggles ?? {}) as Partial<Session['toggles']>;
   if (typeof t.snap === 'boolean') out.toggles.snap = t.snap;

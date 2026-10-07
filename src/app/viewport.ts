@@ -46,6 +46,15 @@ export class Viewport {
     this.panY = h / 2 - this.height / this.zoom / 2;
   }
 
+  /** Fit the sheet rectangle spanned by two corners (mm) into the viewport, centred. */
+  fitBox(a: Vec2, b: Vec2, margin = 0.02): void {
+    const w = Math.max(1e-6, Math.abs(b.x - a.x));
+    const h = Math.max(1e-6, Math.abs(b.y - a.y));
+    this.zoom = Math.min(400, Math.max(0.05, Math.min(this.width / (w * (1 + 2 * margin)), this.height / (h * (1 + 2 * margin)))));
+    this.panX = (a.x + b.x) / 2 - this.width / this.zoom / 2;
+    this.panY = (a.y + b.y) / 2 - this.height / this.zoom / 2;
+  }
+
   transform(): CanvasTransform {
     return { zoom: this.zoom, panX: this.panX, panY: this.panY, heightPx: this.height };
   }

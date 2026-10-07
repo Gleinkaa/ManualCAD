@@ -46,6 +46,8 @@ export type Request =
       kind: 'point';
       base?: Vec2;            // sheet mm: rubber-band origin (enables ortho/polar/direct distance)
       preview?: (p: Vec2, snap: SnapHit | null) => Preview;
+      /** A typed bare number arrives as `{ kind: 'number' }` (an angle, a factor) instead of a direct distance. */
+      acceptNumber?: boolean;
     })
   | (BaseRequest & { kind: 'entity'; filter?: (e: Entity) => boolean })
   | (BaseRequest & { kind: 'selection' })
@@ -66,6 +68,7 @@ export interface AppSettings {
   textHeight: number;              // paper mm, ISO 3098 series
   hatchAngle: number;              // degrees
   hatchSpacing: number;            // paper mm
+  hatchGap: number;                // view mm: open ends closer than this are bridged (0 = none, like AutoCAD)
 }
 
 export function defaultSettings(doc: SheetDoc): AppSettings {
@@ -80,18 +83,23 @@ export function defaultSettings(doc: SheetDoc): AppSettings {
     textHeight: 3.5,
     hatchAngle: 45,
     hatchSpacing: HATCH_SPACING_DEFAULT,
+    hatchGap: 0,
   };
 }
 
 /** App actions that need the DOM; absent in tests. */
 export interface HostActions {
   zoomExtents?(): void;
+  /** Fit the sheet rectangle spanned by two corners (sheet mm) into the viewport. */
+  zoomWindow?(a: Vec2, b: Vec2): void;
   titleBlock?(): void;
   partsList?(): void;
 }
 
 export class CommandContext {
   preselection: string[] = [];
+  /** Grips being dragged, set by the app just before GRIPSTRETCH starts. */
+  grip: import('./grips').GripDrag | null = null;
 
   private readonly getDoc: () => SheetDoc;
   readonly settings: AppSettings;

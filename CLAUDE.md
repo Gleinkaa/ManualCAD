@@ -11,7 +11,7 @@ TypeScript + Vite + Canvas2D, tests with vitest. Desktop app later via Tauri (AD
 - `model/`: document types (`SheetDoc`), Norm rule data (`standards.ts`), doc helpers (view transforms, projection links, anchors, annotation transforms, JSON).
 - `dim/`: dimensions → plot primitives per ISO 129-1. No DOM.
 - `plot/`: sheet → device-independent primitives (sheet mm, y up), canvas renderer, PDF and SVG export, fonts.
-- `app/`: UI: viewport, command line, commands, snaps, selection, undo.
+- `app/`: UI: viewport, command line (autocomplete, option chips), commands, snaps, selection, undo, help. `icons.ts` holds the toolbar SVGs; `grips.ts` the grip points and stretch rules; `commands/index.ts` is the registry and the command catalogue (`COMMAND_INFO`) behind HELP and autocomplete.
 
 Dependency direction: `app → plot → dim → model → geom`. Never import upward.
 
