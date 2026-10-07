@@ -139,7 +139,7 @@ export const COMMAND_INFO: CommandInfo[] = [
   { name: 'CIRCLE', group: 'Draw', summary: 'Circle by centre and radius (Diameter option), or 2P by two diameter end points.' },
   { name: 'ARC', group: 'Draw', summary: 'Arc through three points, or Center: centre, start, end (counter-clockwise).' },
   { name: 'RECTANG', group: 'Draw', summary: 'Rectangle by two corners, or Dimensions: length and width.' },
-  { name: 'HATCH', group: 'Draw', summary: 'Section hatching (ISO 128-50): pick a point inside a closed outline; the area previews under the cursor. Angle, Spacing, Flip (45°↔135°), Gap tolerance.' },
+  { name: 'HATCH', group: 'Draw', summary: 'Section hatching (ISO 128-50): pick a point inside a closed outline; the area previews under the cursor. Angle, Spacing, Flip (45°↔135°), Gap tolerance, Undo.' },
   { name: 'SKETCH', group: 'Draw', summary: 'Freehand break line (ISO 128-2 01.1) through clicked points, for partial sections.' },
   { name: 'OFFSET', group: 'Modify', summary: 'Parallel copy at a distance (or Through a point): pick the object, then the side.' },
   { name: 'TRIM', group: 'Modify', summary: 'Cut objects at cutting edges: select edges (Enter = all), then click the parts to remove, or Fence.' },
@@ -148,7 +148,7 @@ export const COMMAND_INFO: CommandInfo[] = [
   { name: 'CHAMFER', group: 'Modify', summary: 'Bevel a corner with two Distances.' },
   { name: 'MOVE', group: 'Modify', summary: 'Move the selection from a base point to a second point.' },
   { name: 'COPY', group: 'Modify', summary: 'Copy the selection, repeatedly, from a base point.' },
-  { name: 'ROTATE', group: 'Modify', summary: 'Rotate the selection about a base point by a typed angle or a picked direction; Copy keeps the source.' },
+  { name: 'ROTATE', group: 'Modify', summary: 'Rotate the selection about a base point by a typed angle or a picked direction; Copy keeps the source, Reference by two angles.' },
   { name: 'SCALE', group: 'Modify', summary: 'Scale the selection about a base point by a factor; Reference by two lengths.' },
   { name: 'STRETCH', group: 'Modify', summary: 'Move the ends inside a crossing window: two corners, base point, second point. Objects fully inside move whole.' },
   { name: 'MIRROR', group: 'Modify', summary: 'Mirror the selection across a line of two points; text keeps its reading direction.' },
@@ -190,7 +190,7 @@ export function allCommandNames(): string[] {
   return [...names].filter((n) => !HIDDEN_COMMANDS.has(n) && (n in COMMANDS || (HOST_COMMANDS as readonly string[]).includes(n)));
 }
 
-/** Autocomplete: commands and aliases starting with `prefix` (case-insensitive), exact and alias matches first. */
+/** Autocomplete (case-insensitive): exact and alias matches first, then prefix matches, then substring matches, alphabetical within a rank. */
 export function suggestCommands(prefix: string, limit = 8): { name: string; alias: string | null; summary: string }[] {
   const t = prefix.trim().toUpperCase().replace(/^_/, '');
   if (!t) return [];

@@ -9,8 +9,8 @@ A 2D drafting program for Austrian mechanical manufacturing drawings (Fertigungs
 - **Manual drafting, not modelling.** Every line, view and annotation is placed by you. Views are never generated from a 3D model — the point is the exercise of drawing it.
 - **Standards are enforced, not suggested.** Line type follows meaning (thick solid = visible edge, thin dash-dot = centre line) and line width comes from the sheet's line group, per ISO 128-2. You cannot pick a line width freely.
 - **Sheet and views.** One A4–A0 sheet per file with an ISO 7200 title block and an ISO 7573 parts list. Each view carries its own scale and origin, and a linked view can only move along its projection axis relative to its parent until you deliberately unlink it.
-- **AutoCAD command line.** Commands use AutoCAD English names and short aliases (`L`, `REC`, `DLI`, `DAN`, …), with prefix-matched autocomplete over all 32 commands, 51 aliases and 7 file/undo commands.
-- **Associative dimensions and hatching.** A dimension follows the geometry it measures — never the reverse. Hatching re-finds its region when an edge of its boundary is edited, and breaks around text inside it.
+- **AutoCAD command line.** Commands use AutoCAD English names and short aliases (`L`, `REC`, `DLI`, `DAN`, …), with autocomplete over every command and alias, prefix matches first. `F1` (or `?`) lists them all with one-line summaries.
+- **Associative dimensions and hatching.** A dimension follows the geometry it measures — never the reverse. Hatching re-finds its region when an edge of its boundary is edited, and breaks around text inside it. HATCH previews the area under the cursor and explains a failed pick: an outline closed only by hidden or centre lines, a gap (its open ends marked in red), or nothing around the point.
 - **Notes and item numbers.** Leaders per ISO 128-22 (a note stands on a short horizontal reference line) and item numbers per ISO 6433, lettered at twice the dimension text height.
 - **Export.** PDF and SVG, at sheet scale.
 
@@ -32,7 +32,7 @@ npm run dev        # http://localhost:5173
 | Command | |
 |---|---|
 | `npm run dev` | dev server with hot reload |
-| `npm test` | vitest — 277 passing, 1 skipped |
+| `npm test` | vitest unit tests |
 | `npm run typecheck` | `tsc`, strict |
 | `npm run build` | production build into `dist/` |
 | `npm run preview` | serve the production build |
@@ -42,9 +42,9 @@ npm run dev        # http://localhost:5173
 Dimensions (**Bemaßungen**): `DIMLINEAR` (`DLI`), `DIMALIGNED` (`DAL`), `DIMRADIUS` (`DRA`), `DIMDIAMETER` (`DDI`), `DIMANGULAR` (`DAN`), `DIMEDIT` (`DED`).
 
 Draw: `LINE` `CIRCLE` `ARC` `RECTANG` `HATCH` `SKETCH` `TEXT`
-Modify: `OFFSET` `TRIM` `EXTEND` `FILLET` `CHAMFER` `MOVE` `COPY` `MIRROR` `ERASE`
+Modify: `OFFSET` `TRIM` `EXTEND` `FILLET` `CHAMFER` `MOVE` `COPY` `ROTATE` `SCALE` `STRETCH` `MIRROR` `ERASE` `HATCHEDIT` `TEXTEDIT`
 Annotate: `LEADER` `BALLOON`
-Sheet: `VIEW` `LTYPE` `LAYER` `ZOOM` `TITLEBLOCK` `PARTSLIST`
+Sheet: `VIEW` `LTYPE` `LAYER` `ZOOM` `PAN` `TITLEBLOCK` `PARTSLIST` `HELP`
 
 Start a command and the command line walks you through its prompts. At the command line, autocomplete lists matching names and aliases: arrow keys to move, `Enter` or `Tab` to accept. It stays out of the way once a command has started, so coordinates and options are never intercepted.
 
@@ -62,7 +62,7 @@ app → plot → dim → model → geom
 - `model/` — document types (`SheetDoc`), the norm rule data, and doc helpers (view transforms, projection links, anchors, annotation transforms, JSON).
 - `dim/` — dimensions rendered to plot primitives per ISO 129-1.
 - `plot/` — sheet to device-independent primitives in sheet millimetres (y up), plus the canvas renderer and the PDF/SVG export.
-- `app/` — the UI: viewport, command line, commands, snaps, selection, undo.
+- `app/` — the UI: viewport, command line (autocomplete, option chips), commands, grips, snaps, selection, undo, help.
 
 Coordinates are paper millimetres with the origin bottom-left and y up; entity geometry is stored in view-local real millimetres and converted on the way to the sheet.
 
