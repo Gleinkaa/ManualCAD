@@ -838,7 +838,7 @@ export class App {
     const tol = this.tol(1);
     const spot = this.grips.filter((g) => dist(g.p, grip.p) <= tol);
     const hot = [...this.hotSet, ...spot.filter((g) => !this.hotSet.some((h) => this.sameGrip(g, h)))];
-    this.ctx.grip = { grips: hot, base: grip.p };
+    this.ctx.grip = { grips: hot, base: grip.p, selection: [...this.selection] };
     this.hotGrip = grip;
     this.log('Command: GRIPSTRETCH');
     this.runner.start('GRIPSTRETCH', []);

@@ -81,7 +81,7 @@ Narrow parallel lines, normally at 45°, that mark cut material in a section, pe
 _Avoid_: fill, pattern
 
 **Grip**:
-A small square at a characteristic point of a selected object (end, midpoint, centre, quadrant, text or leader point, a dimension's measured points and dimension line) that can be dragged to a new position. Coincident grips move together, Shift+click collects several; associative dimensions and hatching follow.
+A small square at a characteristic point of a selected object (end, midpoint, centre, quadrant, text or leader point, a dimension's measured points and dimension line) that can be dragged to a new position. Coincident grips move together, Shift+click collects several, Enter cycles the grip modes (stretch, move, rotate, scale, mirror); associative dimensions and hatching follow.
 _Avoid_: handle, control point, vertex drag
 
 **Open end**:

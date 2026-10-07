@@ -4,7 +4,7 @@ import { translate } from '../geom';
 import type { Curve, Vec2 } from '../geom/types';
 import { angularGeometry } from '../dim';
 import { getView, resolveAnchor, toLocal, toSheet } from '../model/doc';
-import type { Annotation, Dimension, Entity, SheetDoc } from '../model/types';
+import type { AnchorPoint, Annotation, Dimension, Entity, SheetDoc } from '../model/types';
 import { add, dist, norm, polar, scale, sub } from '../geom/vec';
 import { angularSenses, dimOffset } from './commands/dims';
 
@@ -78,14 +78,24 @@ export function dimensionGrips(doc: SheetDoc, dim: Dimension): { kind: GripKind;
   return [{ kind: 'dimline', index: 0, p: add(C, scale(d, e.geom.r * view.scale + dim.leader)) }];
 }
 
-/** The dimension after dragging a grip to `to` (sheet mm): a clone, the original untouched. */
-export function stretchDimension(doc: SheetDoc, dim: Dimension, grip: Pick<Grip, 'kind' | 'index'>, to: Vec2): Dimension {
+/** An entity's characteristic point a dropped dimension point can attach to again (from the drop's object snap). */
+export interface AnchorRef {
+  entityId: string;
+  point: AnchorPoint;
+}
+
+/**
+ * The dimension after dragging a grip to `to` (sheet mm): a clone, the original untouched. A measured point
+ * dropped with `ref` (a snapped characteristic point of an entity in the same view) follows that entity again.
+ */
+export function stretchDimension(doc: SheetDoc, dim: Dimension, grip: Pick<Grip, 'kind' | 'index'>, to: Vec2, ref: AnchorRef | null = null): Dimension {
   const view = getView(doc, dim.viewId);
   if (dim.kind === 'linear') {
     const out = structuredClone(dim);
     if (grip.kind === 'anchor') {
       const an = grip.index === 0 ? out.a : out.b;
-      an.ref = null;
+      const ent = ref && doc.entities.find((e) => e.id === ref.entityId);
+      an.ref = ent && ent.viewId === dim.viewId ? { entityId: ref.entityId, point: ref.point } : null;
       an.fallback = toLocal(view, to);
       return out;
     }
@@ -168,7 +178,7 @@ export function stretchAnnotation(a: Annotation, grip: Pick<Grip, 'kind' | 'inde
 }
 
 /** Apply a stretch in place (`to` view-local of the object's view); false when the object no longer exists. */
-export function applyGrip(doc: SheetDoc, grip: Grip, to: Vec2): boolean {
+export function applyGrip(doc: SheetDoc, grip: Grip, to: Vec2, ref: AnchorRef | null = null): boolean {
   const e: Entity | undefined = doc.entities.find((x) => x.id === grip.id);
   if (e) {
     e.geom = stretchCurve(e.geom, grip, to);
@@ -176,7 +186,7 @@ export function applyGrip(doc: SheetDoc, grip: Grip, to: Vec2): boolean {
   }
   const di = doc.dimensions.findIndex((d) => d.id === grip.id);
   if (di >= 0) {
-    doc.dimensions[di] = stretchDimension(doc, doc.dimensions[di], grip, toSheet(getView(doc, grip.viewId), to));
+    doc.dimensions[di] = stretchDimension(doc, doc.dimensions[di], grip, toSheet(getView(doc, grip.viewId), to), ref);
     return true;
   }
   const i = doc.annotations.findIndex((x) => x.id === grip.id);

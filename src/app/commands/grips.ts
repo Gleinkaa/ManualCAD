@@ -1,14 +1,61 @@
 // GRIPSTRETCH: drag a hot grip (and every selected grip at the same spot) to a new point. Started by the app
-// when a grip is clicked; `ctx.grip` carries the grips. Not a typed command.
+// when a grip is clicked; `ctx.grip` carries the grips. Enter cycles the grip modes (Stretch, Move, Rotate,
+// Scale, Mirror) like AutoCAD; the modes act on the whole selection about the grip. Not a typed command.
 import type { Vec2 } from '../../geom/types';
-import { toLocal } from '../../model/doc';
-import { applyGrip, objectGrips, stretchAnnotation, stretchCurve, stretchDimension, type Grip } from '../grips';
+import { newId, toLocal } from '../../model/doc';
+import { applyGrip, objectGrips, stretchAnnotation, stretchCurve, stretchDimension, type AnchorRef, type Grip } from '../grips';
 import { visibleEntities } from '../xform';
-import type { CommandContext, CommandGen, Preview } from './types';
+import { angleTo, applyMirror, applySimilarity, copySelection, distTo, mirrorGhost, rotation, scaling, similarityGhost, splitIds, translateGhost, translateSelection, type Selection } from './modify';
+import type { CommandContext, CommandGen, Input, Option, Preview, SubGen } from './types';
 
 export interface GripDrag {
-  grips: Grip[];             // all hot grips (coincident grips of the selection)
-  base: Vec2;                // sheet mm
+  grips: Grip[];             // all hot grips (coincident grips of the selection, plus Shift-collected ones)
+  base: Vec2;                // sheet mm: the clicked grip
+  selection: string[];       // the whole selection, for the Move/Rotate/Scale/Mirror modes
+}
+
+type Mode = 'STRETCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'MIRROR';
+const CYCLE: Mode[] = ['STRETCH', 'MOVE', 'ROTATE', 'SCALE', 'MIRROR'];
+const MODE_OPTIONS: Option[] = [{ key: 'ST', label: 'STretch' }, { key: 'MO', label: 'MOve' }, { key: 'RO', label: 'ROtate' }, { key: 'SC', label: 'SCale' }, { key: 'MI', label: 'MIrror' }];
+const COPY_OPT: Option = { key: 'C', label: 'Copy' };
+const EXIT_OPT: Option = { key: 'X', label: 'eXit' };
+const BY_KEY: Record<string, Mode> = { ST: 'STRETCH', MO: 'MOVE', RO: 'ROTATE', SC: 'SCALE', MI: 'MIRROR' };
+const DEG = Math.PI / 180;
+
+const PROMPTS: Record<Mode, string> = {
+  STRETCH: 'Specify stretch point or',
+  MOVE: 'Specify move point or',
+  ROTATE: 'Specify rotation angle or',
+  SCALE: 'Specify scale factor or',
+  MIRROR: 'Specify second point of mirror line or',
+};
+
+/** Copies of the objects that carry `grips`, with the grips re-pointed at the copies (grip Stretch with Copy). */
+function copyGripObjects(ctx: CommandContext, grips: Grip[]): Grip[] {
+  const map = new Map<string, string>();
+  for (const g of grips) {
+    if (map.has(g.id)) continue;
+    const e = ctx.entity(g.id);
+    if (e) {
+      map.set(g.id, ctx.addEntity(structuredClone(e.geom), { viewId: e.viewId, layer: e.layer, lineType: e.lineType }).id);
+      continue;
+    }
+    const d = ctx.doc.dimensions.find((x) => x.id === g.id);
+    if (d) {
+      const c = { ...structuredClone(d), id: newId('d') };
+      ctx.doc.dimensions.push(c);
+      map.set(g.id, c.id);
+      continue;
+    }
+    const a = ctx.doc.annotations.find((x) => x.id === g.id);
+    if (a) {
+      const c = { ...structuredClone(a), id: newId('a') };
+      if (c.kind === 'hatch') delete c.assoc;
+      ctx.doc.annotations.push(c);
+      map.set(g.id, c.id);
+    }
+  }
+  return grips.map((g) => ({ ...g, id: map.get(g.id) ?? g.id }));
 }
 
 export function* gripstretch(ctx: CommandContext): CommandGen {
@@ -18,11 +65,95 @@ export function* gripstretch(ctx: CommandContext): CommandGen {
     ctx.log('Click a grip of a selected object to stretch it.');
     return;
   }
+  const base = drag.base;
+  const sel = (): Selection => splitIds(ctx, drag.selection);
   // every hot grip moves by the same displacement: coincident grips land on the point, collected ones keep their spacing
-  const moved = (p: Vec2) => drag.grips.map((g) => ({ grip: g, to: { x: g.p.x + p.x - drag.base.x, y: g.p.y + p.y - drag.base.y } }));
-  const r = yield { kind: 'point', prompt: 'Specify stretch point', base: drag.base, preview: (p) => ghost(ctx, moved(p)) };
-  if (r.kind !== 'point') return;
-  for (const m of moved(r.p)) applyGrip(ctx.doc, m.grip, toLocal(ctx.viewOf(m.grip.viewId), m.to));
+  const moved = (grips: Grip[], p: Vec2) => grips.map((g) => ({ grip: g, to: { x: g.p.x + p.x - base.x, y: g.p.y + p.y - base.y } }));
+  let mode: Mode = 'STRETCH';
+  let copy = false;
+  for (;;) {
+    ctx.log(`** ${mode}${copy ? ' (multiple)' : ''} **`);
+    const r: Input = yield* modePrompt(ctx, mode, base, () => sel(), (p) => ghost(ctx, moved(drag.grips, p)));
+    if (r.kind === 'enter') {
+      mode = CYCLE[(CYCLE.indexOf(mode) + 1) % CYCLE.length];
+      continue;
+    }
+    if (r.kind === 'option') {
+      if (r.key === 'X') return;
+      if (r.key === 'C') {
+        copy = !copy;
+        continue;
+      }
+      mode = BY_KEY[r.key] ?? mode;
+      continue;
+    }
+    if (r.kind === 'number' && mode === 'ROTATE') {
+      applySimilarity(ctx, sel(), base, rotation(r.value * DEG), copy);
+    } else if (r.kind === 'number' && mode === 'SCALE') {
+      if (r.value <= 0) {
+        ctx.log('Value must be positive and nonzero.');
+        continue;
+      }
+      applySimilarity(ctx, sel(), base, scaling(r.value), copy);
+    } else if (r.kind !== 'point') {
+      continue;
+    } else if (mode === 'STRETCH') {
+      const grips = copy ? copyGripObjects(ctx, drag.grips) : drag.grips;
+      const ref: AnchorRef | null = r.snap?.entityId && r.snap.anchor ? { entityId: r.snap.entityId, point: r.snap.anchor } : null;
+      for (const m of moved(grips, r.p)) applyGrip(ctx.doc, m.grip, toLocal(ctx.viewOf(m.grip.viewId), m.to), m.grip.kind === 'anchor' ? ref : null);
+      if (ref && grips.some((g) => g.kind === 'anchor')) ctx.log('Dimension point attached to the snapped object.');
+    } else if (mode === 'MOVE') {
+      const d = { x: r.p.x - base.x, y: r.p.y - base.y };
+      if (copy) copySelection(ctx, sel(), d);
+      else translateSelection(ctx, sel(), d);
+    } else if (mode === 'ROTATE') {
+      const a = angleTo(ctx, base, r.p);
+      if (a === null) {
+        ctx.log('The angle needs a point other than the base point.');
+        continue;
+      }
+      applySimilarity(ctx, sel(), base, rotation(a), copy);
+    } else if (mode === 'SCALE') {
+      const f = distTo(ctx, base, r.p);
+      if (f <= 0) {
+        ctx.log('Value must be positive and nonzero.');
+        continue;
+      }
+      applySimilarity(ctx, sel(), base, scaling(f), copy);
+    } else {
+      if (r.p.x === base.x && r.p.y === base.y) {
+        ctx.log('The mirror line needs two different points.');
+        continue;
+      }
+      applyMirror(ctx, sel(), base, r.p, !copy);
+    }
+    if (!copy) return;
+    ctx.log(`${mode} applied to a copy; next point, or eXit.`);
+  }
+}
+
+/** One prompt of a grip mode; the ghost shows the transform the cursor would apply. */
+function* modePrompt(ctx: CommandContext, mode: Mode, base: Vec2, sel: () => Selection, stretchGhost: (p: Vec2) => Preview): SubGen<Input> {
+  const options = [...MODE_OPTIONS.filter((o) => BY_KEY[o.key] !== mode), COPY_OPT, EXIT_OPT];
+  const preview = (p: Vec2): Preview => {
+    switch (mode) {
+      case 'STRETCH':
+        return stretchGhost(p);
+      case 'MOVE':
+        return translateGhost(ctx, sel(), { x: p.x - base.x, y: p.y - base.y });
+      case 'ROTATE': {
+        const a = angleTo(ctx, base, p);
+        return a === null ? {} : similarityGhost(ctx, sel(), base, rotation(a));
+      }
+      case 'SCALE': {
+        const f = distTo(ctx, base, p);
+        return f > 0 ? similarityGhost(ctx, sel(), base, scaling(f)) : {};
+      }
+      case 'MIRROR':
+        return mirrorGhost(ctx, sel(), base, p);
+    }
+  };
+  return yield { kind: 'point', prompt: PROMPTS[mode], options, allowEnter: true, base, acceptNumber: mode === 'ROTATE' || mode === 'SCALE', preview };
 }
 
 /** Ghost of every object with its grips moved to their targets (sheet mm); several grips of one object stack up. */

@@ -2,7 +2,7 @@
 
 This session followed the 2026-10-06 UX pass (PR #2, `feat/ux-pass`). Its notes are kept below, under "Previous handoff".
 - **Branch:** `feat/ux-hatch-help`, on `master` after PR #2.
-- **Checks:** `npm test` gives 300 passing and 1 skipped; `npm run typecheck` and `npm run build` are clean.
+- **Checks:** `npm test` gives 305 passing and 1 skipped; `npm run typecheck` and `npm run build` are clean.
 - **Browser runs (Playwright, `/usr/bin/chromium`, the copy under `~/.hermes/hermes-agent/node_modules/playwright`):** every screen below was driven and screenshotted at 1400 and 1100 px width with no console errors; the rollover pick costs 0.5 ms per mouse move on ZA 38 (101 entities, 26 dimensions), the hatch preview under 0.1 ms.
 
 ## Why: "how do I hatch an area?"
@@ -52,11 +52,17 @@ Messages changed: "N hatch(es) created." → "1 hatch created." / "2 hatches cre
 
 Hatches still have no grips: they follow their boundary, and that is the ISO-correct behaviour.
 
+## Fourth pass (same day): grip modes, dimension re-association
+
+| Feature | Where |
+|---|---|
+| Grip modes: with a hot grip, Enter cycles Stretch → Move → Rotate → Scale → Mirror (the options STretch/MOve/ROtate/SCale/MIrror jump directly). Move, Rotate, Scale and Mirror act on the whole selection about the grip, with the same ghosts as the commands; Rotate and Scale take a typed value. Copy toggles "(multiple)": every mode then leaves the source and repeats until eXit (Stretch copies the gripped objects first). Mirror erases the source unless Copy, as AutoCAD's grip mirror does | `app/commands/grips.ts` (`gripstretch`, `modePrompt`, `copyGripObjects`), `app/commands/modify.ts` (exported `translateSelection`, `copySelection`, `applyMirror`, `mirrorGhost`, `applySimilarity`, …; MOVE, COPY and MIRROR now use them) |
+| A dimension's measured point dropped on a snapped characteristic point (endpoint, midpoint, centre) of an entity in the same view attaches to it again; the log says so | `app/grips.ts` (`stretchDimension(..., ref)`, `AnchorRef`), `app/commands/grips.ts` |
+
 ## Known limitations and next steps
 
-1. **Grip modes.** AutoCAD's Enter-cycling of a hot grip through move/rotate/scale/mirror is not built; ROTATE/SCALE/MIRROR commands cover it.
-2. **A dragged dimension point detaches.** Dragging a measured point of a dimension onto a new snapped point does not re-associate it (AutoCAD does); the fallback is stored and the dimension stops following that end.
-3. **Autocomplete ranks substring matches too** (typing `di` also lists HATCHEDIT and TEXTEDIT after the DIM* commands). Drop rank 3 in `suggestCommands` if that annoys.
+1. **Grip Base point option** (AutoCAD's B to pick another base mid-drag) is not built; Esc and drag another grip instead.
+2. **Autocomplete ranks substring matches too** (typing `di` also lists HATCHEDIT and TEXTEDIT after the DIM* commands). Drop rank 3 in `suggestCommands` if that annoys.
 4. **The toolbar wraps to two rows below ~1250 px.** Still usable; icon-only buttons could lose their captions at narrow widths.
 5. The items 1–7 of the previous handoff still apply where not superseded (toolbar item 5 is done; `chrome-devtools-axi` item 7 still true).
 

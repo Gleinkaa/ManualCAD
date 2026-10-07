@@ -261,7 +261,7 @@ export function* chamfer(ctx: CommandContext): CommandGen {
 
 // --- move / copy / mirror / erase ---
 
-function splitIds(ctx: CommandContext, ids: string[]): { ents: Entity[]; dims: Dimension[]; annots: Annotation[] } {
+export function splitIds(ctx: CommandContext, ids: string[]): { ents: Entity[]; dims: Dimension[]; annots: Annotation[] } {
   const set = new Set(ids);
   return {
     ents: ctx.doc.entities.filter((e) => set.has(e.id)),
@@ -316,7 +316,11 @@ export function* move(ctx: CommandContext): CommandGen {
   const { ents, dims, annots } = splitIds(ctx, ids);
   const r = yield* baseAndSecond(ctx, ents, annots);
   if (!r) return;
-  const d = { x: r.to.x - r.base.x, y: r.to.y - r.base.y };
+  translateSelection(ctx, { ents, dims, annots }, { x: r.to.x - r.base.x, y: r.to.y - r.base.y });
+}
+
+/** Move a selection in place by the sheet displacement `d` (MOVE and the grip Move mode). */
+export function translateSelection(ctx: CommandContext, { ents, dims, annots }: Selection, d: Vec2): void {
   const moved = new Set(ents.map((e) => e.id));
   const inPlace = new Map(ents.map((e) => [e.id, e.id]));
   for (const e of ents) e.geom = translate(e.geom, localDelta(ctx, e.viewId, d));
@@ -326,6 +330,11 @@ export function* move(ctx: CommandContext): CommandGen {
     Object.assign(a, m);
   }
   for (const dim of dims) for (const an of dimensionAnchors(dim)) shiftAnchor(ctx, an, dim.viewId, d, moved);
+}
+
+/** Ghost of a selection moved by `d` (sheet mm). */
+export function translateGhost(ctx: CommandContext, { ents, annots }: Selection, d: Vec2): Preview {
+  return ghost(ctx, ents, d, annots);
 }
 
 function copyAnchor(ctx: CommandContext, a: DimAnchor, viewId: string, d: Vec2, map: Map<string, string>): DimAnchor {
@@ -351,33 +360,40 @@ export function* copy(ctx: CommandContext): CommandGen {
       preview: (p) => ghost(ctx, ents, { x: p.x - b.p.x, y: p.y - b.p.y }, annots),
     };
     if (t.kind !== 'point') return;
-    const d = { x: t.p.x - b.p.x, y: t.p.y - b.p.y };
-    const map = new Map<string, string>();
-    for (const e of ents) {
-      const c = ctx.addEntity(translate(e.geom, localDelta(ctx, e.viewId, d)), { viewId: e.viewId, layer: e.layer, lineType: e.lineType });
-      map.set(e.id, c.id);
+    copySelection(ctx, { ents, dims, annots }, { x: t.p.x - b.p.x, y: t.p.y - b.p.y });
+  }
+}
+
+/** Copies of a selection displaced by `d` (sheet mm), ids remapped so copied dimensions follow copied entities. */
+export function copySelection(ctx: CommandContext, { ents, dims, annots }: Selection, d: Vec2): Selection {
+  const out: Selection = { ents: [], dims: [], annots: [] };
+  const map = new Map<string, string>();
+  for (const e of ents) {
+    const c = ctx.addEntity(translate(e.geom, localDelta(ctx, e.viewId, d)), { viewId: e.viewId, layer: e.layer, lineType: e.lineType });
+    map.set(e.id, c.id);
+    out.ents.push(c);
+  }
+  for (const a of annots) {
+    const copy = { ...remapHatchBoundary(translateAnnotation(structuredClone(a), localDelta(ctx, a.viewId, d)), map), id: newId('a') };
+    ctx.doc.annotations.push(copy);
+    out.annots.push(copy);
+  }
+  for (const dim of dims) {
+    const cp = (an: DimAnchor) => copyAnchor(ctx, an, dim.viewId, d, map);
+    let c: Dimension | null = null;
+    if (dim.kind === 'linear') c = { ...structuredClone(dim), id: newId('d'), a: cp(dim.a), b: cp(dim.b) };
+    else if (dim.kind === 'angular') {
+      c = { ...structuredClone(dim), id: newId('d'), leg1: { a: cp(dim.leg1.a), b: cp(dim.leg1.b) }, leg2: { a: cp(dim.leg2.a), b: cp(dim.leg2.b) } };
+    } else {
+      const target = map.get(dim.entityId);
+      if (target) c = { ...structuredClone(dim), id: newId('d'), entityId: target };
     }
-    for (const a of annots) {
-      const copy = remapHatchBoundary(translateAnnotation(structuredClone(a), localDelta(ctx, a.viewId, d)), map);
-      ctx.doc.annotations.push({ ...copy, id: newId('a') });
-    }
-    for (const dim of dims) {
-      const cp = (an: DimAnchor) => copyAnchor(ctx, an, dim.viewId, d, map);
-      if (dim.kind === 'linear') {
-        ctx.doc.dimensions.push({ ...structuredClone(dim), id: newId('d'), a: cp(dim.a), b: cp(dim.b) });
-      } else if (dim.kind === 'angular') {
-        ctx.doc.dimensions.push({
-          ...structuredClone(dim),
-          id: newId('d'),
-          leg1: { a: cp(dim.leg1.a), b: cp(dim.leg1.b) },
-          leg2: { a: cp(dim.leg2.a), b: cp(dim.leg2.b) },
-        });
-      } else {
-        const target = map.get(dim.entityId);
-        if (target) ctx.doc.dimensions.push({ ...structuredClone(dim), id: newId('d'), entityId: target });
-      }
+    if (c) {
+      ctx.doc.dimensions.push(c);
+      out.dims.push(c);
     }
   }
+  return out;
 }
 
 function mirrorPt(p: Vec2, a: Vec2, b: Vec2): Vec2 {
@@ -469,28 +485,14 @@ export function* mirror(ctx: CommandContext): CommandGen {
   const ids = yield* selectObjects(ctx);
   const { ents, dims: selectedDims, annots } = splitIds(ctx, ids);
   if (ents.length === 0 && selectedDims.length === 0 && annots.length === 0) return;
-  const dims = dimsToMirror(ctx, selectedDims, ents);
+  const sel = { ents, dims: selectedDims, annots };
   const a = yield { kind: 'point', prompt: 'Specify first point of mirror line' };
   if (a.kind !== 'point') return;
-  const make = (p: Vec2) =>
-    ents.map((e) => ({ e, curve: geomMirror(e.geom, ctx.localIn(e.viewId, a.p), ctx.localIn(e.viewId, p)) }));
-  const previewDims = (p: Vec2): Dimension[] =>
-    dims
-      .filter((d) => d.kind === 'linear' || d.kind === 'angular')
-      .map((d) => mirrorDim(ctx, d, a.p, p, new Map()))
-      .filter((d): d is Dimension => !!d);
   const b = yield {
     kind: 'point',
     prompt: 'Specify second point of mirror line',
     base: a.p,
-    preview: (p) =>
-      p.x === a.p.x && p.y === a.p.y
-        ? {}
-        : {
-            curves: make(p).map(({ e, curve }) => ({ curve, lineType: e.lineType, viewId: e.viewId })),
-            dims: previewDims(p),
-            annotations: annots.map((x) => mirrorAnnotation(x, ctx.localIn(x.viewId, a.p), ctx.localIn(x.viewId, p))),
-          },
+    preview: (p) => mirrorGhost(ctx, sel, a.p, p),
   };
   if (b.kind !== 'point') return;
   if (b.p.x === a.p.x && b.p.y === a.p.y) {
@@ -498,13 +500,34 @@ export function* mirror(ctx: CommandContext): CommandGen {
     return;
   }
   const yn = yield { kind: 'text', prompt: 'Erase source objects? [Yes/No]', default: 'N' };
-  const erase = yn.kind === 'text' && /^y/i.test(yn.text.trim());
+  applyMirror(ctx, sel, a.p, b.p, yn.kind === 'text' && /^y/i.test(yn.text.trim()));
+}
+
+/** Ghost of a selection mirrored across the sheet line a-b; empty while the two points coincide. */
+export function mirrorGhost(ctx: CommandContext, { ents, dims: selectedDims, annots }: Selection, a: Vec2, p: Vec2): Preview {
+  if (p.x === a.x && p.y === a.y) return {};
+  const dims = dimsToMirror(ctx, selectedDims, ents);
+  return {
+    curves: ents.map((e) => ({ curve: geomMirror(e.geom, ctx.localIn(e.viewId, a), ctx.localIn(e.viewId, p)), lineType: e.lineType, viewId: e.viewId })),
+    dims: dims
+      .filter((d) => d.kind === 'linear' || d.kind === 'angular')
+      .map((d) => mirrorDim(ctx, d, a, p, new Map()))
+      .filter((d): d is Dimension => !!d),
+    annotations: annots.map((x) => mirrorAnnotation(x, ctx.localIn(x.viewId, a), ctx.localIn(x.viewId, p))),
+  };
+}
+
+/** Mirror a selection across the sheet line a-b, in place (`erase`) or as copies. */
+export function applyMirror(ctx: CommandContext, { ents, dims: selectedDims, annots }: Selection, a: { x: number; y: number }, bp: Vec2, erase: boolean): void {
+  const dims = dimsToMirror(ctx, selectedDims, ents);
+  const make = (p: Vec2) => ents.map((e) => ({ e, curve: geomMirror(e.geom, ctx.localIn(e.viewId, a), ctx.localIn(e.viewId, p)) }));
+  const b = { p: bp };
   const idMap = new Map<string, string>();
   const curves = make(b.p);
   if (erase) for (const e of ents) idMap.set(e.id, e.id);
   else for (const { e, curve } of curves) idMap.set(e.id, ctx.addEntity(curve, { viewId: e.viewId, layer: e.layer, lineType: e.lineType }).id);
   // dimension images are computed from the source geometry, before it is replaced in place
-  const mirrored = dims.map((d) => ({ d, m: mirrorDim(ctx, d, a.p, b.p, idMap) }));
+  const mirrored = dims.map((d) => ({ d, m: mirrorDim(ctx, d, a, b.p, idMap) }));
   if (erase) for (const { e, curve } of curves) e.geom = curve;
   for (const { d, m } of mirrored) {
     if (!m) continue;
@@ -512,7 +535,7 @@ export function* mirror(ctx: CommandContext): CommandGen {
     else ctx.doc.dimensions.push({ ...m, id: newId('d') });
   }
   for (const x of annots) {
-    const m = remapHatchBoundary(mirrorAnnotation(structuredClone(x), ctx.localIn(x.viewId, a.p), ctx.localIn(x.viewId, b.p)), idMap);
+    const m = remapHatchBoundary(mirrorAnnotation(structuredClone(x), ctx.localIn(x.viewId, a), ctx.localIn(x.viewId, b.p)), idMap);
     if (erase) {
       if (x.kind === 'hatch' && m.kind === 'hatch' && !m.assoc) delete x.assoc;
       Object.assign(x, m);
@@ -532,21 +555,21 @@ interface Similarity {
   dAngle: number;
 }
 
-const rotation = (angle: number): Similarity => ({
+export const rotation = (angle: number): Similarity => ({
   curve: (c, about) => geomRotate(c, about, angle),
   annot: (a, about) => rotateAnnotation(a, about, angle),
   point: (p, about) => rotatePoint(p, about, angle),
   dAngle: angle,
 });
 
-const scaling = (factor: number): Similarity => ({
+export const scaling = (factor: number): Similarity => ({
   curve: (c, about) => scaleCurve(c, about, factor),
   annot: (a, about) => scaleAnnotation(a, about, factor),
   point: (p, about) => scalePoint(p, about, factor),
   dAngle: 0,
 });
 
-type Selection = ReturnType<typeof splitIds>;
+export type Selection = ReturnType<typeof splitIds>;
 
 /**
  * Image of `dim` under the transform. `map` maps transformed entity ids to their images (themselves when
@@ -568,7 +591,7 @@ function xformDim(ctx: CommandContext, dim: Dimension, map: Map<string, string>,
   return { ...structuredClone(dim), entityId: target, angle: dim.angle + dAngle };
 }
 
-function similarityGhost(ctx: CommandContext, sel: Selection, base: Vec2, x: Similarity): Preview {
+export function similarityGhost(ctx: CommandContext, sel: Selection, base: Vec2, x: Similarity): Preview {
   const about = (viewId: string) => ctx.localIn(viewId, base);
   return {
     curves: sel.ents.map((e) => ({ curve: x.curve(e.geom, about(e.viewId)), lineType: e.lineType, viewId: e.viewId })),
@@ -582,7 +605,7 @@ function similarityGhost(ctx: CommandContext, sel: Selection, base: Vec2, x: Sim
 }
 
 /** Apply the transform about the sheet point `base`, in place or as copies (ids remapped like COPY). */
-function applySimilarity(ctx: CommandContext, sel: Selection, base: Vec2, x: Similarity, copyMode: boolean): void {
+export function applySimilarity(ctx: CommandContext, sel: Selection, base: Vec2, x: Similarity, copyMode: boolean): void {
   const about = (viewId: string) => ctx.localIn(viewId, base);
   const map = new Map<string, string>();
   const images = sel.ents.map((e) => ({ e, curve: x.curve(e.geom, about(e.viewId)) }));
@@ -611,7 +634,7 @@ const REFERENCE_OPT = { key: 'R', label: 'Reference' };
 const DEG = Math.PI / 180;
 
 /** Angle of base → p (radians, view-local of the current view), or null when p is the base point. */
-function angleTo(ctx: CommandContext, base: Vec2, p: Vec2): number | null {
+export function angleTo(ctx: CommandContext, base: Vec2, p: Vec2): number | null {
   const a = ctx.local(base);
   const b = ctx.local(p);
   const dx = b.x - a.x;
@@ -620,7 +643,7 @@ function angleTo(ctx: CommandContext, base: Vec2, p: Vec2): number | null {
 }
 
 /** Distance base → p in the current view's mm (drawing units). */
-function distTo(ctx: CommandContext, base: Vec2, p: Vec2): number {
+export function distTo(ctx: CommandContext, base: Vec2, p: Vec2): number {
   const a = ctx.local(base);
   const b = ctx.local(p);
   return Math.hypot(b.x - a.x, b.y - a.y);

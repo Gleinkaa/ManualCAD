@@ -68,9 +68,9 @@ describe('grips', () => {
     const hot = grips.filter((g) => Math.hypot(g.p.x - corner.x, g.p.y - corner.y) < 1e-9);
     expect(hot).toHaveLength(2);
     expect(nearestGrip(grips, { x: corner.x + 0.3, y: corner.y }, 0.5)?.p).toEqual(corner);
-    ctx.grip = { grips: hot, base: corner };
+    ctx.grip = { grips: hot, base: corner, selection: [] };
     runner.start('GRIPSTRETCH', []);
-    expect(runner.prompt).toBe('Specify stretch point:');
+    expect(runner.prompt.startsWith('Specify stretch point or [')).toBe(true);
     type('50,0');
     expect(runner.active).toBe(false);
     const ends = doc.entities.flatMap((e) => (e.geom.kind === 'line' ? [e.geom.a, e.geom.b] : []));
@@ -130,7 +130,7 @@ describe('HATCH gap tolerance', () => {
     const corner = toSheet(doc.views[0], { x: 40, y: 20 });
     const hot = doc.entities.flatMap((e) => objectGrips(doc, e.id)).filter((g) => Math.hypot(g.p.x - corner.x, g.p.y - corner.y) < 1e-9);
     expect(hot).toHaveLength(2);
-    ctx.grip = { grips: hot, base: corner };
+    ctx.grip = { grips: hot, base: corner, selection: [] };
     runner.start('GRIPSTRETCH', []);
     type('45,25');
     expect(h.assoc?.gap).toBe(0.5);
@@ -206,7 +206,7 @@ describe('collected grips', () => {
     const { doc, ctx, runner, type, view } = setup();
     type('L', '0,0', '0,30', '');
     const [g0, g1] = objectGrips(doc, doc.entities[0].id);
-    ctx.grip = { grips: [g0, g1], base: g1.p };
+    ctx.grip = { grips: [g0, g1], base: g1.p, selection: [] };
     runner.start('GRIPSTRETCH', []);
     type('10,30');
     expect(doc.entities[0].geom).toEqual({ kind: 'line', a: { x: 10, y: 0 }, b: { x: 10, y: 30 } });
@@ -229,5 +229,96 @@ describe('STRETCH', () => {
     expect(doc.annotations[0]).toMatchObject({ pos: { x: 55, y: 25 } });
     type('S', '100,100', '110,110');
     expect(log.at(-1)).toBe('Nothing to stretch inside the window.');
+  });
+});
+
+describe('grip modes', () => {
+  function withLine() {
+    const s = setup();
+    s.type('L', '0,0', '10,0', '');
+    const id = s.doc.entities[0].id;
+    const [g0, g1] = objectGrips(s.doc, id);
+    return { ...s, id, g0, g1 };
+  }
+
+  it('Enter cycles Stretch → Move → Rotate → Scale → Mirror → Stretch, the prompt names the mode', () => {
+    const { ctx, runner, g1, type } = withLine();
+    ctx.grip = { grips: [g1], base: g1.p, selection: [g1.id] };
+    runner.start('GRIPSTRETCH', []);
+    const seen: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      seen.push(runner.prompt.split(' or')[0]);
+      type('');
+    }
+    expect(seen).toEqual(['Specify stretch point', 'Specify move point', 'Specify rotation angle', 'Specify scale factor', 'Specify second point of mirror line', 'Specify stretch point']);
+    expect(runner.active).toBe(true);
+    type('X');
+    expect(runner.active).toBe(false);
+  });
+
+  it('Move mode moves the whole selection by the displacement from the grip; Copy keeps the source', () => {
+    const { doc, ctx, runner, g1, type } = withLine();
+    ctx.grip = { grips: [g1], base: g1.p, selection: [g1.id] };
+    runner.start('GRIPSTRETCH', []);
+    type('MO', '15,5');
+    expect(doc.entities[0].geom).toEqual({ kind: 'line', a: { x: 5, y: 5 }, b: { x: 15, y: 5 } });
+    const [h0] = objectGrips(doc, doc.entities[0].id);
+    ctx.grip = { grips: [h0], base: h0.p, selection: [doc.entities[0].id] };
+    runner.start('GRIPSTRETCH', []);
+    type('MO', 'C', '5,25', 'X');
+    expect(doc.entities).toHaveLength(2);
+    expect(doc.entities[1].geom).toEqual({ kind: 'line', a: { x: 5, y: 25 }, b: { x: 15, y: 25 } });
+  });
+
+  it('Rotate takes a typed angle, Scale a factor, Mirror a second point (source erased unless Copy)', () => {
+    const { doc, ctx, runner, g0, type } = withLine();
+    ctx.grip = { grips: [g0], base: g0.p, selection: [g0.id] };
+    runner.start('GRIPSTRETCH', []);
+    type('RO', '90');
+    const g = doc.entities[0].geom;
+    expect(g.kind === 'line' && g.b.x).toBeCloseTo(0);
+    expect(g.kind === 'line' && g.b.y).toBeCloseTo(10);
+    runner.start('GRIPSTRETCH', []);
+    ctx.grip = { grips: [g0], base: g0.p, selection: [g0.id] };
+    runner.start('GRIPSTRETCH', []);
+    type('SC', '2');
+    const s = doc.entities[0].geom;
+    expect(s.kind === 'line' && s.b.y).toBeCloseTo(20);
+    ctx.grip = { grips: [g0], base: g0.p, selection: [g0.id] };
+    runner.start('GRIPSTRETCH', []);
+    type('MI', 'C', '10,0', 'X');
+    expect(doc.entities).toHaveLength(2);
+    const m = doc.entities[1].geom;
+    expect(m.kind === 'line' && m.b.y).toBeCloseTo(-20);
+  });
+
+  it('Stretch with Copy stretches a copy and leaves the original', () => {
+    const { doc, ctx, runner, g1, type } = withLine();
+    ctx.grip = { grips: [g1], base: g1.p, selection: [g1.id] };
+    runner.start('GRIPSTRETCH', []);
+    type('C', '10,10', 'X');
+    expect(doc.entities[0].geom).toEqual({ kind: 'line', a: { x: 0, y: 0 }, b: { x: 10, y: 0 } });
+    expect(doc.entities[1].geom).toEqual({ kind: 'line', a: { x: 0, y: 0 }, b: { x: 10, y: 10 } });
+  });
+
+  it('a dimension point dropped on a snapped endpoint attaches to that entity again', () => {
+    const { doc, ctx, runner, type, view, log } = setup();
+    type('L', '0,0', '40,0', '', 'L', '0,10', '60,10', '');
+    const [bottom, top] = doc.entities;
+    const r = new CommandRunner(new CommandContext(() => doc, defaultSettings(doc), () => {}), { pick: () => null, hostCommand: () => {}, takeSelection: () => [], onStart: () => {}, onEnd: () => {} });
+    r.start('DIMLINEAR');
+    r.click(toSheet(view, { x: 0, y: 0 }), { point: toSheet(view, { x: 0, y: 0 }), kind: 'endpoint', entityId: bottom.id, anchor: 'start' });
+    r.click(toSheet(view, { x: 40, y: 0 }), { point: toSheet(view, { x: 40, y: 0 }), kind: 'endpoint', entityId: bottom.id, anchor: 'end' });
+    r.text('20,-10');
+    const dim = doc.dimensions[0];
+    const grips = objectGrips(doc, dim.id);
+    ctx.grip = { grips: [grips[1]], base: grips[1].p, selection: [dim.id] };
+    runner.start('GRIPSTRETCH', []);
+    const target = toSheet(view, { x: 60, y: 10 });
+    runner.click(target, { point: target, kind: 'endpoint', entityId: top.id, anchor: 'end' });
+    const after = doc.dimensions[0];
+    expect(after.kind === 'linear' && after.b.ref).toEqual({ entityId: top.id, point: 'end' });
+    expect(after.kind === 'linear' && resolveAnchor(doc, after.b)).toEqual({ x: 60, y: 10 });
+    expect(log.at(-1)).toBe('Dimension point attached to the snapped object.');
   });
 });
