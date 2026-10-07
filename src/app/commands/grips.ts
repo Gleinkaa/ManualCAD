@@ -1,6 +1,7 @@
 // GRIPSTRETCH: drag a hot grip (and every selected grip at the same spot) to a new point. Started by the app
 // when a grip is clicked; `ctx.grip` carries the grips. Enter cycles the grip modes (Stretch, Move, Rotate,
-// Scale, Mirror) like AutoCAD; the modes act on the whole selection about the grip. Not a typed command.
+// Scale, Mirror) like AutoCAD; the modes act on the whole selection about the grip, or about another point
+// picked with the B (Base point) option. Not a typed command.
 import type { Vec2 } from '../../geom/types';
 import { newId, toLocal } from '../../model/doc';
 import { applyGrip, objectGrips, stretchAnnotation, stretchCurve, stretchDimension, type AnchorRef, type Grip } from '../grips';

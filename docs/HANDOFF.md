@@ -61,9 +61,10 @@ Hatches still have no grips: they follow their boundary, and that is the ISO-cor
 
 ## Known limitations and next steps
 
-1. Grip modes have a Base point option (B) since the fifth pass; autocomplete lists prefix matches only (no substring matches).
-2. **The toolbar wraps to two rows below ~1250 px.** Still usable; icon-only buttons could lose their captions at narrow widths.
-5. The items 1–7 of the previous handoff still apply where not superseded (toolbar item 5 is done; `chrome-devtools-axi` item 7 still true).
+Done since the fourth pass: grip modes have a Base point option (B) so the drag can be measured from another point; autocomplete lists prefix matches of names and aliases only, with no substring matches.
+
+1. **The toolbar wraps to two rows below ~1250 px.** Still usable; icon-only buttons could lose their captions at narrow widths.
+2. The items 1–7 of the previous handoff still apply where not superseded (toolbar item 5 is done; `chrome-devtools-axi` item 7 still true).
 
 ## How to resume
 

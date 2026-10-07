@@ -190,7 +190,7 @@ export function allCommandNames(): string[] {
   return [...names].filter((n) => !HIDDEN_COMMANDS.has(n) && (n in COMMANDS || (HOST_COMMANDS as readonly string[]).includes(n)));
 }
 
-/** Autocomplete (case-insensitive): exact and alias matches first, then prefix matches, then substring matches, alphabetical within a rank. */
+/** Autocomplete (case-insensitive): exact and alias matches first (rank 0), then prefix matches of names (rank 1) and aliases (rank 2), alphabetical within a rank. */
 export function suggestCommands(prefix: string, limit = 8): { name: string; alias: string | null; summary: string }[] {
   const t = prefix.trim().toUpperCase().replace(/^_/, '');
   if (!t) return [];
