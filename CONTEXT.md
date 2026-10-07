@@ -35,7 +35,7 @@ The table of the parts shown on the sheet, directly above the title block, per I
 _Avoid_: BOM table, item list
 
 **Item number**:
-The number that identifies a part in the parts list and on the drawing (German: Positionsnummer, "Teil"). Placed with BALLOON (AutoCAD Mechanical's command name) on a leader line ending in a dot, lettered at twice the dimension text height (ISO 6433).
+The number that identifies a part in the parts list and on the drawing (German: Positionsnummer, "Teil"). Placed with BALLOON (AutoCAD Mechanical's command name) on a leader line (see Leader line), lettered at twice the dimension text height (ISO 6433).
 _Avoid_: balloon, part ID
 
 **Leader line**:
