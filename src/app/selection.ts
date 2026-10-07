@@ -2,7 +2,8 @@
 import { distanceTo, insideBox, intersectsBox } from '../geom';
 import type { BBox, Vec2 } from '../geom/types';
 import { plotDimension } from '../dim';
-import type { Dimension, SheetDoc } from '../model/types';
+import type { Annotation, Dimension, SheetDoc } from '../model/types';
+import { plotAnnotation } from '../plot';
 import type { Primitive } from '../plot/types';
 import { entitySheetCurve, layerVisible, visibleEntities } from './xform';
 
@@ -18,6 +19,26 @@ function visibleDims(doc: SheetDoc): Dimension[] {
   return doc.dimensions.filter((d) => layerVisible(doc, d.layer));
 }
 
+export function annotationPrimitives(doc: SheetDoc, a: Annotation): Primitive[] {
+  try {
+    return plotAnnotation(doc, a, { includeConstruction: true, screenColors: true });
+  } catch {
+    return [];
+  }
+}
+
+function visibleAnnotations(doc: SheetDoc): Annotation[] {
+  return doc.annotations.filter((a) => layerVisible(doc, a.layer));
+}
+
+/** Dimensions and annotations: everything selectable that is drawn from primitives rather than a curve. */
+function primitiveObjects(doc: SheetDoc): { id: string; prims: Primitive[] }[] {
+  return [
+    ...visibleDims(doc).map((d) => ({ id: d.id, prims: dimPrimitives(doc, d) })),
+    ...visibleAnnotations(doc).map((a) => ({ id: a.id, prims: annotationPrimitives(doc, a) })),
+  ];
+}
+
 /** Closest entity or dimension within `tol` sheet mm of `p`. */
 export function pick(doc: SheetDoc, p: Vec2, tol: number): string | null {
   let best: string | null = null;
@@ -30,11 +51,11 @@ export function pick(doc: SheetDoc, p: Vec2, tol: number): string | null {
     }
   }
   if (best) return best;
-  for (const dim of visibleDims(doc)) {
-    const d = primsDistance(dimPrimitives(doc, dim), p);
+  for (const o of primitiveObjects(doc)) {
+    const d = primsDistance(o.prims, p);
     if (d <= bestD) {
       bestD = d;
-      best = dim.id;
+      best = o.id;
     }
   }
   return best;
@@ -68,11 +89,11 @@ export function boxSelect(doc: SheetDoc, from: Vec2, to: Vec2): string[] {
     const c = entitySheetCurve(doc, e);
     if (crossing ? intersectsBox(c, box) : insideBox(c, box)) ids.push(e.id);
   }
-  for (const dim of visibleDims(doc)) {
-    const pts = primPoints(dimPrimitives(doc, dim));
+  for (const o of primitiveObjects(doc)) {
+    const pts = primPoints(o.prims);
     if (pts.length === 0) continue;
     const inside = (q: Vec2) => q.x >= box.min.x && q.x <= box.max.x && q.y >= box.min.y && q.y <= box.max.y;
-    if (crossing ? pts.some(inside) : pts.every(inside)) ids.push(dim.id);
+    if (crossing ? pts.some(inside) : pts.every(inside)) ids.push(o.id);
   }
   return ids;
 }

@@ -9,10 +9,15 @@ export { endpoints, midpoint, bbox, closestPoint, distanceTo, curveLength } from
 export { intersectsBox, insideBox, intersect } from './intersect';
 
 // --- snapping ---
-export { snapCandidates, perpendicularFoot, tangentPoints } from './snap';
+export { snapCandidates, perpendicularFoot, perpendicularFeet, tangentPoints } from './snap';
 
 // --- construction & transforms ---
+export { freehandCurve } from './freehand';
 export { arcFrom3Points, arcFromCenter, translate, rotate, mirror, scaleCurve } from './transform';
+
+// --- regions & hatching ---
+export { findRegion } from './region';
+export { hatchSegments } from './hatch';
 
 // --- edit operations (AutoCAD semantics) ---
 export { offset, trim, extend, fillet, chamfer } from './edit';

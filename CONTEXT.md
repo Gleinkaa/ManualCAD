@@ -30,6 +30,14 @@ _Avoid_: view alignment, constraint
 The standardised information field in the sheet's bottom-right corner, per ISO 7200 (German: Schriftfeld). Its layout comes from a title block template; ISO 7200 is the default.
 _Avoid_: header, stamp
 
+**Parts list**:
+The table of the parts shown on the sheet, directly above the title block, per ISO 7573 (German: Stückliste). Row 1 sits lowest, just above the column headings.
+_Avoid_: BOM table, item list
+
+**Item number**:
+The number that identifies a part in the parts list and on the drawing (German: Positionsnummer, "Teil").
+_Avoid_: balloon, part ID
+
 **Construction line**:
 A thin helper line that is never plotted, the equivalent of light pencil lines on a drawing board.
 _Avoid_: xline, guide
@@ -55,6 +63,18 @@ _Avoid_: block, stamp
 **Surface texture indication**:
 The symbol for surface finish and its values (process, Ra/Rz, lay direction), per ISO 21920 / ISO 1302 (German: Oberflächenangabe).
 _Avoid_: surface definition, roughness mark
+
+**Partial section**:
+A section of only one region of a view, bounded by a freehand line, used to show a hidden detail such as a bore without sectioning the whole part (German: Teilschnitt, Ausbruch, "aufbrechen").
+_Avoid_: cutaway, local cut
+
+**Freehand line**:
+The narrow freehand line (ISO 128-2 type 01.1) that bounds a partial section or a broken-off view. In ManualCAD it is drawn with SKETCH as a smooth chain of arcs.
+_Avoid_: break line, spline, wavy line
+
+**Hatching**:
+Narrow parallel lines, normally at 45°, that mark cut material in a section, per ISO 128-50 (German: Schraffur). The boundary is taken when the hatching is created and does not follow later edits.
+_Avoid_: fill, pattern
 
 **Associative dimension**:
 A dimension tied to geometry that updates its value and position when the geometry changes. The geometry never follows the dimension.

@@ -2,7 +2,7 @@
 import type { Vec2 } from '../../geom/types';
 import { moveView, newId } from '../../model/doc';
 import { formatScale, LINE_TYPES } from '../../model/standards';
-import type { LineTypeId, ProjectionLink, SheetDoc, View } from '../../model/types';
+import type { LineTypeId, PartsListRow, ProjectionLink, SheetDoc, View } from '../../model/types';
 import { parseScale } from '../input';
 import type { CommandContext, CommandGen, Input, Option, SubGen } from './types';
 
@@ -97,6 +97,7 @@ export function* view(ctx: CommandContext): CommandGen {
     { key: 'S', label: 'Set' },
     { key: 'SC', label: 'SCale' },
     { key: 'U', label: 'Unlink' },
+    { key: 'LA', label: 'LAbel' },
   ];
   const r = yield { kind: 'text', prompt: `Current view: "${ctx.view().name}". Enter an option`, options: opts };
   if (r.kind !== 'option') return;
@@ -121,6 +122,12 @@ export function* view(ctx: CommandContext): CommandGen {
       if (s) ctx.view().scale = s;
       return;
     }
+    case 'LA': {
+      const v = ctx.view();
+      v.label = v.label === false ? undefined : false;
+      ctx.log(`Label of "${v.name}" ${v.label === false ? 'off' : 'on (printed when ISO 128-3 asks for one)'}.`);
+      return;
+    }
     case 'U': {
       const v = ctx.view();
       if (!v.link) ctx.log(`"${v.name}" is not linked.`);
@@ -136,10 +143,11 @@ export const LTYPE_OPTIONS: Option[] = [
   { key: 'H', label: 'Hidden' },
   { key: 'C', label: 'Center' },
   { key: 'P', label: 'Phantom' },
+  { key: 'F', label: 'Freehand' },
   { key: 'CO', label: 'COnstruction' },
 ];
 
-const LTYPE_BY_KEY: Record<string, LineTypeId> = { V: 'visible', T: 'thin', H: 'hidden', C: 'center', P: 'phantom', CO: 'construction' };
+const LTYPE_BY_KEY: Record<string, LineTypeId> = { V: 'visible', T: 'thin', H: 'hidden', C: 'center', P: 'phantom', F: 'freehand', CO: 'construction' };
 
 /** Set the line type of the pre-selection, or the current line type. */
 export function* ltype(ctx: CommandContext): CommandGen {
@@ -205,3 +213,82 @@ export function* titleblock(ctx: CommandContext): CommandGen {
   ctx.host.titleBlock?.();
 }
 
+// --- PARTSLIST: ISO 7573 parts list above the title block ---
+
+const PARTS_FIELDS: { field: keyof PartsListRow; prompt: string }[] = [
+  { field: 'item', prompt: 'Item number (Pos.)' },
+  { field: 'quantity', prompt: 'Quantity (Menge)' },
+  { field: 'name', prompt: 'Name (Benennung)' },
+  { field: 'standard', prompt: 'Part number / standard (Sachnummer/Norm)' },
+  { field: 'material', prompt: 'Material (Werkstoff)' },
+  { field: 'stock', prompt: 'Raw dimensions / pattern (Rohmaße)' },
+  { field: 'remark', prompt: 'Remark (Bemerkung)' },
+];
+
+function emptyRow(): PartsListRow {
+  return { item: '', quantity: '', name: '', standard: '', material: '', stock: '', remark: '' };
+}
+
+function rowSummary(r: PartsListRow): string {
+  return [r.item, r.quantity && `${r.quantity}×`, r.name, r.standard, r.material, r.stock, r.remark].filter(Boolean).join('  ');
+}
+
+/** Ask every field of `row`; Enter keeps the shown value, "." clears it. False if cancelled. */
+function* askRow(row: PartsListRow): SubGen<boolean> {
+  for (const f of PARTS_FIELDS) {
+    const r = yield { kind: 'text', prompt: f.prompt, default: row[f.field] };
+    if (r.kind !== 'text') return false;
+    const t = r.text.trim();
+    row[f.field] = t === '.' ? '' : t;
+  }
+  return true;
+}
+
+function findRow(doc: SheetDoc, item: string): number {
+  return doc.partsList.findIndex((r) => r.item.trim().toLowerCase() === item.trim().toLowerCase());
+}
+
+export function* partslist(ctx: CommandContext): CommandGen {
+  const doc = ctx.doc;
+  for (;;) {
+    const r = yield {
+      kind: 'text',
+      prompt: `Parts list (${doc.partsList.length} row${doc.partsList.length === 1 ? '' : 's'}). Enter an option`,
+      options: [{ key: 'A', label: 'Add' }, { key: 'E', label: 'Edit' }, { key: 'D', label: 'Delete' }, { key: 'L', label: 'List' }],
+      allowEnter: true,
+    };
+    if (r.kind !== 'option') return;
+    if (r.key === 'L') {
+      ctx.log(doc.partsList.length ? doc.partsList.map(rowSummary).join('   |   ') : 'Parts list is empty.');
+      continue;
+    }
+    if (r.key === 'A') {
+      const row = emptyRow();
+      row.item = String(doc.partsList.length + 1);
+      row.quantity = '1';
+      if (!(yield* askRow(row))) return;
+      if (row.item && findRow(doc, row.item) >= 0) ctx.log(`Note: item ${row.item} already exists.`);
+      doc.partsList.push(row);
+      continue;
+    }
+    if (doc.partsList.length === 0) {
+      ctx.log('Parts list is empty.');
+      continue;
+    }
+    const n = yield { kind: 'text', prompt: 'Enter item number' };
+    if (n.kind !== 'text') return;
+    const i = findRow(doc, n.text);
+    if (i < 0) {
+      ctx.log(`No item "${n.text.trim()}".`);
+      continue;
+    }
+    if (r.key === 'D') {
+      doc.partsList.splice(i, 1);
+      continue;
+    }
+    ctx.log('Enter keeps a value, "." clears it.');
+    const row = { ...doc.partsList[i] };
+    if (!(yield* askRow(row))) return;
+    doc.partsList[i] = row;
+  }
+}

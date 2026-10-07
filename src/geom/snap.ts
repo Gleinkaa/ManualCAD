@@ -47,6 +47,20 @@ export function perpendicularFoot(c: Curve, from: Vec2): Vec2 | null {
   return null;
 }
 
+/**
+ * All perpendicular feet from `from` onto the curve: the line foot (extended), or for circles both the
+ * near and the far foot on the diameter through `from` (arcs: those within the extent).
+ */
+export function perpendicularFeet(c: Curve, from: Vec2): Vec2[] {
+  if (c.kind === 'line') {
+    const f = perpendicularFoot(c, from);
+    return f ? [f] : [];
+  }
+  if (dist(from, c.c) <= tolAt(c.r)) return [];
+  const th = angleOf(c.c, from);
+  return [th, th + Math.PI].filter((a) => c.kind === 'circle' || onArcAngle(c, a)).map((a) => polar(c.c, c.r, a));
+}
+
 /** Tangent points on a circle/arc as seen from `from` (0..2 points; arcs filtered to their extent). */
 export function tangentPoints(c: Curve, from: Vec2): Vec2[] {
   if (c.kind === 'line') return [];

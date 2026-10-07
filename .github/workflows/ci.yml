@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          ZA38_SVG: ${{ runner.temp }}/za38.svg
+      - run: npm run build
+      - name: Upload ZA 38 render
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: za38-svg
+          path: ${{ runner.temp }}/za38.svg
+          if-no-files-found: warn

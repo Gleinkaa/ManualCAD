@@ -1,6 +1,6 @@
 import type { Vec2 } from '../geom/types';
 import { formatScale, LINE_GROUPS, sheetSize } from '../model/standards';
-import type { SheetDoc, TitleBlockField } from '../model/types';
+import type { PartsListRow, SheetDoc, TitleBlockField } from '../model/types';
 import { textWidth } from './font';
 import type { PlotOptions } from './sheet';
 import { BLACK } from './style';
@@ -46,6 +46,27 @@ const CELLS: Cell[] = [
   { field: 'scale', caption: 'Maßstab', x: 22, y: 38, w: 28, h: 10, valueH: VALUE_H },
   { field: 'material', caption: 'Werkstoff', x: 50, y: 38, w: 65, h: 10, valueH: VALUE_H },
   { field: 'generalTolerance', caption: 'Allgemeintoleranz', x: 115, y: 38, w: 65, h: 10, valueH: VALUE_H },
+];
+
+/** ISO 7573 parts list above the title block: same width, header at the bottom, rows stacked upward. */
+export const PARTS_LIST = { headerHeight: 8, rowHeight: 7 };
+
+interface PartsColumn {
+  field: keyof PartsListRow;
+  caption: string[];         // one or two caption lines
+  w: number;
+  center?: boolean;
+}
+
+// Captions per ÖNORM EN ISO 7573 (German); widths sum to TITLE_BLOCK.width.
+export const PARTS_COLUMNS: PartsColumn[] = [
+  { field: 'item', caption: ['Pos.'], w: 10, center: true },
+  { field: 'quantity', caption: ['Menge'], w: 12, center: true },
+  { field: 'name', caption: ['Benennung'], w: 45 },
+  { field: 'standard', caption: ['Sachnummer/', 'Norm-Kurzbezeichnung'], w: 38 },
+  { field: 'material', caption: ['Werkstoff'], w: 30 },
+  { field: 'stock', caption: ['Rohmaße'], w: 25 },
+  { field: 'remark', caption: ['Bemerkung'], w: 20 },
 ];
 
 export interface FrameGeometry {
@@ -112,6 +133,52 @@ export function plotFrame(doc: SheetDoc, opts: PlotOptions): Primitive[] {
   out.push(line([{ x: cx, y: 0 }, { x: cx, y: bottomEnd }], mark, 'frame'));
 
   out.push(...plotTitleBlock(doc, tb, narrow));
+  out.push(...plotPartsList(doc.partsList ?? [], tb, narrow));
+  return out;
+}
+
+function plotPartsList(rows: PartsListRow[], tb: FrameGeometry['titleBlock'], narrow: number): Primitive[] {
+  if (rows.length === 0) return [];
+  const tag = 'partslist';
+  const out: Primitive[] = [];
+  const { headerHeight: hh, rowHeight: rh } = PARTS_LIST;
+  const y0 = tb.y1;
+  const top = y0 + hh + rows.length * rh;
+  const thin = solid(narrow);
+  const wide = solid(FRAME.width);
+  // Outline: left and top edge (the bottom is the title block's top, the right edge the frame).
+  out.push(line([{ x: tb.x0, y: y0 }, { x: tb.x0, y: top }, { x: tb.x1, y: top }], wide, tag));
+  // The header is separated from the item rows by a wide line.
+  out.push(line([{ x: tb.x0, y: y0 + hh }, { x: tb.x1, y: y0 + hh }], wide, tag));
+  for (let i = 1; i < rows.length; i++) {
+    const y = y0 + hh + i * rh;
+    out.push(line([{ x: tb.x0, y }, { x: tb.x1, y }], thin, tag));
+  }
+  let x = tb.x0;
+  for (const c of PARTS_COLUMNS.slice(0, -1)) {
+    x += c.w;
+    out.push(line([{ x, y: y0 }, { x, y: top }], thin, tag));
+  }
+
+  x = tb.x0;
+  for (const c of PARTS_COLUMNS) {
+    const h = Math.min(...c.caption.map((t) => fitTextHeight(t, CAPTION_H, c.w - 2)));
+    const lines = c.caption.length;
+    c.caption.forEach((t, k) => {
+      // one caption line centred in the header, two lines stacked around the centre
+      const cy = y0 + hh / 2 + (lines === 1 ? 0 : (k === 0 ? 1 : -1) * (h * 0.5 + 0.6));
+      out.push(text({ x: x + c.w / 2, y: cy }, t, h, 'center', 'middle', tag));
+    });
+    rows.forEach((row, i) => {
+      const value = row[c.field]?.trim();
+      if (!value) return;
+      const h = fitTextHeight(value, VALUE_H, c.w - 3);
+      const cy = y0 + hh + i * rh + rh / 2;
+      const pos = c.center ? { x: x + c.w / 2, y: cy } : { x: x + 1.5, y: cy };
+      out.push(text(pos, value, h, c.center ? 'center' : 'left', 'middle', `${tag}:${i}:${c.field}`));
+    });
+    x += c.w;
+  }
   return out;
 }
 

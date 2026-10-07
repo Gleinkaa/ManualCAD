@@ -13,6 +13,7 @@ export type LineTypeId =
   | 'hidden'       // 02.1 dashed narrow: hidden edges
   | 'center'       // 04.1 long-dashed dotted narrow: centre lines, symmetry axes
   | 'phantom'      // 05.1 long-dashed double-dotted narrow: adjacent parts, extreme positions
+  | 'freehand'     // 01.1 freehand narrow: limits of partial or interrupted views and sections (break-outs)
   | 'construction';
 
 export interface Layer {
@@ -32,6 +33,8 @@ export interface View {
   scale: number;             // 2 = 2:1, 0.5 = 1:2
   origin: Vec2;              // sheet position of the view-local (0,0)
   link: ProjectionLink | null;
+  /** false = never print the view label (e.g. a second part on the same sheet, identified by its item number). */
+  label?: boolean;
 }
 
 export interface Entity {
@@ -82,7 +85,63 @@ export interface RadialDimension {
   text: DimText;
 }
 
-export type Dimension = LinearDimension | RadialDimension;
+/** One leg of an angular dimension: a line given by two anchors (normally the start and end of a line entity). */
+export interface AngularLeg {
+  a: DimAnchor;
+  b: DimAnchor;
+}
+
+/**
+ * Angle between two lines (ISO 129-1). The vertex is the intersection of the two infinite legs.
+ * The dimensioned sector runs between the rays `sense1·(leg1.b − leg1.a)` and `sense2·(leg2.b − leg2.a)`
+ * from the vertex, always the one below 180°; the four possible sectors are chosen with the senses.
+ */
+export interface AngularDimension {
+  kind: 'angular';
+  id: string;
+  viewId: string;
+  layer: string;
+  leg1: AngularLeg;
+  leg2: AngularLeg;
+  sense1: 1 | -1;
+  sense2: 1 | -1;
+  /** Radius of the dimension arc around the vertex, SHEET mm. */
+  radius: number;
+  text: DimText;
+}
+
+export type Dimension = LinearDimension | RadialDimension | AngularDimension;
+
+/** Single-line text, ISO 3098 type B. Position is view-local; height is paper mm (cap height). */
+export interface TextNote {
+  kind: 'text';
+  id: string;
+  viewId: string;
+  layer: string;
+  pos: Vec2;                 // view-local insertion point
+  text: string;
+  height: number;            // paper mm, from the ISO 3098 series
+  angle: number;             // radians, CCW
+  align: 'left' | 'center' | 'right';
+}
+
+/**
+ * Section hatching per ISO 128-50: parallel narrow continuous lines inside closed boundary loops.
+ * Loops are view-local and filled even-odd, so inner loops (islands, holes) stay free.
+ * The boundary is captured when the hatch is created; it does not follow later geometry edits.
+ */
+export interface Hatch {
+  kind: 'hatch';
+  id: string;
+  viewId: string;
+  layer: string;
+  loops: Curve[][];          // each loop a closed chain of curves, view-local
+  angle: number;             // degrees, normally 45 or 135
+  spacing: number;           // paper mm between hatch lines
+}
+
+/** Sheet objects that are neither part geometry nor dimensions. */
+export type Annotation = TextNote | Hatch;
 
 export type TitleBlockField =
   | 'owner'          // legal owner / company / school
@@ -98,6 +157,17 @@ export type TitleBlockField =
   | 'generalTolerance' // e.g. "ISO 2768-m"
   | 'documentType';  // e.g. "Fertigungszeichnung"
 
+/** One parts-list row (ISO 7573). All fields are free text; `item` is the item (position) number. */
+export interface PartsListRow {
+  item: string;
+  quantity: string;
+  name: string;
+  standard: string;          // part number / standard designation
+  material: string;
+  stock: string;             // raw dimensions or pattern number
+  remark: string;
+}
+
 export interface SheetDoc {
   version: 1;
   format: SheetFormat;
@@ -108,4 +178,7 @@ export interface SheetDoc {
   views: View[];
   entities: Entity[];
   dimensions: Dimension[];
+  annotations: Annotation[];
+  /** Parts list above the title block, row 0 lowest (next to the header). Empty = no parts list. */
+  partsList: PartsListRow[];
 }

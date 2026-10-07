@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { measure } from '../dim';
+import { dimensionText, measure } from '../dim';
+import { parseDimText } from './commands/dims';
 import { newSheet, toSheet } from '../model/doc';
 import type { SheetDoc } from '../model/types';
 import { CommandContext, defaultSettings } from './commands/types';
@@ -204,7 +205,7 @@ describe('MIRROR with dimensions', () => {
     expect(doc.entities).toHaveLength(1);
     const d1 = doc.dimensions[0];
     const d2 = doc.dimensions[1];
-    if (d1.kind !== 'linear' || d2.kind === 'linear') throw new Error('kinds');
+    if (d1.kind !== 'linear' || d2.kind === 'linear' || d2.kind === 'angular') throw new Error('kinds');
     expect(d1.a.ref).toEqual({ entityId: arc.id, point: 'end' });   // image of the old start
     expect(d1.b.ref).toBeNull();
     expect(d1.b.fallback.x).toBeCloseTo(-30);
@@ -234,6 +235,14 @@ describe('TRIM / EXTEND Fence', () => {
       .map((e) => (e.geom.kind === 'line' ? [Math.min(e.geom.a.x, e.geom.b.x), Math.max(e.geom.a.x, e.geom.b.x)].map((v) => Math.round(v * 1e6) / 1e6) : []))
       .sort((p, q) => p[0] - q[0]);
 
+  it('Enter at the first fence point returns to the object prompt instead of cancelling', () => {
+    const { runner, type, log } = setup();
+    type('TR', '', 'F', '');
+    expect(runner.active).toBe(true);
+    expect(runner.prompt).toBe('Select object to trim [Fence]:');
+    expect(log).not.toContain('*Cancel*');
+  });
+
   it('trims every object the fence crosses', () => {
     const { doc, type, runner } = setup();
     for (const y of [0, 10, 20]) type('L', `0,${y}`, `100,${y}`, '');
@@ -260,5 +269,253 @@ describe('TRIM / EXTEND Fence', () => {
     type('EX', '', 'F', '15,-5', '15,15', '', '');
     expect(lines(doc, 0)).toEqual([[0, 50]]);
     expect(lines(doc, 10)).toEqual([[0, 50]]);
+  });
+});
+
+describe('TEXT', () => {
+  it('places lines of text in the current view, below each other, with ISO heights and control codes', () => {
+    const doc = newSheet();
+    doc.views[0].scale = 2;
+    const { runner, type, log } = setup(doc);
+    type('DT', '10,20', '4', '0', 'Senkung %%c20 x 17 tief', 'Teil 1', '');
+    expect(runner.active).toBe(false);
+    expect(log.some((l) => /not in the ISO 3098 series; using 3.5/.test(l))).toBe(true);
+    const texts = doc.annotations.filter((a) => a.kind === 'text');
+    expect(texts.map((t) => t.text)).toEqual(['Senkung ⌀20 x 17 tief', 'Teil 1']);
+    expect(texts[0]).toMatchObject({ pos: { x: 10, y: 20 }, height: 3.5, angle: 0, align: 'left', viewId: 'v-front' });
+    // 1.6 × 3.5 paper mm lower = 2.8 view mm at 2:1
+    expect(texts[1].pos.y).toBeCloseTo(20 - 2.8);
+  });
+
+  it('justifies and rotates', () => {
+    const { doc, type } = setup();
+    type('TEXT', 'J', 'C', '0,0', '5', '90', 'A', '');
+    expect(doc.annotations[0]).toMatchObject({ align: 'center', height: 5, angle: expect.closeTo(Math.PI / 2) });
+  });
+
+  it('moves, copies, mirrors and erases with the other objects', () => {
+    const { doc, ctx, runner, type } = setup();
+    type('DT', '10,10', '3.5', '0', 'X', '');
+    const id = doc.annotations[0].id;
+    ctx.preselection = [];
+    runner.start('MOVE', [id]);
+    type('0,0', '5,0');
+    expect(doc.annotations[0]).toMatchObject({ pos: { x: 15, y: 10 } });
+    runner.start('COPY', [id]);
+    type('0,0', '0,10', '');
+    expect(doc.annotations.map((a) => a.kind === 'text' && a.pos.y)).toEqual([10, 20]);
+    runner.start('MIRROR', [id]);
+    type('0,0', '0,10', 'Y');
+    expect(doc.annotations.find((a) => a.id === id)).toMatchObject({ pos: { x: -15, y: 10 }, align: 'right' });
+    runner.start('ERASE', [id]);
+    expect(doc.annotations).toHaveLength(1);
+  });
+});
+
+describe('SKETCH', () => {
+  it('draws a smooth freehand chain of arcs with the freehand line type', () => {
+    const { doc, runner, type } = setup();
+    type('SK', '0,0', '10,5', '20,-5', '30,0', '');
+    expect(runner.active).toBe(false);
+    expect(doc.entities.length).toBeGreaterThanOrEqual(3);
+    expect(doc.entities.every((e) => e.lineType === 'freehand')).toBe(true);
+    expect(doc.entities.some((e) => e.geom.kind === 'arc')).toBe(true);
+  });
+
+  it('undoes the last point and refuses a single point', () => {
+    const { doc, type, log } = setup();
+    type('SK', '0,0', '10,0', 'U', '');
+    expect(doc.entities).toHaveLength(0);
+    expect(log.at(-1)).toMatch(/two different points/);
+  });
+});
+
+describe('PARTSLIST', () => {
+  it('adds rows with defaults, edits with Enter keeping values, lists and deletes', () => {
+    const { doc, runner, type, log } = setup();
+    type('BOM', 'A', '', '', 'Welle', '', 'S235JR', 'Ø40x140', '');
+    expect(doc.partsList).toEqual([{ item: '1', quantity: '1', name: 'Welle', standard: '', material: 'S235JR', stock: 'Ø40x140', remark: '' }]);
+    type('A', '', '2', 'Gabel', 'ZA 38-2', 'S235JR', '.', 'gefräst');
+    expect(doc.partsList[1]).toMatchObject({ item: '2', quantity: '2', name: 'Gabel', standard: 'ZA 38-2', remark: 'gefräst' });
+    type('E', '2', '', '', '', '', 'C45', '', '.');
+    expect(doc.partsList[1]).toMatchObject({ name: 'Gabel', material: 'C45', remark: '' });
+    type('L');
+    expect(log.some((l) => l.includes('Welle') && l.includes('Gabel'))).toBe(true);
+    type('D', '1');
+    expect(doc.partsList.map((r) => r.item)).toEqual(['2']);
+    type('');
+    expect(runner.active).toBe(false);
+  });
+
+  it('cancelling an Add leaves the list unchanged', () => {
+    const { doc, runner, type } = setup();
+    type('PARTSLIST', 'A', '', '');
+    runner.cancel();
+    expect(doc.partsList).toEqual([]);
+  });
+});
+
+describe('dimension text', () => {
+  it('parses AutoCAD dimension text: <> = measured value, %%c/%%d/%%p codes', () => {
+    expect(parseDimText('%%c<>')).toEqual({ override: null, prefix: '⌀', suffix: '' });
+    expect(parseDimText('M<>x1')).toEqual({ override: null, prefix: 'M', suffix: 'x1' });
+    expect(parseDimText('<>%%p0,1')).toEqual({ override: null, prefix: '', suffix: '±0,1' });
+    expect(parseDimText('45%%d')).toEqual({ override: '45°', prefix: '', suffix: '' });
+    expect(parseDimText('  ')).toEqual({ override: null, prefix: '', suffix: '' });
+  });
+
+  it('DIMLINEAR Text option gives a diameter on a linear dimension', () => {
+    const { doc, runner, type } = setup();
+    type('L', '0,-17.5', '0,17.5', '');
+    type('DLI', '0,-17.5', '0,17.5', 'T');
+    expect(runner.prompt).toBe('Enter dimension text <35>:');
+    type('%%c<>', '-20,0');
+    expect(runner.active).toBe(false);
+    expect(dimensionText(doc, doc.dimensions[0])).toBe('⌀35');
+  });
+
+  it('Enter at the text prompt keeps the measured value', () => {
+    const { doc, type } = setup();
+    type('DLI', '0,0', '20,0', 'M', '', '10,10');
+    expect(dimensionText(doc, doc.dimensions[0])).toBe('20');
+  });
+
+  it('DIMDIAMETER Text option', () => {
+    const { doc, type, click } = setup();
+    type('C', '0,0', '7');
+    type('DDI');
+    click(7, 0);
+    type('T', '<> H7', '20,20');
+    expect(dimensionText(doc, doc.dimensions[0])).toBe('⌀14 H7');
+  });
+
+  it('DIMEDIT New replaces the text of selected dimensions', () => {
+    const { doc, runner, type } = setup();
+    type('DLI', '0,0', '28,0', '14,10');
+    type('DLI', '0,0', '0,15', '-10,7');
+    runner.start('DIMEDIT', doc.dimensions.map((d) => d.id));
+    type('N', '%%c<>');
+    expect(runner.active).toBe(false);
+    expect(doc.dimensions.map((d) => dimensionText(doc, d))).toEqual(['⌀28', '⌀15']);
+  });
+});
+
+describe('DIMANGULAR', () => {
+  const c30 = Math.cos(Math.PI / 6);
+  const s30 = Math.sin(Math.PI / 6);
+  function twoLines() {
+    const t = setup();
+    t.type('L', '0,0', '40,0', '');
+    t.type('L', '0,0', '@40<30', '');
+    return t;
+  }
+
+  it('dimensions the 30° sector picked by the location point, associatively', () => {
+    const { doc, runner, type, click } = twoLines();
+    type('DAN');
+    click(20, 0);
+    click(20 * c30, 20 * s30);
+    expect(runner.prompt).toMatch(/^Specify dimension arc line location/);
+    click(30 * Math.cos(Math.PI / 12), 30 * Math.sin(Math.PI / 12));
+    expect(runner.active).toBe(false);
+    const d = doc.dimensions[0];
+    expect(d.kind).toBe('angular');
+    expect(measure(doc, d)).toBeCloseTo(30);
+    expect(d.kind === 'angular' && d.radius).toBeCloseTo(30);
+    expect(dimensionText(doc, d)).toBe('30°');
+    // the supplementary sector on the other side of the second line
+    type('DAN');
+    click(20, 0);
+    click(20 * c30, 20 * s30);
+    click(-30, 5);
+    expect(measure(doc, doc.dimensions[1])).toBeCloseTo(150);
+    // associative: steepen the second line
+    const e = doc.entities[1];
+    e.geom = { kind: 'line', a: { x: 0, y: 0 }, b: { x: 0, y: 40 } };
+    expect(measure(doc, d)).toBeCloseTo(90);
+  });
+
+  it('refuses parallel lines', () => {
+    const { runner, type, click, log } = setup();
+    type('L', '0,0', '40,0', '');
+    type('L', '0,10', '40,10', '');
+    type('DAN');
+    click(20, 0);
+    click(20, 10);
+    expect(runner.active).toBe(false);
+    expect(log.at(-1)).toBe('Lines are parallel.');
+  });
+
+  it('MOVE, MIRROR and ERASE carry the angular dimension along', () => {
+    const { doc, runner, type, click } = twoLines();
+    type('DAN');
+    click(20, 0);
+    click(20 * c30, 20 * s30);
+    click(30, 8);
+    const d = doc.dimensions[0];
+    if (d.kind !== 'angular') throw new Error('kind');
+
+    // MOVE lines and dimension together: anchors stay associated
+    runner.start('MOVE', [...doc.entities.map((e) => e.id), d.id]);
+    type('0,0', '10,0');
+    expect(d.leg1.a.ref).not.toBeNull();
+    expect(measure(doc, d)).toBeCloseTo(30);
+
+    // MIRROR across the x axis without erasing: the copy follows the mirrored lines, still 30°
+    runner.start('MIRROR', doc.entities.map((e) => e.id));
+    type('0,0', '10,0', 'N');
+    expect(doc.dimensions).toHaveLength(2);
+    const m = doc.dimensions[1];
+    if (m.kind !== 'angular') throw new Error('kind');
+    expect(measure(doc, m)).toBeCloseTo(30);
+    expect(m.leg1.a.ref?.entityId).toBe(doc.entities[2].id);
+    expect(m.sense1).toBe(d.sense1);
+
+    // ERASE the second line: anchors freeze, the dimension stays at 30°
+    runner.start('ERASE', [doc.entities[1].id]);
+    expect(d.leg2.a.ref).toBeNull();
+    expect(measure(doc, d)).toBeCloseTo(30);
+  });
+});
+
+describe('HATCH', () => {
+  it('hatches the region around a picked point, with a hole as an island', () => {
+    const { doc, type, log } = setup();
+    type('REC', '0,0', '40,20', 'C', '20,10', '5');
+    type('H', '5,5', '');
+    expect(doc.annotations).toHaveLength(1);
+    const h = doc.annotations[0];
+    if (h.kind !== 'hatch') throw new Error('expected hatch');
+    expect(h.loops).toHaveLength(2);
+    expect(h.angle).toBe(45);
+    expect(h.viewId).toBe(doc.views[0].id);
+    expect(log).toContain('1 hatch(es) created.');
+  });
+
+  it('takes angle and spacing options, several picks, and ignores centre lines as boundaries', () => {
+    const { doc, ctx, type, log } = setup();
+    type('REC', '0,0', '40,20');
+    ctx.settings.lineType = 'center';
+    type('L', '20,-5', '20,25', '');
+    type('H', 'A', '135', 'S', '3', '5,5', '30,5', '');
+    expect(doc.annotations).toHaveLength(2);
+    for (const h of doc.annotations) {
+      if (h.kind !== 'hatch') throw new Error('expected hatch');
+      expect(h.loops).toHaveLength(1);
+      expect(h.loops[0]).toHaveLength(4); // the centre line does not split the rectangle
+      expect(h.angle).toBe(135);
+      expect(h.spacing).toBe(3);
+    }
+    type('H', '100,100', '');
+    expect(log).toContain('No closed boundary found around the point.');
+    expect(doc.annotations).toHaveLength(2);
+  });
+
+  it('reports a spacing that yields no lines instead of storing an empty hatch', () => {
+    const { doc, type, log } = setup();
+    type('REC', '0,0', '40,20');
+    type('H', 'S', '0.001', '5,5', '');
+    expect(doc.annotations).toHaveLength(0);
+    expect(log).toContain('Hatch spacing yields no lines in this region; adjust the spacing.');
   });
 });

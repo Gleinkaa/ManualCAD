@@ -1,8 +1,10 @@
 // Command registry: AutoCAD English names and aliases.
-import { dimaligned, dimdiameter, dimlinear, dimradius } from './dims';
+import { sketch, text } from './annotate';
+import { dimaligned, dimangular, dimdiameter, dimedit, dimlinear, dimradius } from './dims';
 import { arc, circle, line, rectang } from './draw';
+import { hatch } from './hatch';
 import { chamfer, copy, erase, extend, fillet, mirror, move, offset, trim } from './modify';
-import { layer, ltype, titleblock, view, zoom } from './settings';
+import { layer, ltype, partslist, titleblock, view, zoom } from './settings';
 import type { CommandFn } from './types';
 
 export const COMMANDS: Record<string, CommandFn> = {
@@ -10,6 +12,7 @@ export const COMMANDS: Record<string, CommandFn> = {
   CIRCLE: circle,
   ARC: arc,
   RECTANG: rectang,
+  HATCH: hatch,
   OFFSET: offset,
   TRIM: trim,
   EXTEND: extend,
@@ -19,15 +22,20 @@ export const COMMANDS: Record<string, CommandFn> = {
   COPY: copy,
   MIRROR: mirror,
   ERASE: erase,
+  TEXT: text,
+  SKETCH: sketch,
   DIMLINEAR: dimlinear,
   DIMALIGNED: dimaligned,
   DIMRADIUS: dimradius,
   DIMDIAMETER: dimdiameter,
+  DIMANGULAR: dimangular,
+  DIMEDIT: dimedit,
   VIEW: view,
   LTYPE: ltype,
   LAYER: layer,
   ZOOM: zoom,
   TITLEBLOCK: titleblock,
+  PARTSLIST: partslist,
 };
 
 /** Commands the app handles itself (files, undo); they never enter the command runner. */
@@ -40,6 +48,9 @@ export const ALIASES: Record<string, string> = {
   A: 'ARC',
   REC: 'RECTANG',
   RECTANGLE: 'RECTANG',
+  H: 'HATCH',
+  BH: 'HATCH',
+  BHATCH: 'HATCH',
   O: 'OFFSET',
   TR: 'TRIM',
   EX: 'EXTEND',
@@ -50,10 +61,15 @@ export const ALIASES: Record<string, string> = {
   CP: 'COPY',
   MI: 'MIRROR',
   E: 'ERASE',
+  DT: 'TEXT',
+  DTEXT: 'TEXT',
+  SK: 'SKETCH',
   DLI: 'DIMLINEAR',
   DAL: 'DIMALIGNED',
   DRA: 'DIMRADIUS',
   DDI: 'DIMDIAMETER',
+  DAN: 'DIMANGULAR',
+  DED: 'DIMEDIT',
   V: 'VIEW',
   LT: 'LTYPE',
   '-LT': 'LTYPE',
@@ -63,6 +79,8 @@ export const ALIASES: Record<string, string> = {
   '-LAYER': 'LAYER',
   Z: 'ZOOM',
   TB: 'TITLEBLOCK',
+  PARTS: 'PARTSLIST',
+  BOM: 'PARTSLIST',
   U: 'UNDO',
   QSAVE: 'SAVE',
   SAVEAS: 'SAVE',

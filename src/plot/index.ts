@@ -8,10 +8,12 @@ import { plotCurve as plotCurveTagged, type PlotOptions } from './sheet';
 export * from './types';
 export type { PlotOptions } from './sheet';
 export { plotSheet, viewLabel, labelHeight } from './sheet';
-export { plotFrame, frameGeometry, titleBlockFields, titleBlockValue, FRAME, TITLE_BLOCK } from './frame';
+export { plotAnnotation, hatchSheetSegments } from './annot';
+export { plotFrame, frameGeometry, titleBlockFields, titleBlockValue, FRAME, TITLE_BLOCK, PARTS_LIST, PARTS_COLUMNS } from './frame';
 export { renderCanvas, type CanvasTransform } from './canvas';
 export { FONT_FAMILY, loadFonts, textWidth, fontSizeForCapHeight } from './font';
 export { SCREEN_COLORS } from './style';
+export { sheetToSvg } from './svg';
 
 /** Stroke style for a line type in the sheet's line group (width, ISO 128-2 dash lengths, colour). */
 export function lineStyle(doc: SheetDoc, lineType: LineTypeId, opts: PlotOptions): StrokeStyle {

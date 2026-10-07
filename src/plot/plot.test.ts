@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newSheet } from '../model/doc';
 import type { SheetDoc } from '../model/types';
-import { fitDash, lineStyle, plotCurve, plotFrame, plotSheet, titleBlockFields, viewLabel, type Primitive } from './index';
+import { fitDash, lineStyle, PARTS_COLUMNS, plotCurve, plotFrame, plotSheet, textWidth, titleBlockFields, viewLabel, type Primitive } from './index';
 import { arcBeziers } from './pdf';
 
 const screen = { includeConstruction: true, screenColors: true };
@@ -163,6 +163,46 @@ describe('plotFrame', () => {
   });
 });
 
+describe('parts list (ISO 7573)', () => {
+  const row = (item: string, name: string, material = '') => ({ item, quantity: '1', name, standard: '', material, stock: '', remark: '' });
+  const za38 = () =>
+    sheet({ format: 'A4', orientation: 'portrait', partsList: [row('1', 'Welle', 'S235JR'), row('2', 'Gabel', 'S235JR')] });
+
+  it('draws nothing when the list is empty', () => {
+    expect(plotFrame(sheet(), print).some((p) => p.tag?.startsWith('partslist'))).toBe(false);
+  });
+
+  it('columns span exactly the title block width', () => {
+    expect(PARTS_COLUMNS.reduce((s, c) => s + c.w, 0)).toBe(180);
+  });
+
+  it('has a wide outline and header separator and thin inner rulings', () => {
+    const lines = plotFrame(za38(), print).filter((p): p is Extract<Primitive, { kind: 'polyline' }> => p.kind === 'polyline' && p.tag === 'partslist');
+    const wide = lines.filter((l) => l.style.width === 0.7);
+    const thin = lines.filter((l) => l.style.width === 0.25);
+    // outline (left + top as one polyline) ending at the list top y = 58 + 8 + 2 * 7 = 80
+    expect(wide.some((l) => l.points.length === 3 && l.points[1].y === 80 && l.points[2].x === 200)).toBe(true);
+    expect(wide.some((l) => l.points.every((q) => q.y === 66))).toBe(true);
+    // one row ruling between the two rows + six column rulings
+    expect(thin.filter((l) => l.points[0].y === l.points[1].y)).toHaveLength(1);
+    expect(thin.filter((l) => l.points[0].x === l.points[1].x)).toHaveLength(6);
+  });
+
+  it('shows German captions and the row values in their cells, fitted to the column', () => {
+    const prims = plotFrame(za38(), print);
+    const texts = prims.filter((p): p is Extract<Primitive, { kind: 'text' }> => p.kind === 'text');
+    expect(texts.map((t) => t.text)).toEqual(expect.arrayContaining(['Pos.', 'Menge', 'Benennung', 'Werkstoff', 'Rohmaße', 'Bemerkung', 'Welle', 'Gabel', 'S235JR']));
+    const gabel = texts.find((t) => t.tag === 'partslist:1:name')!;
+    expect(gabel.pos.y).toBeCloseTo(73 + 3.5);
+    for (const c of PARTS_COLUMNS) {
+      for (const cap of c.caption) {
+        const t = texts.find((x) => x.text === cap)!;
+        expect(textWidth(cap, t.height)).toBeLessThanOrEqual(c.w - 2);
+      }
+    }
+  });
+});
+
 describe('view labels', () => {
   const doc = sheet({
     views: [
@@ -185,6 +225,22 @@ describe('view labels', () => {
     const label = plotSheet(doc, print).find((p) => p.tag === 'label:v3');
     expect(label).toMatchObject({ kind: 'text', text: 'Z (5:1)', align: 'center' });
     if (label?.kind === 'text') expect(label.pos.y).toBeGreaterThan(220);
+  });
+
+  it('clears dimensions above the view, and can be switched off', () => {
+    doc.entities = [{ id: 'e1', viewId: 'v2', layer: '0', lineType: 'visible', geom: { kind: 'line', a: { x: 0, y: 0 }, b: { x: 20, y: 0 } } }];
+    doc.dimensions = [{
+      kind: 'linear', id: 'd1', viewId: 'v2', layer: '0', orientation: 'horizontal', offset: 30,
+      a: { ref: null, fallback: { x: 0, y: 0 } }, b: { ref: null, fallback: { x: 20, y: 0 } }, text: { override: null, prefix: '', suffix: '' },
+    }];
+    const label = plotSheet(doc, print).find((p) => p.tag === 'label:v2');
+    const dimText = plotSheet(doc, print).find((p) => p.tag === 'dim:d1' && p.kind === 'text');
+    if (label?.kind !== 'text' || dimText?.kind !== 'text') throw new Error('missing text');
+    expect(label.pos.y).toBeGreaterThan(dimText.pos.y + dimText.height);
+    doc.views[1].label = false;
+    expect(viewLabel(doc, doc.views[1])).toBeNull();
+    doc.views[1].label = undefined;
+    doc.dimensions = [];
   });
 });
 

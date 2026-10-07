@@ -5,7 +5,7 @@ import type { Vec2 } from '../geom/types';
 import { getView, newSheet, parse, serialize, toLocal } from '../model/doc';
 import { formatScale, sheetSize } from '../model/standards';
 import type { LineGroupId, LineTypeId, Orientation, SheetDoc, SheetFormat } from '../model/types';
-import { exportPdf, loadFonts, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
+import { exportPdf, loadFonts, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
 import { resolveCommand } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
 import { History, snapshot } from './history';
@@ -121,6 +121,9 @@ export class App {
       onEnd: () => {
         if (this.before !== null) this.history.commit(this.before, this.doc);
         this.before = null;
+        // AutoCAD drops acquired tracking points when the command ends
+        this.acquired = [];
+        this.track = [];
         this.docChanged();
       },
     });
@@ -140,7 +143,7 @@ export class App {
     const s = this.settings;
     if (!this.doc.views.some((v) => v.id === s.currentViewId)) s.currentViewId = this.doc.views[0]?.id ?? '';
     if (!this.doc.layers.some((l) => l.name === s.layer)) s.layer = this.doc.layers[0]?.name ?? '0';
-    const ids = new Set([...this.doc.entities.map((e) => e.id), ...this.doc.dimensions.map((d) => d.id)]);
+    const ids = new Set([...this.doc.entities.map((e) => e.id), ...this.doc.dimensions.map((d) => d.id), ...this.doc.annotations.map((a) => a.id)]);
     this.selection = this.selection.filter((id) => ids.has(id));
     try {
       localStorage.setItem(AUTOSAVE_KEY, serialize(this.doc));
@@ -799,6 +802,7 @@ export class App {
     try {
       for (const e of this.doc.entities) if (ids.has(e.id)) out.push(...plotCurve(this.doc, e.viewId, e.geom, e.lineType, SCREEN).map(recolor));
       for (const d of this.doc.dimensions) if (ids.has(d.id)) out.push(...plotDimension(this.doc, d).map(recolor));
+      for (const a of this.doc.annotations) if (ids.has(a.id)) out.push(...plotAnnotation(this.doc, a, SCREEN).map(recolor));
     } catch {
       return [];
     }
@@ -821,6 +825,7 @@ export class App {
     try {
       for (const c of pv.curves ?? []) out.push(...plotCurve(this.doc, c.viewId ?? this.settings.currentViewId, c.curve, c.lineType, SCREEN));
       for (const d of pv.dims ?? []) out.push(...plotDimension(this.doc, structuredClone(d)));
+      for (const a of pv.annotations ?? []) out.push(...plotAnnotation(this.doc, a, SCREEN));
     } catch {
       // incomplete geometry while rubber-banding
     }

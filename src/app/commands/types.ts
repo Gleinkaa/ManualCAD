@@ -1,7 +1,8 @@
 // Command protocol: each command is a generator that yields Requests and receives Inputs. No DOM.
 import type { Curve, Vec2 } from '../../geom/types';
 import { getView, newId, toLocal } from '../../model/doc';
-import type { Dimension, Entity, LineTypeId, SheetDoc, View } from '../../model/types';
+import { HATCH_SPACING_DEFAULT } from '../../model/standards';
+import type { Annotation, Dimension, Entity, LineTypeId, SheetDoc, View } from '../../model/types';
 import type { SnapHit } from '../snap';
 import { curveToLocal, entitySheetCurve } from '../xform';
 
@@ -29,6 +30,7 @@ export type Input =
 export interface Preview {
   curves?: { curve: Curve; lineType: LineTypeId; viewId?: string }[];
   dims?: Dimension[];
+  annotations?: Annotation[];
   /** Entity ids drawn as "moving" ghosts are not needed: commands put the moved curves into `curves`. */
   markers?: Vec2[];           // sheet mm
 }
@@ -61,6 +63,9 @@ export interface AppSettings {
   chamferA: number;
   chamferB: number;
   offsetDistance: number | null;   // null = Through
+  textHeight: number;              // paper mm, ISO 3098 series
+  hatchAngle: number;              // degrees
+  hatchSpacing: number;            // paper mm
 }
 
 export function defaultSettings(doc: SheetDoc): AppSettings {
@@ -72,6 +77,9 @@ export function defaultSettings(doc: SheetDoc): AppSettings {
     chamferA: 0,
     chamferB: 0,
     offsetDistance: null,
+    textHeight: 3.5,
+    hatchAngle: 45,
+    hatchSpacing: HATCH_SPACING_DEFAULT,
   };
 }
 
