@@ -2,7 +2,8 @@
 // when a grip is clicked; `ctx.grip` carries the grips. Not a typed command.
 import type { Vec2 } from '../../geom/types';
 import { toLocal } from '../../model/doc';
-import { applyGrip, stretchAnnotation, stretchCurve, type Grip } from '../grips';
+import { applyGrip, objectGrips, stretchAnnotation, stretchCurve, stretchDimension, type Grip } from '../grips';
+import { visibleEntities } from '../xform';
 import type { CommandContext, CommandGen, Preview } from './types';
 
 export interface GripDrag {
@@ -17,18 +18,96 @@ export function* gripstretch(ctx: CommandContext): CommandGen {
     ctx.log('Click a grip of a selected object to stretch it.');
     return;
   }
-  const preview = (p: Vec2): Preview => {
-    const out: Preview = { curves: [], annotations: [] };
-    for (const g of drag.grips) {
-      const to = toLocal(ctx.viewOf(g.viewId), p);
-      const e = ctx.entity(g.id);
-      if (e) out.curves!.push({ curve: stretchCurve(e.geom, g, to), lineType: e.lineType, viewId: e.viewId });
-      const a = ctx.doc.annotations.find((x) => x.id === g.id);
-      if (a) out.annotations!.push(stretchAnnotation(a, g, to));
-    }
-    return out;
-  };
-  const r = yield { kind: 'point', prompt: 'Specify stretch point', base: drag.base, preview };
+  // every hot grip moves by the same displacement: coincident grips land on the point, collected ones keep their spacing
+  const moved = (p: Vec2) => drag.grips.map((g) => ({ grip: g, to: { x: g.p.x + p.x - drag.base.x, y: g.p.y + p.y - drag.base.y } }));
+  const r = yield { kind: 'point', prompt: 'Specify stretch point', base: drag.base, preview: (p) => ghost(ctx, moved(p)) };
   if (r.kind !== 'point') return;
-  for (const g of drag.grips) applyGrip(ctx.doc, g, toLocal(ctx.viewOf(g.viewId), r.p));
+  for (const m of moved(r.p)) applyGrip(ctx.doc, m.grip, toLocal(ctx.viewOf(m.grip.viewId), m.to));
+}
+
+/** Ghost of every object with its grips moved to their targets (sheet mm); several grips of one object stack up. */
+function ghost(ctx: CommandContext, moves: { grip: Grip; to: Vec2 }[]): Preview {
+  const out: Preview = { curves: [], annotations: [], dims: [] };
+  const byId = new Map<string, { grip: Grip; to: Vec2 }[]>();
+  for (const m of moves) byId.set(m.grip.id, [...(byId.get(m.grip.id) ?? []), m]);
+  for (const [id, ms] of byId) {
+    const e = ctx.entity(id);
+    if (e) {
+      let c = e.geom;
+      for (const m of ms) c = stretchCurve(c, m.grip, toLocal(ctx.viewOf(e.viewId), m.to));
+      out.curves!.push({ curve: c, lineType: e.lineType, viewId: e.viewId });
+      continue;
+    }
+    const d = ctx.doc.dimensions.find((x) => x.id === id);
+    if (d) {
+      let dim = d;
+      for (const m of ms) dim = stretchDimension(ctx.doc, dim, m.grip, m.to);
+      out.dims!.push(dim);
+      continue;
+    }
+    const a = ctx.doc.annotations.find((x) => x.id === id);
+    if (a) {
+      let an = a;
+      for (const m of ms) an = stretchAnnotation(an, m.grip, toLocal(ctx.viewOf(a.viewId), m.to));
+      out.annotations!.push(an);
+    }
+  }
+  return out;
+}
+
+/**
+ * STRETCH (S): a crossing window picks the ends to move. Line ends, arc ends, text and leader points and
+ * detached dimension points inside the window move with the displacement; a circle or an arc moves whole
+ * when its centre is inside. Objects fully inside move entirely, as in AutoCAD.
+ */
+export function* stretch(ctx: CommandContext): CommandGen {
+  ctx.preselection = [];
+  const a = yield { kind: 'point', prompt: 'Specify first corner of the crossing window' };
+  if (a.kind !== 'point') return;
+  const box = (p: Vec2): Vec2[] => [a.p, { x: p.x, y: a.p.y }, p, { x: a.p.x, y: p.y }];
+  const b = yield {
+    kind: 'point',
+    prompt: 'Specify opposite corner',
+    base: a.p,
+    preview: (p) => {
+      const c = box(p).map((q) => ctx.local(q));
+      return { curves: c.map((q, i) => ({ curve: { kind: 'line' as const, a: q, b: c[(i + 1) % 4] }, lineType: 'construction' as const })) };
+    },
+  };
+  if (b.kind !== 'point') return;
+  const min = { x: Math.min(a.p.x, b.p.x), y: Math.min(a.p.y, b.p.y) };
+  const max = { x: Math.max(a.p.x, b.p.x), y: Math.max(a.p.y, b.p.y) };
+  const inside = (p: Vec2) => p.x >= min.x && p.x <= max.x && p.y >= min.y && p.y <= max.y;
+  const grips: Grip[] = [];
+  for (const e of visibleEntities(ctx.doc)) {
+    const gs = objectGrips(ctx.doc, e.id);
+    if (e.geom.kind === 'line') grips.push(...gs.filter((g) => g.kind === 'end' && inside(g.p)));
+    else if (e.geom.kind === 'circle') grips.push(...gs.filter((g) => g.kind === 'center' && inside(g.p)));
+    else {
+      const ends = gs.filter((g) => g.kind === 'end' && inside(g.p));
+      const centre = gs.find((g) => g.kind === 'center')!;
+      if (ends.length === 2 || inside(centre.p)) grips.push(centre);
+      else grips.push(...ends);
+    }
+  }
+  const hidden = new Set(ctx.doc.layers.filter((l) => !l.visible).map((l) => l.name));
+  for (const an of ctx.doc.annotations) if (!hidden.has(an.layer)) grips.push(...objectGrips(ctx.doc, an.id).filter((g) => inside(g.p)));
+  for (const d of ctx.doc.dimensions) {
+    if (hidden.has(d.layer) || d.kind !== 'linear') continue;
+    for (const g of objectGrips(ctx.doc, d.id)) {
+      if (g.kind !== 'anchor' || !inside(g.p)) continue;
+      if ((g.index === 0 ? d.a : d.b).ref === null) grips.push(g);
+    }
+  }
+  if (grips.length === 0) {
+    ctx.log('Nothing to stretch inside the window.');
+    return;
+  }
+  ctx.log(`${grips.length} point${grips.length === 1 ? '' : 's'} to stretch.`);
+  const base = yield { kind: 'point', prompt: 'Specify base point' };
+  if (base.kind !== 'point') return;
+  const moved = (p: Vec2) => grips.map((g) => ({ grip: g, to: { x: g.p.x + p.x - base.p.x, y: g.p.y + p.y - base.p.y } }));
+  const t = yield { kind: 'point', prompt: 'Specify second point', base: base.p, preview: (p) => ghost(ctx, moved(p)) };
+  if (t.kind !== 'point') return;
+  for (const m of moved(t.p)) applyGrip(ctx.doc, m.grip, toLocal(ctx.viewOf(m.grip.viewId), m.to));
 }

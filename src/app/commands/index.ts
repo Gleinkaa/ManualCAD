@@ -2,7 +2,7 @@
 import { balloon, leader, sketch, text, textedit } from './annotate';
 import { dimaligned, dimangular, dimdiameter, dimedit, dimlinear, dimradius } from './dims';
 import { arc, circle, line, rectang } from './draw';
-import { gripstretch } from './grips';
+import { gripstretch, stretch } from './grips';
 import { hatch, hatchedit } from './hatch';
 import { chamfer, copy, erase, extend, fillet, mirror, move, offset, rotate, scaleCmd, trim } from './modify';
 import { layer, ltype, partslist, partslistCommandLine, titleblock, view, zoom } from './settings';
@@ -25,6 +25,7 @@ export const COMMANDS: Record<string, CommandFn> = {
   ROTATE: rotate,
   SCALE: scaleCmd,
   MIRROR: mirror,
+  STRETCH: stretch,
   ERASE: erase,
   TEXT: text,
   TEXTEDIT: textedit,
@@ -79,6 +80,7 @@ export const ALIASES: Record<string, string> = {
   RO: 'ROTATE',
   SC: 'SCALE',
   MI: 'MIRROR',
+  S: 'STRETCH',
   E: 'ERASE',
   DT: 'TEXT',
   DTEXT: 'TEXT',
@@ -148,6 +150,7 @@ export const COMMAND_INFO: CommandInfo[] = [
   { name: 'COPY', group: 'Modify', summary: 'Copy the selection, repeatedly, from a base point.' },
   { name: 'ROTATE', group: 'Modify', summary: 'Rotate the selection about a base point by a typed angle or a picked direction; Copy keeps the source.' },
   { name: 'SCALE', group: 'Modify', summary: 'Scale the selection about a base point by a factor; Reference by two lengths.' },
+  { name: 'STRETCH', group: 'Modify', summary: 'Move the ends inside a crossing window: two corners, base point, second point. Objects fully inside move whole.' },
   { name: 'MIRROR', group: 'Modify', summary: 'Mirror the selection across a line of two points; text keeps its reading direction.' },
   { name: 'ERASE', group: 'Modify', summary: 'Delete the selection (Delete key with a selection).' },
   { name: 'HATCHEDIT', group: 'Modify', summary: 'Change angle and spacing of hatches; double-click a hatch.' },

@@ -2,7 +2,7 @@
 
 This session followed the 2026-10-06 UX pass (PR #2, `feat/ux-pass`). Its notes are kept below, under "Previous handoff".
 - **Branch:** `feat/ux-hatch-help`, on `master` after PR #2.
-- **Checks:** `npm test` gives 296 passing and 1 skipped; `npm run typecheck` and `npm run build` are clean.
+- **Checks:** `npm test` gives 300 passing and 1 skipped; `npm run typecheck` and `npm run build` are clean.
 - **Browser runs (Playwright, `/usr/bin/chromium`, the copy under `~/.hermes/hermes-agent/node_modules/playwright`):** every screen below was driven and screenshotted at 1400 and 1100 px width with no console errors; the rollover pick costs 0.5 ms per mouse move on ZA 38 (101 entities, 26 dimensions), the hatch preview under 0.1 ms.
 
 ## Why: "how do I hatch an area?"
@@ -42,10 +42,20 @@ Messages changed: "N hatch(es) created." → "1 hatch created." / "2 hatches cre
 | Redrawn DIMALIGNED, DIMEDIT and HATCHEDIT icons (larger arrowheads, bigger pencil) | `app/icons.ts` |
 | Hidden commands (`GRIPSTRETCH`) stay out of HELP, autocomplete and Enter-repeat | `app/commands/index.ts` (`isHiddenCommand`), `app/runner.ts` |
 
+## Third pass (same day): dimension grips, Shift-collected grips, STRETCH
+
+| Feature | Where |
+|---|---|
+| Dimension grips: a linear dimension shows its two measured points (dragging one detaches it from the geometry and moves it) and a grip on the dimension line (drag = new offset); a radius/diameter dimension one grip at the text end (drag = new direction and leader); an angular dimension one on its arc (drag = new radius and sector) | `app/grips.ts` (`dimensionGrips`, `stretchDimension`) |
+| Shift+click collects grips (red); clicking one of them drags the whole set by the displacement, so the spacing is kept. Esc drops the set | `app/app.ts` (`hotSet`, `toggleHotGrip`), `app/commands/grips.ts` (`moved`) |
+| STRETCH (S): crossing window by two corners, then base and second point. Line ends, arc ends, text and leader points and detached dimension points inside the window move; a circle or arc moves whole when its centre is inside; objects fully inside move whole. Live ghost, toolbar button, icon | `app/commands/grips.ts` (`stretch`, shared `ghost`), `app/icons.ts` |
+
+Hatches still have no grips: they follow their boundary, and that is the ISO-correct behaviour.
+
 ## Known limitations and next steps
 
-1. **Grips cover entities, text and leaders.** Dimensions have no grips yet (moving a dimension line or its text still needs ERASE and redraw); hatches follow their boundary instead. STRETCH (window stretch of many ends) does not exist; coincident grips cover the common corner case.
-2. **Grip drags are single-point.** AutoCAD's Shift-select of several grips, and the grip modes (rotate/scale/mirror by Enter cycling) are not built.
+1. **Grip modes.** AutoCAD's Enter-cycling of a hot grip through move/rotate/scale/mirror is not built; ROTATE/SCALE/MIRROR commands cover it.
+2. **A dragged dimension point detaches.** Dragging a measured point of a dimension onto a new snapped point does not re-associate it (AutoCAD does); the fallback is stored and the dimension stops following that end.
 3. **Autocomplete ranks substring matches too** (typing `di` also lists HATCHEDIT and TEXTEDIT after the DIM* commands). Drop rank 3 in `suggestCommands` if that annoys.
 4. **The toolbar wraps to two rows below ~1250 px.** Still usable; icon-only buttons could lose their captions at narrow widths.
 5. The items 1–7 of the previous handoff still apply where not superseded (toolbar item 5 is done; `chrome-devtools-axi` item 7 still true).

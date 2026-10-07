@@ -4,7 +4,7 @@ import { newSheet, resolveAnchor, toSheet } from '../model/doc';
 import type { Hatch, SheetDoc } from '../model/types';
 import { bridgeGaps, diagnoseHatch } from './commands/hatch';
 import { CommandContext, defaultSettings } from './commands/types';
-import { applyGrip, nearestGrip, objectGrips, stretchCurve } from './grips';
+import { applyGrip, nearestGrip, objectGrips, stretchCurve, stretchDimension } from './grips';
 import { CommandRunner } from './runner';
 import { pickEntity } from './selection';
 
@@ -135,5 +135,99 @@ describe('HATCH gap tolerance', () => {
     type('45,25');
     expect(h.assoc?.gap).toBe(0.5);
     expect(h.loops[0].some((c) => c.kind === 'line' && (c.a.x === 45 || c.b.x === 45))).toBe(true);
+  });
+});
+
+describe('dimension grips', () => {
+  it('a linear dimension: two measured points and the dimension line; dragging the line changes the offset, an anchor detaches', () => {
+    const { doc, type, view } = setup();
+    type('REC', '0,0', '40,20');
+    const bottom = doc.entities[0];
+    type('DLI', '0,0');
+    const corner = toSheet(view, { x: 40, y: 0 });
+    doc.dimensions.length;
+    const runner2 = setup(doc);
+    void runner2;
+    // snapped second point so the anchor is associative
+    const ctx = new CommandContext(() => doc, defaultSettings(doc), () => {});
+    void ctx;
+    const r = new CommandRunner(new CommandContext(() => doc, defaultSettings(doc), () => {}), { pick: () => null, hostCommand: () => {}, takeSelection: () => [], onStart: () => {}, onEnd: () => {} });
+    r.start('DIMLINEAR');
+    r.text('0,0');
+    r.click(corner, { point: corner, kind: 'endpoint', entityId: bottom.id, anchor: 'end' });
+    r.text('20,-10');
+    const dim = doc.dimensions[0];
+    const g = objectGrips(doc, dim.id);
+    expect(g.map((x) => x.kind)).toEqual(['anchor', 'anchor', 'dimline']);
+    expect(g[2].p).toEqual(toSheet(view, { x: 20, y: -10 }));
+    const moved = stretchDimension(doc, dim, g[2], toSheet(view, { x: 5, y: -15 }));
+    expect(moved.kind === 'linear' && moved.offset).toBeCloseTo(-15);
+    expect(dim.kind === 'linear' && dim.offset).toBeCloseTo(-10);
+    expect(applyGrip(doc, g[1], { x: 45, y: 0 })).toBe(true);
+    const after = doc.dimensions[0];
+    expect(after.kind === 'linear' && after.b.ref).toBeNull();
+    expect(after.kind === 'linear' && after.b.fallback).toEqual({ x: 45, y: 0 });
+  });
+
+  it('radius and angular dimensions: one grip on the dimension line that sets angle/leader or the arc radius', () => {
+    const { doc, type, view } = setup();
+    type('C', '0,0', '10');
+    const r = setup(doc).runner;
+    r.start('DIMRADIUS');
+    r.click(toSheet(view, { x: 10, y: 0 }), null);
+    r.text('20,0');
+    const rad = doc.dimensions[0];
+    const g = objectGrips(doc, rad.id);
+    expect(g).toHaveLength(1);
+    expect(g[0].p).toEqual(toSheet(view, { x: 20, y: 0 }));
+    const moved = stretchDimension(doc, rad, g[0], toSheet(view, { x: 0, y: 25 }));
+    expect(moved.kind === 'radius' && moved.angle).toBeCloseTo(Math.PI / 2);
+    expect(moved.kind === 'radius' && moved.leader).toBeCloseTo(15);
+    type('L', '0,0', '30,0', '', 'L', '0,0', '0,30', '');
+    const [l1, l2] = doc.entities.slice(-2);
+    const r2 = setup(doc).runner;
+    r2.start('DIMANGULAR');
+    r2.click(toSheet(view, { x: 15, y: 0 }), null);
+    r2.click(toSheet(view, { x: 0, y: 15 }), null);
+    r2.text('12,12');
+    void l1;
+    void l2;
+    const ang = doc.dimensions[1];
+    const ga = objectGrips(doc, ang.id);
+    expect(ga).toHaveLength(1);
+    expect(ga[0].p.x).toBeCloseTo(toSheet(view, { x: 12, y: 12 }).x, 0);
+    const bigger = stretchDimension(doc, ang, ga[0], toSheet(view, { x: 20, y: 20 }));
+    expect(bigger.kind === 'angular' && bigger.radius).toBeCloseTo(Math.hypot(20, 20));
+  });
+});
+
+describe('collected grips', () => {
+  it('grips collected with Shift move by the displacement, keeping their spacing', () => {
+    const { doc, ctx, runner, type, view } = setup();
+    type('L', '0,0', '0,30', '');
+    const [g0, g1] = objectGrips(doc, doc.entities[0].id);
+    ctx.grip = { grips: [g0, g1], base: g1.p };
+    runner.start('GRIPSTRETCH', []);
+    type('10,30');
+    expect(doc.entities[0].geom).toEqual({ kind: 'line', a: { x: 10, y: 0 }, b: { x: 10, y: 30 } });
+    void view;
+  });
+});
+
+describe('STRETCH', () => {
+  it('moves the ends inside the crossing window, whole objects when fully inside, and reports the count', () => {
+    const { doc, type, log } = setup();
+    type('REC', '0,0', '40,20', 'C', '50,10', '3', 'DT', '45,25', '', '', 'N', '');
+    type('S', '30,-5', '60,30', '0,0', '10,0');
+    expect(log).toContain('6 points to stretch.');
+    const lines = doc.entities.filter((e) => e.geom.kind === 'line').map((e) => e.geom);
+    const xs = lines.flatMap((l) => (l.kind === 'line' ? [l.a.x, l.b.x] : []));
+    expect(xs.filter((x) => x === 50)).toHaveLength(4);
+    expect(xs.filter((x) => x === 0)).toHaveLength(4);
+    const circle = doc.entities.find((e) => e.geom.kind === 'circle')!.geom;
+    expect(circle.kind === 'circle' && circle.c).toEqual({ x: 60, y: 10 });
+    expect(doc.annotations[0]).toMatchObject({ pos: { x: 55, y: 25 } });
+    type('S', '100,100', '110,110');
+    expect(log.at(-1)).toBe('Nothing to stretch inside the window.');
   });
 });

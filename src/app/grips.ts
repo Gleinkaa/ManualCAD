@@ -2,11 +2,14 @@
 import { angleOf, arcEnd, arcStart, makeArc } from '../geom/curve';
 import { translate } from '../geom';
 import type { Curve, Vec2 } from '../geom/types';
-import { getView, toSheet } from '../model/doc';
-import type { Annotation, Entity, SheetDoc } from '../model/types';
-import { dist, polar, sub } from '../geom/vec';
+import { angularGeometry } from '../dim';
+import { getView, resolveAnchor, toLocal, toSheet } from '../model/doc';
+import type { Annotation, Dimension, Entity, SheetDoc } from '../model/types';
+import { add, dist, norm, polar, scale, sub } from '../geom/vec';
+import { angularSenses, dimOffset } from './commands/dims';
 
-export type GripKind = 'end' | 'mid' | 'center' | 'quad' | 'point';
+/** `anchor`: a measured point of a dimension (dragging it detaches the point); `dimline`: its dimension line (offset, leader, arc radius). */
+export type GripKind = 'end' | 'mid' | 'center' | 'quad' | 'point' | 'anchor' | 'dimline';
 
 export interface Grip {
   id: string;                // entity or annotation id
@@ -40,12 +43,91 @@ function curveGrips(c: Curve): { kind: GripKind; index: number; p: Vec2 }[] {
   }
 }
 
-/** Grips of one object, in sheet mm. Hatches and dimensions have none (they follow their geometry). */
+/** Unit normal of a linear dimension's offset (see dim/plotLinear), sheet space. */
+function linearNormal(orientation: 'horizontal' | 'vertical' | 'aligned', A: Vec2, B: Vec2): Vec2 {
+  if (orientation === 'horizontal') return { x: 0, y: 1 };
+  if (orientation === 'vertical') return { x: 1, y: 0 };
+  const u = dist(A, B) < 1e-12 ? { x: 1, y: 0 } : norm(sub(B, A));
+  return { x: -u.y, y: u.x };
+}
+
+/** Grips of a dimension (sheet mm): its measured points and one point on its dimension line, text or arc. */
+export function dimensionGrips(doc: SheetDoc, dim: Dimension): { kind: GripKind; index: number; p: Vec2 }[] {
+  const view = getView(doc, dim.viewId);
+  if (dim.kind === 'linear') {
+    const A = toSheet(view, resolveAnchor(doc, dim.a));
+    const B = toSheet(view, resolveAnchor(doc, dim.b));
+    const M = scale(add(A, B), 0.5);
+    return [
+      { kind: 'anchor', index: 0, p: A },
+      { kind: 'anchor', index: 1, p: B },
+      { kind: 'dimline', index: 0, p: add(M, scale(linearNormal(dim.orientation, A, B), dim.offset)) },
+    ];
+  }
+  if (dim.kind === 'angular') {
+    const g = angularGeometry(doc, dim);
+    if (!g) return [];
+    const bis = norm(add(g.u1, g.u2));
+    const V = toSheet(view, g.vertex);
+    return [{ kind: 'dimline', index: 0, p: add(V, scale(bis.x === 0 && bis.y === 0 ? { x: 1, y: 0 } : bis, dim.radius)) }];
+  }
+  const e = doc.entities.find((x) => x.id === dim.entityId);
+  if (!e || e.geom.kind === 'line') return [];
+  const C = toSheet(view, e.geom.c);
+  const d = { x: Math.cos(dim.angle), y: Math.sin(dim.angle) };
+  return [{ kind: 'dimline', index: 0, p: add(C, scale(d, e.geom.r * view.scale + dim.leader)) }];
+}
+
+/** The dimension after dragging a grip to `to` (sheet mm): a clone, the original untouched. */
+export function stretchDimension(doc: SheetDoc, dim: Dimension, grip: Pick<Grip, 'kind' | 'index'>, to: Vec2): Dimension {
+  const view = getView(doc, dim.viewId);
+  if (dim.kind === 'linear') {
+    const out = structuredClone(dim);
+    if (grip.kind === 'anchor') {
+      const an = grip.index === 0 ? out.a : out.b;
+      an.ref = null;
+      an.fallback = toLocal(view, to);
+      return out;
+    }
+    const A = toSheet(view, resolveAnchor(doc, dim.a));
+    const B = toSheet(view, resolveAnchor(doc, dim.b));
+    out.offset = dimOffset(dim.orientation, A, B, to);
+    return out;
+  }
+  if (dim.kind === 'angular') {
+    const out = structuredClone(dim);
+    const g = angularGeometry(doc, dim);
+    if (!g) return out;
+    const V = toSheet(view, g.vertex);
+    const d1 = sub(resolveAnchor(doc, dim.leg1.b), resolveAnchor(doc, dim.leg1.a));
+    const d2 = sub(resolveAnchor(doc, dim.leg2.b), resolveAnchor(doc, dim.leg2.a));
+    out.radius = Math.max(1e-6, dist(to, V));
+    Object.assign(out, angularSenses(g.vertex, d1, d2, toLocal(view, to)));
+    return out;
+  }
+  const out = structuredClone(dim);
+  const e = doc.entities.find((x) => x.id === dim.entityId);
+  if (!e || e.geom.kind === 'line') return out;
+  const C = toSheet(view, e.geom.c);
+  out.angle = Math.atan2(to.y - C.y, to.x - C.x);
+  out.leader = Math.max(0, dist(to, C) - e.geom.r * view.scale);
+  return out;
+}
+
+/** Grips of one object, in sheet mm. Hatches have none: they follow their boundary. */
 export function objectGrips(doc: SheetDoc, id: string): Grip[] {
   const e = doc.entities.find((x) => x.id === id);
   if (e) {
     const view = getView(doc, e.viewId);
     return curveGrips(e.geom).map((g) => ({ id, kind: g.kind, index: g.index, p: toSheet(view, g.p), viewId: e.viewId }));
+  }
+  const dim = doc.dimensions.find((d) => d.id === id);
+  if (dim) {
+    try {
+      return dimensionGrips(doc, dim).map((g) => ({ id, kind: g.kind, index: g.index, p: g.p, viewId: dim.viewId }));
+    } catch {
+      return [];
+    }
   }
   const a = doc.annotations.find((x) => x.id === id);
   if (!a) return [];
@@ -85,11 +167,16 @@ export function stretchAnnotation(a: Annotation, grip: Pick<Grip, 'kind' | 'inde
   return a;
 }
 
-/** Apply a stretch in place; false when the object no longer exists. */
+/** Apply a stretch in place (`to` view-local of the object's view); false when the object no longer exists. */
 export function applyGrip(doc: SheetDoc, grip: Grip, to: Vec2): boolean {
   const e: Entity | undefined = doc.entities.find((x) => x.id === grip.id);
   if (e) {
     e.geom = stretchCurve(e.geom, grip, to);
+    return true;
+  }
+  const di = doc.dimensions.findIndex((d) => d.id === grip.id);
+  if (di >= 0) {
+    doc.dimensions[di] = stretchDimension(doc, doc.dimensions[di], grip, toSheet(getView(doc, grip.viewId), to));
     return true;
   }
   const i = doc.annotations.findIndex((x) => x.id === grip.id);

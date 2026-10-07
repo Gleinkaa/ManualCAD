@@ -36,6 +36,8 @@ export const ICONS: Record<string, string> = {
   ROTATE: '<path d="M16.5 10a6.5 6.5 0 1 1-2-4.7"/><path d="M11.5 5.3h3v-3"/>',
   SCALE:
     '<rect x="3" y="3" width="14" height="14"/><path d="M3 12h5v5"/><path d="M8 12l6.5-6.5M10.5 5.5h4v4"/>',
+  STRETCH:
+    '<path d="M2.5 14.5h7l4-9h4"/><path d="M8 4.5h9v12H8z" stroke-width="1" stroke-dasharray="2 1.5"/><path d="M14.5 2.5l3 3-3 3"/>',
   MIRROR:
     '<path d="M10 2.5v15" stroke-width="1" stroke-dasharray="4 1.5 1 1.5"/><path d="M7.5 5L3 15h4.5z"/><path d="M12.5 5L17 15h-4.5z"/>',
   ERASE:

@@ -91,6 +91,7 @@ export class App {
   private hover: string | null = null;       // object under the pick box (rollover highlight)
   private grips: Grip[] = [];                // grips of the selection while no command runs
   private hotGrip: Grip | null = null;       // grip under the cursor, or the one being dragged
+  private hotSet: Grip[] = [];               // grips collected with Shift+click, dragged together
   private windowStart: { sheet: Vec2; px: Vec2 } | null = null;
   private panning: Vec2 | null = null;
   private lastMiddle = 0;
@@ -139,6 +140,7 @@ export class App {
         // AutoCAD drops acquired tracking points when the command ends
         this.acquired = [];
         this.track = [];
+        this.hotSet = [];
         this.docChanged();
       },
     });
@@ -367,6 +369,7 @@ export class App {
       return;
     }
     if (this.windowStart) this.windowStart = null;
+    else if (this.hotSet.length > 0) this.hotSet = [];
     else if (this.panMode) this.endPan();
     else if (this.runner.active) this.runner.cancel();
     else this.selection = [];
@@ -447,7 +450,8 @@ export class App {
     if (this.panMode) return 'Pan: drag with the left button · Esc ends';
     const req = this.runner.request;
     if (!req) {
-      if (this.selection.length > 0) return 'Drag a blue grip to stretch · Delete erases · Esc clears the selection';
+      if (this.hotSet.length > 0) return `${this.hotSet.length} grip${this.hotSet.length === 1 ? '' : 's'} collected · click one to drag them together · Esc drops them`;
+      if (this.selection.length > 0) return 'Drag a blue grip to stretch, Shift+click collects several · Delete erases · Esc clears the selection';
       return this.runner.lastCommand ? `Click to select, drag a window · Enter repeats ${this.runner.lastCommand} · Esc clears` : 'Click to select, drag a window · F1 help';
     }
     switch (req.kind) {
@@ -785,6 +789,8 @@ export class App {
       this.runner.click(raw, null);
     } else if (this.windowStart) {
       this.finishWindow(raw, ev.shiftKey);
+    } else if (this.hotGrip && ev.shiftKey) {
+      this.toggleHotGrip(this.hotGrip);
     } else if (this.hotGrip) {
       this.startGripDrag(this.hotGrip);
     } else {
@@ -814,10 +820,24 @@ export class App {
     }
   }
 
-  /** Click on a grip: every selected grip at the same spot becomes hot and GRIPSTRETCH asks for the new point. */
+  private sameGrip(a: Grip, b: Grip): boolean {
+    return a.id === b.id && a.kind === b.kind && a.index === b.index;
+  }
+
+  /** Shift+click on a grip collects it (and the grips at the same spot) for a joint drag; a second Shift+click drops it. */
+  private toggleHotGrip(grip: Grip): void {
+    const tol = this.tol(1);
+    const spot = this.grips.filter((g) => dist(g.p, grip.p) <= tol);
+    const already = this.hotSet.some((g) => this.sameGrip(g, grip));
+    this.hotSet = already ? this.hotSet.filter((g) => !spot.some((h) => this.sameGrip(g, h))) : [...this.hotSet, ...spot.filter((g) => !this.hotSet.some((h) => this.sameGrip(g, h)))];
+    this.ui.hint.textContent = this.defaultHint();
+  }
+
+  /** Click on a grip: every selected grip at the same spot (plus the Shift-collected ones) becomes hot and GRIPSTRETCH asks for the new point. */
   private startGripDrag(grip: Grip): void {
     const tol = this.tol(1);
-    const hot = this.grips.filter((g) => dist(g.p, grip.p) <= tol);
+    const spot = this.grips.filter((g) => dist(g.p, grip.p) <= tol);
+    const hot = [...this.hotSet, ...spot.filter((g) => !this.hotSet.some((h) => this.sameGrip(g, h)))];
     this.ctx.grip = { grips: hot, base: grip.p };
     this.hotGrip = grip;
     this.log('Command: GRIPSTRETCH');
@@ -842,6 +862,7 @@ export class App {
     }
     if (remove) this.selection = this.selection.filter((id) => !ids.includes(id));
     else for (const id of ids) if (!this.selection.includes(id)) this.selection.push(id);
+    this.hotSet = [];
     this.refreshUI();
   }
 
@@ -1031,8 +1052,8 @@ export class App {
     if (this.windowStart && this.mousePx) drawSelectionBox(g, vp.toScreen(this.windowStart.sheet), this.mousePx, dpr);
     const dragging = this.runner.name === 'GRIPSTRETCH' ? this.ctx.grip ?? null : null;
     for (const gr of this.grips) {
-      const hot = this.hotGrip !== null && dist(gr.p, this.hotGrip.p) <= this.tol(1);
-      if (dragging && hot) continue; // the dragged grip follows the cursor in the preview
+      const hot = (this.hotGrip !== null && dist(gr.p, this.hotGrip.p) <= this.tol(1)) || this.hotSet.some((h) => this.sameGrip(h, gr));
+      if (dragging && hot) continue; // the dragged grips follow the cursor in the preview
       drawGrip(g, vp.toScreen(gr.p), hot, dpr);
     }
 
