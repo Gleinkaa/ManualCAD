@@ -2,7 +2,7 @@
 
 This session followed the 2026-10-06 UX pass (PR #2, `feat/ux-pass`). Its notes are kept below, under "Previous handoff".
 - **Branch:** `feat/ux-hatch-help`, on `master` after PR #2.
-- **Checks:** `npm test` gives 305 passing and 1 skipped; `npm run typecheck` and `npm run build` are clean.
+- **Checks:** `npm test` passes (one skip: the SVG render script, which needs `ZA38_SVG`); `npm run typecheck` and `npm run build` are clean.
 - **Browser runs (Playwright, `/usr/bin/chromium`, the copy under `~/.hermes/hermes-agent/node_modules/playwright`):** every screen below was driven and screenshotted at 1400 and 1100 px width with no console errors; the rollover pick costs 0.5 ms per mouse move on ZA 38 (101 entities, 26 dimensions), the hatch preview under 0.1 ms.
 
 ## Why: "how do I hatch an area?"

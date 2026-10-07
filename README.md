@@ -39,12 +39,7 @@ npm run dev        # http://localhost:5173
 
 ## Commands
 
-Dimensions (**Bemaßungen**): `DIMLINEAR` (`DLI`), `DIMALIGNED` (`DAL`), `DIMRADIUS` (`DRA`), `DIMDIAMETER` (`DDI`), `DIMANGULAR` (`DAN`), `DIMEDIT` (`DED`).
-
-Draw: `LINE` `CIRCLE` `ARC` `RECTANG` `HATCH` `SKETCH` `TEXT`
-Modify: `OFFSET` `TRIM` `EXTEND` `FILLET` `CHAMFER` `MOVE` `COPY` `ROTATE` `SCALE` `STRETCH` `MIRROR` `ERASE` `HATCHEDIT` `TEXTEDIT`
-Annotate: `LEADER` `BALLOON`
-Sheet: `VIEW` `LTYPE` `LAYER` `ZOOM` `PAN` `TITLEBLOCK` `PARTSLIST` `HELP`
+Type a command name or its short alias at the command line (`LINE`, `REC`, `DLI`, `DAN`, …). Press `F1` — or type `HELP` or `?` — for the full catalogue: every command with its aliases and a one-line summary.
 
 Start a command and the command line walks you through its prompts. At the command line, autocomplete lists matching names and aliases: arrow keys to move, `Enter` or `Tab` to accept. It stays out of the way once a command has started, so coordinates and options are never intercepted.
 
