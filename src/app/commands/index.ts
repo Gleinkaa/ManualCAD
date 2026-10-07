@@ -207,7 +207,6 @@ export function suggestCommands(prefix: string, limit = 8): { name: string; alia
   if (t in COMMANDS || (HOST_COMMANDS as readonly string[]).includes(t)) push(t, null, 0);
   for (const name of allCommandNames()) if (name.startsWith(t)) push(name, aliasesOf(name)[0] ?? null, 1);
   for (const [a, name] of Object.entries(ALIASES)) if (a.startsWith(t)) push(name, a, 2);
-  for (const name of allCommandNames()) if (name.includes(t)) push(name, aliasesOf(name)[0] ?? null, 3);
   return out.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)).slice(0, limit);
 }
 

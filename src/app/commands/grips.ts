@@ -17,6 +17,7 @@ export interface GripDrag {
 type Mode = 'STRETCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'MIRROR';
 const CYCLE: Mode[] = ['STRETCH', 'MOVE', 'ROTATE', 'SCALE', 'MIRROR'];
 const MODE_OPTIONS: Option[] = [{ key: 'ST', label: 'STretch' }, { key: 'MO', label: 'MOve' }, { key: 'RO', label: 'ROtate' }, { key: 'SC', label: 'SCale' }, { key: 'MI', label: 'MIrror' }];
+const BASE_OPT: Option = { key: 'B', label: 'Base point' };
 const COPY_OPT: Option = { key: 'C', label: 'Copy' };
 const EXIT_OPT: Option = { key: 'X', label: 'eXit' };
 const BY_KEY: Record<string, Mode> = { ST: 'STRETCH', MO: 'MOVE', RO: 'ROTATE', SC: 'SCALE', MI: 'MIRROR' };
@@ -65,7 +66,7 @@ export function* gripstretch(ctx: CommandContext): CommandGen {
     ctx.log('Click a grip of a selected object to stretch it.');
     return;
   }
-  const base = drag.base;
+  let base = drag.base;
   const sel = (): Selection => splitIds(ctx, drag.selection);
   // every hot grip moves by the same displacement: coincident grips land on the point, collected ones keep their spacing
   const moved = (grips: Grip[], p: Vec2) => grips.map((g) => ({ grip: g, to: { x: g.p.x + p.x - base.x, y: g.p.y + p.y - base.y } }));
@@ -82,6 +83,11 @@ export function* gripstretch(ctx: CommandContext): CommandGen {
       if (r.key === 'X') return;
       if (r.key === 'C') {
         copy = !copy;
+        continue;
+      }
+      if (r.key === 'B') {
+        const b = yield { kind: 'point', prompt: 'Specify base point' };
+        if (b.kind === 'point') base = b.p;
         continue;
       }
       mode = BY_KEY[r.key] ?? mode;
@@ -134,7 +140,7 @@ export function* gripstretch(ctx: CommandContext): CommandGen {
 
 /** One prompt of a grip mode; the ghost shows the transform the cursor would apply. */
 function* modePrompt(ctx: CommandContext, mode: Mode, base: Vec2, sel: () => Selection, stretchGhost: (p: Vec2) => Preview): SubGen<Input> {
-  const options = [...MODE_OPTIONS.filter((o) => BY_KEY[o.key] !== mode), COPY_OPT, EXIT_OPT];
+  const options = [...MODE_OPTIONS.filter((o) => BY_KEY[o.key] !== mode), BASE_OPT, COPY_OPT, EXIT_OPT];
   const preview = (p: Vec2): Preview => {
     switch (mode) {
       case 'STRETCH':

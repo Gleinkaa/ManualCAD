@@ -172,6 +172,7 @@ describe('command line autocomplete', () => {
     expect(suggestCommands('dim').map((s) => s.name)).toEqual(['DIMALIGNED', 'DIMANGULAR', 'DIMDIAMETER', 'DIMEDIT', 'DIMLINEAR', 'DIMRADIUS']);
     expect(suggestCommands('')).toEqual([]);
     expect(suggestCommands('zzz')).toEqual([]);
+    expect(suggestCommands('di').map((s) => s.name).every((n) => n.startsWith('DI'))).toBe(true);
     expect(suggestCommands('ro')[0].name).toBe('ROTATE');
     for (const [alias, name] of [['HE', 'HATCHEDIT'], ['ED', 'TEXTEDIT'], ['RO', 'ROTATE'], ['SC', 'SCALE'], ['P', 'PAN'], ['?', 'HELP']]) {
       expect(resolveCommand(alias)).toBe(name);
