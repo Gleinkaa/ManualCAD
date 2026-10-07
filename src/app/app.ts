@@ -6,6 +6,7 @@ import { getView, newSheet, parse, serialize, toLocal } from '../model/doc';
 import { formatScale, sheetSize } from '../model/standards';
 import type { LineGroupId, LineTypeId, Orientation, SheetDoc, SheetFormat } from '../model/types';
 import { exportPdf, frameGeometry, loadFonts, PARTS_LIST, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
+import { moveHighlight, suggest, type Suggestion } from './autocomplete';
 import { resolveCommand } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
 import { History, snapshot } from './history';
@@ -91,6 +92,8 @@ export class App {
   private fitted = false;
   private savedView: SessionView | null = null;
   private sessionTimer = 0;
+  private suggestions: Suggestion[] = [];
+  private suggestIndex = -1;                 // highlighted suggestion, -1 = none
 
   constructor(root: HTMLElement) {
     this.ui = buildUI(root);
@@ -288,6 +291,7 @@ export class App {
   }
 
   private afterInput(): void {
+    if (this.runner.active) this.closeSuggestions();
     this.prims = null;
     this.updateCursor();
     this.refreshPrompt();
@@ -310,6 +314,7 @@ export class App {
   private submit(): void {
     const text = this.ui.input.value;
     this.ui.input.value = '';
+    this.closeSuggestions();
     if (!this.runner.text(text)) this.ui.input.value = text.trim();
     this.afterInput();
   }
@@ -319,6 +324,7 @@ export class App {
     else if (this.runner.active) this.runner.cancel();
     else this.selection = [];
     this.ui.input.value = '';
+    this.closeSuggestions();
     this.refreshUI();
     this.afterInput();
   }
@@ -426,6 +432,13 @@ export class App {
     });
 
     ui.input.addEventListener('keydown', (ev) => this.onInputKey(ev));
+    ui.input.addEventListener('input', () => this.updateSuggestions());
+    ui.input.addEventListener('blur', () => this.closeSuggestions());
+    ui.suggestions.addEventListener('mousedown', (ev) => {
+      ev.preventDefault(); // keep focus in the input
+      const li = (ev.target as HTMLElement).closest('li');
+      if (li) this.acceptSuggestion(Number(li.dataset.index));
+    });
     document.addEventListener('keydown', (ev) => this.onGlobalKey(ev));
 
     const c = ui.canvas;
@@ -477,8 +490,62 @@ export class App {
     this.redraw();
   }
 
+  // --- Command name autocomplete ---
+
+  private updateSuggestions(): void {
+    const idle = !this.runner.active && this.runner.request?.kind !== 'text';
+    this.suggestions = idle ? suggest(this.ui.input.value) : [];
+    this.suggestIndex = -1;
+    this.renderSuggestions();
+  }
+
+  private closeSuggestions(): void {
+    if (this.suggestions.length === 0) return;
+    this.suggestions = [];
+    this.suggestIndex = -1;
+    this.renderSuggestions();
+  }
+
+  private acceptSuggestion(index: number): void {
+    const s = this.suggestions[index];
+    if (!s) return;
+    this.ui.input.value = s.insert;
+    this.closeSuggestions();
+  }
+
+  private renderSuggestions(): void {
+    const list = this.ui.suggestions;
+    list.replaceChildren(
+      ...this.suggestions.map((s, i) =>
+        el('li', { role: 'option', 'data-index': String(i), class: i === this.suggestIndex ? 'active' : '' }, el('span', {}, s.label), el('span', { class: 'mc-suggest-kind' }, s.kind)),
+      ),
+    );
+    list.hidden = this.suggestions.length === 0;
+  }
+
   private onInputKey(ev: KeyboardEvent): void {
     const input = this.ui.input;
+    if (this.suggestions.length > 0) {
+      const k = ev.key;
+      if (k === 'ArrowDown' || k === 'ArrowUp') {
+        ev.preventDefault();
+        this.suggestIndex = moveHighlight(this.suggestIndex, this.suggestions.length, k === 'ArrowDown' ? 1 : -1);
+        this.renderSuggestions();
+        return;
+      }
+      if (k === 'Tab' || (k === 'Enter' && this.suggestIndex >= 0)) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.acceptSuggestion(Math.max(this.suggestIndex, 0));
+        return;
+      }
+      if (k === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.closeSuggestions();
+        return;
+      }
+    }
     if (ev.key === 'Enter' || (ev.key === ' ' && !(this.runner.request?.kind === 'text' && input.value.trim() !== ''))) {
       ev.preventDefault();
       ev.stopPropagation();
@@ -527,6 +594,7 @@ export class App {
         ev.preventDefault();
         this.ui.input.value += k;
         this.ui.input.focus();
+        this.updateSuggestions();
       }
     }
   }
