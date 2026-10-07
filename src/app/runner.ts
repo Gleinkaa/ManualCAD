@@ -143,6 +143,13 @@ export class CommandRunner {
           this.ctx.log(`${SNAP_LABELS[override]} snap for the next point.`);
           return;
         }
+        if (req.acceptNumber) {
+          const parsed = parseCoordinate(text);
+          if (parsed?.kind === 'number') {
+            this.step({ kind: 'number', value: parsed.value });
+            return;
+          }
+        }
         const p = this.parsePoint(text, req.base ?? null);
         if (p) this.feedPoint(p, null);
         else this.invalid(req.base ? `Requires a point or a distance${req.options?.length ? ', or an option keyword' : ''}.` : req.options?.length ? 'Point or option keyword required.' : 'Invalid point.');

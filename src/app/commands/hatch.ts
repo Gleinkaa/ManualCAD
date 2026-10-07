@@ -1,12 +1,14 @@
 // HATCH: section hatching per ISO 128-50, by picking points inside closed boundaries.
 // Hatches are associative: when an entity of their boundary changes, the region around the picked point is found again.
-import { distanceTo, findRegion, midpoint } from '../../geom';
+// HATCHEDIT changes angle and spacing of existing hatches.
+import { dist, distanceTo, findRegion, midpoint, openEnds } from '../../geom';
 import type { Curve, Vec2 } from '../../geom/types';
-import { layerVisible, newId } from '../../model/doc';
+import { layerVisible, newId, toSheet } from '../../model/doc';
+import { LINE_TYPES } from '../../model/standards';
 import { hatchSheetSegments } from '../../plot';
 import type { Entity, Hatch, HatchAssoc, LineTypeId, SheetDoc } from '../../model/types';
 import { fmt } from '../input';
-import type { CommandContext, CommandGen } from './types';
+import { selectObjects, type CommandContext, type CommandGen, type Option, type Preview, type SubGen } from './types';
 
 /** Line types that bound a cut surface: visible edges, thin lines and break-out freehand lines. */
 const BOUNDARY_TYPES: ReadonlySet<LineTypeId> = new Set(['visible', 'thin', 'freehand']);
@@ -40,6 +42,43 @@ export function hatchRegion(doc: SheetDoc, viewId: string, seed: Vec2, includeHi
   return { loops, assoc: { seed, boundary, key: boundaryKey(doc, viewId, boundary) } };
 }
 
+/** Why no region was found around `seed`, so the user can fix the drawing instead of guessing. */
+export type HatchDiagnosis =
+  /** The area closes only with line types that never bound a cut surface (hidden, centre, phantom, construction). */
+  | { reason: 'linetype'; types: LineTypeId[] }
+  /** The boundary has gaps: the open ends nearest the point (view-local), nearest first. */
+  | { reason: 'open'; ends: Vec2[] }
+  /** Nothing around the point at all. */
+  | { reason: 'none' };
+
+export function diagnoseHatch(doc: SheetDoc, viewId: string, seed: Vec2): HatchDiagnosis {
+  const visible = doc.entities.filter((e) => e.viewId === viewId && layerVisible(doc, e.layer));
+  const all = findRegion(visible.map((e) => e.geom), seed);
+  if (all) {
+    const tol = 1e-6 * Math.max(1, ...all.flat().map((c) => Math.hypot(pointOn(c).x, pointOn(c).y)));
+    const onLoop = visible.filter((e) => all.some((l) => l.some((c) => distanceTo(e.geom, pointOn(c)) <= tol)));
+    const types = [...new Set(onLoop.map((e) => e.lineType).filter((t) => !BOUNDARY_TYPES.has(t)))];
+    if (types.length > 0) return { reason: 'linetype', types };
+  }
+  const ends = openEnds(visible.filter((e) => BOUNDARY_TYPES.has(e.lineType)).map((e) => e.geom));
+  if (ends.length === 0) return { reason: 'none' };
+  return { reason: 'open', ends: ends.sort((a, b) => dist(a, seed) - dist(b, seed)) };
+}
+
+/** Message for a diagnosis, naming the repair. */
+export function diagnosisMessage(d: HatchDiagnosis): string {
+  switch (d.reason) {
+    case 'linetype': {
+      const names = d.types.map((t) => LINE_TYPES[t].label.toLowerCase()).join(' and ');
+      return `The area is closed only by ${names} lines. A cut surface is bounded by visible edges (01.2), thin or freehand lines: change the line type of the outline (select it, then choose the line type) or draw the edge again.`;
+    }
+    case 'open':
+      return `The boundary is not closed: ${d.ends.length} open end${d.ends.length === 1 ? '' : 's'} marked in red. Close the gap (EXTEND, TRIM, FILLET with radius 0, or redraw with object snap) and pick again.`;
+    case 'none':
+      return 'No boundary around that point. Pick a point inside a closed outline of visible edges.';
+  }
+}
+
 /**
  * Re-find the region of every associative hatch whose boundary changed since its loops were found.
  * A hatch whose point is no longer enclosed keeps its last loops and loses its association.
@@ -62,45 +101,126 @@ export function updateAssociativeHatches(doc: SheetDoc): number {
   return lost;
 }
 
+/** 45° ↔ 135°: the second direction for an adjacent part (ISO 128-50). Other angles are mirrored the same way. */
+export function flipAngle(angle: number): number {
+  return (((180 - angle) % 180) + 180) % 180;
+}
+
+/** Options shared by HATCH and HATCHEDIT, plus a prompt tail showing the current values. */
+const STYLE_OPTIONS: Option[] = [{ key: 'A', label: 'Angle' }, { key: 'S', label: 'Spacing' }, { key: 'F', label: 'Flip' }];
+
+/** Handle Angle / Spacing / Flip; returns true when `key` was one of them. */
+function* styleOption(ctx: CommandContext, key: string, cur: { angle: number; spacing: number }): SubGen<boolean> {
+  if (key === 'A') {
+    const a = yield { kind: 'number', prompt: 'Specify hatch angle (45 or 135 for a section, ISO 128-50)', default: cur.angle };
+    if (a.kind === 'number') cur.angle = ((a.value % 180) + 180) % 180;
+    return true;
+  }
+  if (key === 'S') {
+    const d = yield { kind: 'number', prompt: 'Specify hatch line spacing (paper mm)', default: cur.spacing };
+    if (d.kind === 'number') {
+      if (d.value > 0) cur.spacing = d.value;
+      else ctx.log('Spacing must be positive.');
+    }
+    return true;
+  }
+  if (key === 'F') {
+    cur.angle = flipAngle(cur.angle);
+    ctx.log(`Hatch angle ${fmt(cur.angle, 0)}°.`);
+    return true;
+  }
+  return false;
+}
+
 export function* hatch(ctx: CommandContext): CommandGen {
   const s = ctx.settings;
-  let count = 0;
+  const created: string[] = [];
+  /** Open ends shown in red after a failed pick (sheet mm), until the next pick. */
+  let ends: Vec2[] = [];
+  let last: { seed: Vec2; viewId: string; hatch: Hatch | null } | null = null;
+  const regionAt = (p: Vec2): Hatch | null => {
+    const viewId = s.currentViewId;
+    const seed = ctx.local(p);
+    if (last && last.viewId === viewId && dist(last.seed, seed) < 1e-9) return last.hatch;
+    const region = hatchRegion(ctx.doc, viewId, seed);
+    const h: Hatch | null = region && { kind: 'hatch', id: 'preview', viewId, layer: s.layer, loops: region.loops, angle: s.hatchAngle, spacing: s.hatchSpacing, assoc: region.assoc };
+    last = { seed, viewId, hatch: h };
+    return h;
+  };
   for (;;) {
+    const options = [...STYLE_OPTIONS];
+    if (created.length > 0) options.push({ key: 'U', label: 'Undo' });
     const r = yield {
       kind: 'point',
-      prompt: `Pick internal point (angle ${fmt(s.hatchAngle, 2)}°, spacing ${fmt(s.hatchSpacing, 2)})`,
-      options: [{ key: 'A', label: 'Angle' }, { key: 'S', label: 'Spacing' }],
+      prompt: `Pick a point inside the area to hatch (angle ${fmt(s.hatchAngle, 0)}°, spacing ${fmt(s.hatchSpacing, 2)})`,
+      options,
       allowEnter: true,
+      preview: (p): Preview => {
+        const h = regionAt(p);
+        return { annotations: h ? [h] : [], markers: ends };
+      },
     };
-    if (r.kind === 'option' && r.key === 'A') {
-      const a = yield { kind: 'number', prompt: 'Specify hatch angle', default: s.hatchAngle };
-      if (a.kind === 'number') s.hatchAngle = a.value;
-      continue;
-    }
-    if (r.kind === 'option' && r.key === 'S') {
-      const d = yield { kind: 'number', prompt: 'Specify hatch line spacing (paper mm)', default: s.hatchSpacing };
-      if (d.kind === 'number') {
-        if (d.value > 0) s.hatchSpacing = d.value;
-        else ctx.log('Spacing must be positive.');
+    if (r.kind === 'option') {
+      if (r.key === 'U') {
+        const id = created.pop();
+        ctx.doc.annotations = ctx.doc.annotations.filter((a) => a.id !== id);
+        continue;
       }
+      const cur = { angle: s.hatchAngle, spacing: s.hatchSpacing };
+      yield* styleOption(ctx, r.key, cur);
+      s.hatchAngle = cur.angle;
+      s.hatchSpacing = cur.spacing;
+      last = null;
       continue;
     }
     if (r.kind !== 'point') {
-      if (count > 0) ctx.log(`${count} hatch(es) created.`);
+      if (created.length > 0) ctx.log(`${created.length} hatch${created.length === 1 ? '' : 'es'} created.`);
       return;
     }
     const viewId = s.currentViewId;
-    const region = hatchRegion(ctx.doc, viewId, ctx.local(r.p));
+    const seed = ctx.local(r.p);
+    const region = hatchRegion(ctx.doc, viewId, seed);
     if (!region) {
-      ctx.log('No closed boundary found around the point.');
+      const d = diagnoseHatch(ctx.doc, viewId, seed);
+      const view = ctx.viewOf(viewId);
+      ends = d.reason === 'open' ? d.ends.map((p) => toSheet(view, p)) : [];
+      ctx.log(diagnosisMessage(d));
       continue;
     }
+    ends = [];
     const h: Hatch = { kind: 'hatch', id: newId('a'), viewId, layer: s.layer, loops: region.loops, angle: s.hatchAngle, spacing: s.hatchSpacing, assoc: region.assoc };
     if (hatchSheetSegments(ctx.doc, h).length === 0) {
       ctx.log('Hatch spacing yields no lines in this region; adjust the spacing.');
       continue;
     }
     ctx.doc.annotations.push(h);
-    count++;
+    created.push(h.id);
   }
+}
+
+/** HATCHEDIT: change angle and spacing of selected hatches (the current settings follow the last edit). */
+export function* hatchedit(ctx: CommandContext): CommandGen {
+  const ids = new Set(yield* selectObjects(ctx, 'Select hatches'));
+  const hatches = ctx.doc.annotations.filter((a): a is Hatch => a.kind === 'hatch' && ids.has(a.id));
+  if (hatches.length === 0) {
+    ctx.log(ids.size > 0 ? 'No hatch in the selection.' : 'Nothing selected.');
+    return;
+  }
+  const cur = { angle: hatches[0].angle, spacing: hatches[0].spacing };
+  for (;;) {
+    const r = yield {
+      kind: 'text',
+      prompt: `${hatches.length} hatch${hatches.length === 1 ? '' : 'es'}: angle ${fmt(cur.angle, 0)}°, spacing ${fmt(cur.spacing, 2)}. Enter an option or <done>`,
+      options: STYLE_OPTIONS,
+      allowEnter: true,
+    };
+    if (r.kind !== 'option') break;
+    yield* styleOption(ctx, r.key, cur);
+    for (const h of hatches) {
+      h.angle = cur.angle;
+      h.spacing = cur.spacing;
+    }
+  }
+  ctx.settings.hatchAngle = cur.angle;
+  ctx.settings.hatchSpacing = cur.spacing;
 }

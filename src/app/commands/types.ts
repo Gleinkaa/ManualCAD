@@ -46,6 +46,8 @@ export type Request =
       kind: 'point';
       base?: Vec2;            // sheet mm: rubber-band origin (enables ortho/polar/direct distance)
       preview?: (p: Vec2, snap: SnapHit | null) => Preview;
+      /** A typed bare number arrives as `{ kind: 'number' }` (an angle, a factor) instead of a direct distance. */
+      acceptNumber?: boolean;
     })
   | (BaseRequest & { kind: 'entity'; filter?: (e: Entity) => boolean })
   | (BaseRequest & { kind: 'selection' })
@@ -86,6 +88,8 @@ export function defaultSettings(doc: SheetDoc): AppSettings {
 /** App actions that need the DOM; absent in tests. */
 export interface HostActions {
   zoomExtents?(): void;
+  /** Fit the sheet rectangle spanned by two corners (sheet mm) into the viewport. */
+  zoomWindow?(a: Vec2, b: Vec2): void;
   titleBlock?(): void;
   partsList?(): void;
 }

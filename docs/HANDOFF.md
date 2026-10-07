@@ -1,4 +1,61 @@
-# Handoff: leaders, item numbers, associative hatching, UX pass (2026-10-06)
+# Handoff: hatch UX, icon toolbar, help, autocomplete, ROTATE/SCALE (2026-10-07)
+
+This session followed the 2026-10-06 UX pass (PR #2, `feat/ux-pass`). Its notes are kept below, under "Previous handoff".
+- **Branch:** `feat/ux-hatch-help`, on `master` after PR #2.
+- **Checks:** `npm test` gives 290 passing and 1 skipped; `npm run typecheck` and `npm run build` are clean.
+- **Browser runs (Playwright, `/usr/bin/chromium`, the copy under `~/.hermes/hermes-agent/node_modules/playwright`):** every screen below was driven and screenshotted at 1400 and 1100 px width with no console errors; the rollover pick costs 0.5 ms per mouse move on ZA 38 (101 entities, 26 dimensions), the hatch preview under 0.1 ms.
+
+## Why: "how do I hatch an area?"
+
+HATCH worked before, but only told the user *that* nothing was found. Now:
+
+| Change | Where |
+|---|---|
+| **Hatch preview under the cursor.** While HATCH asks for a point, the area that would be hatched is drawn in the preview colour, so the user sees whether the outline is closed before clicking | `app/commands/hatch.ts` (`preview` in the point request, cached per cursor position) |
+| **Diagnosis instead of "No closed boundary".** `diagnoseHatch` says one of three things: the area is closed only by hidden/centre/phantom/construction lines (names them, says a cut surface needs visible, thin or freehand lines); the boundary has gaps (the open ends are marked in red on the sheet until the next pick, with EXTEND/TRIM/FILLET R0 as the repair); or there is nothing around the point | `app/commands/hatch.ts`, `geom/region.ts` (`openEnds`: vertices of degree 1 after splitting at intersections) |
+| HATCH options Flip (45° ↔ 135°, for the adjacent part) and Undo (the last hatch of this command) | `app/commands/hatch.ts` (`flipAngle`) |
+| HATCHEDIT (HE): Angle / Spacing / Flip on selected hatches; the current settings follow. Double-click a hatch to open it | `app/commands/hatch.ts`, `app/app.ts` (`onDoubleClick`) |
+
+## Other new things
+
+| Feature | Where |
+|---|---|
+| Icon toolbar: 30 px icon buttons in captioned groups (File, Draw, Modify, Annotate, Dimension, View); the running command's button is highlighted; hovering a button shows its description in the status bar | `app/icons.ts` (41 inline SVGs, 20×20, `iconElement`), `app/ui.ts` (`GROUPS`), `app/style.css` |
+| HELP (F1, `?`, the ? button): modal reference with the basics (command line, prompts, points, snaps, selecting, mouse, line types, hatching) and every command with aliases and a one-line summary | `app/commands/index.ts` (`COMMAND_INFO`, `aliasesOf`), `app/ui.ts` (`openHelpDialog`) |
+| Command line autocomplete: typing shows matching commands (alias, name, summary); ↑/↓ choose, Tab completes, Enter on a partial name runs the highlighted one; click a row | `app/commands/index.ts` (`suggestCommands`), `app/app.ts` |
+| Option chips: the current prompt's [options] are buttons right of the input | `app/app.ts` (`refreshPrompt`) |
+| Rollover highlight: the object a click would pick is drawn in light blue (entity prompts honour their filter) | `app/app.ts` (`rollover`, `HOVER`) |
+| Status bar: selection count ("3 selected") and a mouse hint for the current prompt | `app/ui.ts`, `app/app.ts` (`defaultHint`) |
+| ROTATE (RO) and SCALE (SC): base point, typed angle/factor or picked direction/distance, Copy and Reference options, live ghost; annotations and dimensions go along (`rotateAnnotation`, `scaleAnnotation`); hatch angle, text height and hatch spacing stay (paper values) | `app/commands/modify.ts`, `model/annot.ts`, `app/rotate-scale.test.ts` |
+| TEXTEDIT (ED, DDEDIT): new text for notes and leaders, Enter keeps; double-click a text or leader. Double-click a dimension opens DIMEDIT on it | `app/commands/annotate.ts`, `app/app.ts` |
+| ZOOM Window (Z W) with a rubber-band box; PAN (P): left-drag pans until Esc/Enter/right-click, for mice without a middle button; Ctrl+A selects everything visible | `app/commands/settings.ts`, `app/viewport.ts` (`fitBox`), `app/app.ts` |
+| Point requests may set `acceptNumber: true`: a typed bare number then arrives as `{ kind: 'number' }` (angle, factor) instead of being read as a direct distance | `app/commands/types.ts`, `app/runner.ts` |
+
+Messages changed: "N hatch(es) created." → "1 hatch created." / "2 hatches created."; "No closed boundary found around the point." → the three diagnosis texts in `diagnosisMessage`.
+
+## Known limitations and next steps
+
+1. **No grips.** Dragging an endpoint to stretch a line is still not possible; STRETCH does not exist either. This is the biggest remaining gap for AutoCAD users.
+2. **Gap tolerance.** HATCH marks gaps but does not bridge them (AutoCAD HPGAPTOL). Easy to add in `hatchRegion` if training drawings turn out to need it.
+3. **Autocomplete ranks substring matches too** (typing `di` also lists HATCHEDIT and TEXTEDIT after the DIM* commands). Drop rank 3 in `suggestCommands` if that annoys.
+4. **The toolbar wraps to two rows below ~1250 px.** Still usable; icon-only buttons could lose their captions at narrow widths.
+5. **Icons:** DIMALIGNED, DIMEDIT and HATCHEDIT are the least readable at 20 px (see the icon subagent's notes in the commit); tooltips and captions carry the meaning.
+6. The items 1–7 of the previous handoff still apply where not superseded (toolbar item 5 is done; `chrome-devtools-axi` item 7 still true).
+
+## How to resume
+
+```
+cd ~/Work/ManualCAD
+npm ci
+npm test
+npm run dev            # window.manualcad is the App in dev builds
+```
+
+Driving the app with Playwright: view-local mm → CSS px via `app.vp.toScreen`, then `page.mouse`. Type into `.mc-input` with `press('Enter')`; Space only submits while the input is empty, so text with spaces works. `drawZA38()` from `/src/app/testcases/za38.ts` returns `{ doc }`; load it with `window.manualcad.replaceDoc(doc, true)`.
+
+---
+
+# Previous handoff: leaders, item numbers, associative hatching, UX pass (2026-10-06)
 
 This session continued from the ZA 38 session (PR #1, `feat/za38-partial-sections`: partial sections, SKETCH, TEXT, HATCH, DIMANGULAR, parts list, SVG export; its feature list is in the PR description and `git log`).
 - **Branch:** `feat/ux-pass`, stacked on `feat/za38-partial-sections`.

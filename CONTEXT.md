@@ -80,6 +80,10 @@ _Avoid_: break line, spline, wavy line
 Narrow parallel lines, normally at 45°, that mark cut material in a section, per ISO 128-50 (German: Schraffur). Hatching is associative: when an edge of its boundary is edited, the region around the originally picked point is found again; if that point is no longer enclosed, the hatching keeps its last boundary and stops following edits. Hatching is interrupted around text and dimension values inside it.
 _Avoid_: fill, pattern
 
+**Open end**:
+An endpoint of a boundary-type line that meets no other line. HATCH marks the open ends in red when the picked area is not closed, so the user sees where the gap is.
+_Avoid_: dangling edge, leak
+
 **Associative dimension**:
 A dimension tied to geometry that updates its value and position when the geometry changes. The geometry never follows the dimension.
 _Avoid_: driving dimension, parametric dimension

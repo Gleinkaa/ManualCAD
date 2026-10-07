@@ -181,8 +181,16 @@ interface Face {
   component: number;
 }
 
-/** Build the planar graph of `curves` and trace all its faces. */
-function faces(curves: Curve[]): Face[] {
+interface Graph {
+  tol: number;
+  verts: Vec2[];
+  edges: Edge[];
+  /** Whole circles that touch nothing: faces of their own. */
+  circles: Curve[];
+}
+
+/** Split `curves` at their mutual intersections and build the planar graph (duplicates dropped). */
+function buildGraph(curves: Curve[]): Graph {
   const tol = 1e-6 * scaleOf(curves);
   const split = splitPoints(curves, tol);
 
@@ -194,13 +202,11 @@ function faces(curves: Curve[]): Face[] {
   };
 
   const edges: Edge[] = [];
-  const out: Face[] = [];
-  let components = 0;
+  const circles: Curve[] = [];
   for (let i = 0; i < curves.length; i++) {
     for (const piece of pieces(curves[i], split[i], tol)) {
       if (piece.kind === 'circle') {
-        const poly = sample(piece, true);
-        out.push({ curves: [piece], poly, area: signedArea(poly), component: components++ });
+        circles.push(piece);
         continue;
       }
       const [s, e] = endpoints(piece)!;
@@ -212,6 +218,32 @@ function faces(curves: Curve[]): Face[] {
       const dup = edges.some((x) => ((x.u === u && x.v === v) || (x.u === v && x.v === u)) && distanceTo(x.curve, mid) <= tol && distanceTo(piece, midpoint(x.curve)!) <= tol);
       if (!dup) edges.push({ curve: piece, u, v });
     }
+  }
+  return { tol, verts, edges, circles };
+}
+
+/**
+ * Open ends of `curves`: endpoints that meet no other curve (vertices of degree 1). These are the gaps
+ * that keep a boundary from closing, so HATCH can point at them when no region is found.
+ */
+export function openEnds(curves: Curve[]): Vec2[] {
+  const { verts, edges } = buildGraph(curves);
+  const deg = verts.map(() => 0);
+  for (const e of edges) {
+    deg[e.u]++;
+    deg[e.v]++;
+  }
+  return verts.filter((_, i) => deg[i] === 1);
+}
+
+/** Build the planar graph of `curves` and trace all its faces. */
+function faces(curves: Curve[]): Face[] {
+  const { verts, edges, circles } = buildGraph(curves);
+  const out: Face[] = [];
+  let components = 0;
+  for (const piece of circles) {
+    const poly = sample(piece, true);
+    out.push({ curves: [piece], poly, area: signedArea(poly), component: components++ });
   }
 
   // Prune dangling edges: repeatedly drop edges ending in a vertex of degree 1.

@@ -6,7 +6,7 @@ import { newId } from '../../model/doc';
 import { ITEM_NUMBER_HEIGHT_FACTOR, LINE_GROUPS, TEXT_HEIGHTS } from '../../model/standards';
 import type { Leader, TextNote } from '../../model/types';
 import type { SnapHit } from '../snap';
-import type { CommandContext, CommandGen, Input, Option, PointInput, SubGen } from './types';
+import { selectObjects, type CommandContext, type CommandGen, type Input, type Option, type PointInput, type SubGen } from './types';
 
 /** AutoCAD control codes: %%c → ⌀, %%d → °, %%p → ±. */
 export function expandControlCodes(s: string): string {
@@ -53,6 +53,30 @@ export function* text(ctx: CommandContext): CommandGen {
     ctx.doc.annotations.push(note);
     at = { x: at.x + step.x, y: at.y + step.y };
   }
+}
+
+/** TEXTEDIT (ED, DDEDIT): replace the text of selected notes and leaders, one after the other. */
+export function* textedit(ctx: CommandContext): CommandGen {
+  const ids = new Set(yield* selectObjects(ctx, 'Select text or leader'));
+  const targets = ctx.doc.annotations.filter((a): a is TextNote | Leader => (a.kind === 'text' || a.kind === 'leader') && ids.has(a.id));
+  if (targets.length === 0) {
+    ctx.log(ids.size > 0 ? 'No text in the selection.' : 'Nothing selected.');
+    return;
+  }
+  let changed = 0;
+  for (const t of targets) {
+    const r = yield { kind: 'text', prompt: t.kind === 'leader' ? 'Enter note text' : 'Enter text', default: t.text || undefined, allowEnter: true };
+    if (r.kind !== 'text' && r.kind !== 'enter') return;
+    const text = r.kind === 'text' ? expandControlCodes(r.text.trim()) : t.text;
+    if (text === t.text) continue;
+    if (!text && t.kind === 'text') {
+      ctx.log('Empty text: use ERASE to remove a note.');
+      continue;
+    }
+    t.text = text;
+    changed++;
+  }
+  if (targets.length > 1) ctx.log(`${changed} text${changed === 1 ? '' : 's'} changed.`);
 }
 
 /** Freehand line through clicked points, always line type `freehand` (limits of break-outs and partial views). */

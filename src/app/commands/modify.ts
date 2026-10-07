@@ -1,7 +1,7 @@
-// Modify commands: OFFSET, TRIM, EXTEND, FILLET, CHAMFER, MOVE, COPY, MIRROR, ERASE.
-import { chamfer as geomChamfer, distanceTo, intersect, extend as geomExtend, fillet as geomFillet, mirror as geomMirror, offset as geomOffset, translate, trim as geomTrim } from '../../geom';
+// Modify commands: OFFSET, TRIM, EXTEND, FILLET, CHAMFER, MOVE, COPY, MIRROR, ROTATE, SCALE, ERASE.
+import { chamfer as geomChamfer, distanceTo, intersect, extend as geomExtend, fillet as geomFillet, mirror as geomMirror, offset as geomOffset, rotate as geomRotate, scaleCurve, translate, trim as geomTrim } from '../../geom';
 import type { Curve, Vec2 } from '../../geom/types';
-import { mirrorAnnotation, remapHatchBoundary, translateAnnotation } from '../../model/annot';
+import { mirrorAnnotation, remapHatchBoundary, rotateAnnotation, rotatePoint, scaleAnnotation, scalePoint, translateAnnotation } from '../../model/annot';
 import { dimensionAnchors, newId, resolveAnchor, toSheet } from '../../model/doc';
 import type { Annotation, AnchorPoint, DimAnchor, Dimension, Entity, LinearDimension } from '../../model/types';
 import { fmt } from '../input';
@@ -519,6 +519,214 @@ export function* mirror(ctx: CommandContext): CommandGen {
     }
     else ctx.doc.annotations.push({ ...m, id: newId('a') });
   }
+}
+
+// --- rotate / scale ---
+
+/** A rotation or a scaling about a view-local point, as applied to curves, annotations and points. */
+interface Similarity {
+  curve(c: Curve, about: Vec2): Curve;
+  annot(a: Annotation, about: Vec2): Annotation;
+  point(p: Vec2, about: Vec2): Vec2;
+  /** Change of a radial dimension's line direction (radians). */
+  dAngle: number;
+}
+
+const rotation = (angle: number): Similarity => ({
+  curve: (c, about) => geomRotate(c, about, angle),
+  annot: (a, about) => rotateAnnotation(a, about, angle),
+  point: (p, about) => rotatePoint(p, about, angle),
+  dAngle: angle,
+});
+
+const scaling = (factor: number): Similarity => ({
+  curve: (c, about) => scaleCurve(c, about, factor),
+  annot: (a, about) => scaleAnnotation(a, about, factor),
+  point: (p, about) => scalePoint(p, about, factor),
+  dAngle: 0,
+});
+
+type Selection = ReturnType<typeof splitIds>;
+
+/**
+ * Image of `dim` under the transform. `map` maps transformed entity ids to their images (themselves when
+ * transformed in place); anchors on other entities are frozen at their transformed position. In place, a radial
+ * dimension stays on its entity even when that was not selected; as a copy it needs a copied entity.
+ */
+function xformDim(ctx: CommandContext, dim: Dimension, map: Map<string, string>, pt: (p: Vec2) => Vec2, dAngle: number, inPlace: boolean): Dimension | null {
+  const anchor = (an: DimAnchor): DimAnchor => {
+    const p = resolveAnchor(ctx.doc, an);
+    const target = an.ref ? map.get(an.ref.entityId) : undefined;
+    return { ref: target && an.ref ? { entityId: target, point: an.ref.point } : null, fallback: pt(p) };
+  };
+  if (dim.kind === 'linear') return { ...structuredClone(dim), a: anchor(dim.a), b: anchor(dim.b) };
+  if (dim.kind === 'angular') {
+    return { ...structuredClone(dim), leg1: { a: anchor(dim.leg1.a), b: anchor(dim.leg1.b) }, leg2: { a: anchor(dim.leg2.a), b: anchor(dim.leg2.b) } };
+  }
+  const target = map.get(dim.entityId) ?? (inPlace ? dim.entityId : undefined);
+  if (!target) return null;
+  return { ...structuredClone(dim), entityId: target, angle: dim.angle + dAngle };
+}
+
+function similarityGhost(ctx: CommandContext, sel: Selection, base: Vec2, x: Similarity): Preview {
+  const about = (viewId: string) => ctx.localIn(viewId, base);
+  return {
+    curves: sel.ents.map((e) => ({ curve: x.curve(e.geom, about(e.viewId)), lineType: e.lineType, viewId: e.viewId })),
+    annotations: sel.annots.map((a) => x.annot(a, about(a.viewId))),
+    // radial dims are drawn from their entity, which the ghost does not replace
+    dims: sel.dims
+      .filter((d) => d.kind === 'linear' || d.kind === 'angular')
+      .map((d) => xformDim(ctx, d, new Map(), (p) => x.point(p, about(d.viewId)), x.dAngle, true))
+      .filter((d): d is Dimension => !!d),
+  };
+}
+
+/** Apply the transform about the sheet point `base`, in place or as copies (ids remapped like COPY). */
+function applySimilarity(ctx: CommandContext, sel: Selection, base: Vec2, x: Similarity, copyMode: boolean): void {
+  const about = (viewId: string) => ctx.localIn(viewId, base);
+  const map = new Map<string, string>();
+  const images = sel.ents.map((e) => ({ e, curve: x.curve(e.geom, about(e.viewId)) }));
+  if (copyMode) for (const { e, curve } of images) map.set(e.id, ctx.addEntity(curve, { viewId: e.viewId, layer: e.layer, lineType: e.lineType }).id);
+  else for (const e of sel.ents) map.set(e.id, e.id);
+  // dimension images are computed from the source geometry, before it is replaced in place
+  const dims = sel.dims.map((d) => ({ d, m: xformDim(ctx, d, map, (p) => x.point(p, about(d.viewId)), x.dAngle, !copyMode) }));
+  if (!copyMode) for (const { e, curve } of images) e.geom = curve;
+  for (const { d, m } of dims) {
+    if (!m) continue;
+    if (copyMode) ctx.doc.dimensions.push({ ...m, id: newId('d') });
+    else Object.assign(d, m);
+  }
+  for (const a of sel.annots) {
+    const m = remapHatchBoundary(x.annot(copyMode ? structuredClone(a) : a, about(a.viewId)), map);
+    if (copyMode) ctx.doc.annotations.push({ ...m, id: newId('a') });
+    else {
+      if (a.kind === 'hatch' && m.kind === 'hatch' && !m.assoc) delete a.assoc;
+      Object.assign(a, m);
+    }
+  }
+}
+
+const COPY_OPT = { key: 'C', label: 'Copy' };
+const REFERENCE_OPT = { key: 'R', label: 'Reference' };
+const DEG = Math.PI / 180;
+
+/** Angle of base → p (radians, view-local of the current view), or null when p is the base point. */
+function angleTo(ctx: CommandContext, base: Vec2, p: Vec2): number | null {
+  const a = ctx.local(base);
+  const b = ctx.local(p);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return Math.hypot(dx, dy) < 1e-12 ? null : Math.atan2(dy, dx);
+}
+
+/** Distance base → p in the current view's mm (drawing units). */
+function distTo(ctx: CommandContext, base: Vec2, p: Vec2): number {
+  const a = ctx.local(base);
+  const b = ctx.local(p);
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+export function* rotate(ctx: CommandContext): CommandGen {
+  const ids = yield* selectObjects(ctx);
+  const sel = splitIds(ctx, ids);
+  if (sel.ents.length === 0 && sel.dims.length === 0 && sel.annots.length === 0) return;
+  const b = yield { kind: 'point', prompt: 'Specify base point' };
+  if (b.kind !== 'point') return;
+  const base = b.p;
+  const ghostAt = (angle: number) => similarityGhost(ctx, sel, base, rotation(angle));
+  let copyMode = false;
+  let angle: number | null = null;
+  while (angle === null) {
+    const r = yield {
+      kind: 'point',
+      prompt: 'Specify rotation angle or',
+      options: [COPY_OPT, REFERENCE_OPT],
+      base,
+      acceptNumber: true,
+      preview: (p) => {
+        const a = angleTo(ctx, base, p);
+        return a === null ? {} : ghostAt(a);
+      },
+    };
+    if (r.kind === 'number') angle = r.value * DEG;
+    else if (r.kind === 'point') {
+      angle = angleTo(ctx, base, r.p);
+      if (angle === null) ctx.log('The angle needs a point other than the base point.');
+    } else if (r.kind === 'option' && r.key === 'C') {
+      copyMode = !copyMode;
+      ctx.log(copyMode ? 'Rotating a copy of the selected objects.' : 'Rotating the selected objects.');
+    } else if (r.kind === 'option' && r.key === 'R') {
+      const ref = yield { kind: 'number', prompt: 'Specify the reference angle', default: 0 };
+      if (ref.kind !== 'number') return;
+      const refAngle = ref.value * DEG;
+      const n = yield {
+        kind: 'point',
+        prompt: 'Specify the new angle',
+        base,
+        acceptNumber: true,
+        preview: (p) => {
+          const a = angleTo(ctx, base, p);
+          return a === null ? {} : ghostAt(a - refAngle);
+        },
+      };
+      if (n.kind === 'number') angle = n.value * DEG - refAngle;
+      else if (n.kind === 'point') {
+        const a = angleTo(ctx, base, n.p);
+        if (a === null) ctx.log('The angle needs a point other than the base point.');
+        else angle = a - refAngle;
+      } else return;
+    } else return;
+  }
+  applySimilarity(ctx, sel, base, rotation(angle), copyMode);
+}
+
+export function* scaleCmd(ctx: CommandContext): CommandGen {
+  const ids = yield* selectObjects(ctx);
+  const sel = splitIds(ctx, ids);
+  if (sel.ents.length === 0 && sel.dims.length === 0 && sel.annots.length === 0) return;
+  const b = yield { kind: 'point', prompt: 'Specify base point' };
+  if (b.kind !== 'point') return;
+  const base = b.p;
+  const ghostAt = (factor: number) => (factor > 0 ? similarityGhost(ctx, sel, base, scaling(factor)) : {});
+  let copyMode = false;
+  let factor: number | null = null;
+  while (factor === null) {
+    const r = yield {
+      kind: 'point',
+      prompt: 'Specify scale factor or',
+      options: [COPY_OPT, REFERENCE_OPT],
+      base,
+      acceptNumber: true,
+      preview: (p) => ghostAt(distTo(ctx, base, p)),
+    };
+    if (r.kind === 'number' || r.kind === 'point') {
+      const f = r.kind === 'number' ? r.value : distTo(ctx, base, r.p);
+      if (f > 0) factor = f;
+      else ctx.log('Value must be positive and nonzero.');
+    } else if (r.kind === 'option' && r.key === 'C') {
+      copyMode = !copyMode;
+      ctx.log(copyMode ? 'Scaling a copy of the selected objects.' : 'Scaling the selected objects.');
+    } else if (r.kind === 'option' && r.key === 'R') {
+      const ref = yield { kind: 'number', prompt: 'Specify reference length', default: 1 };
+      if (ref.kind !== 'number') return;
+      if (ref.value <= 0) {
+        ctx.log('Value must be positive and nonzero.');
+        continue;
+      }
+      const n = yield {
+        kind: 'point',
+        prompt: 'Specify new length',
+        base,
+        acceptNumber: true,
+        preview: (p) => ghostAt(distTo(ctx, base, p) / ref.value),
+      };
+      if (n.kind !== 'number' && n.kind !== 'point') return;
+      const len = n.kind === 'number' ? n.value : distTo(ctx, base, n.p);
+      if (len > 0) factor = len / ref.value;
+      else ctx.log('Value must be positive and nonzero.');
+    } else return;
+  }
+  applySimilarity(ctx, sel, base, scaling(factor), copyMode);
 }
 
 /** Remove entities/dimensions; radial dims of removed entities go too, linear/angular anchors freeze at their position. */

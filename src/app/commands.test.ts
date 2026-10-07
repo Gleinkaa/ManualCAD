@@ -489,7 +489,7 @@ describe('HATCH', () => {
     expect(h.loops).toHaveLength(2);
     expect(h.angle).toBe(45);
     expect(h.viewId).toBe(doc.views[0].id);
-    expect(log).toContain('1 hatch(es) created.');
+    expect(log).toContain('1 hatch created.');
   });
 
   it('takes angle and spacing options, several picks, and ignores centre lines as boundaries', () => {
@@ -507,7 +507,7 @@ describe('HATCH', () => {
       expect(h.spacing).toBe(3);
     }
     type('H', '100,100', '');
-    expect(log).toContain('No closed boundary found around the point.');
+    expect(log).toContain('No boundary around that point. Pick a point inside a closed outline of visible edges.');
     expect(doc.annotations).toHaveLength(2);
   });
 
