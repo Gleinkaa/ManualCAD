@@ -435,6 +435,7 @@ export class App {
     c.addEventListener('dblclick', (ev) => this.onDoubleClick(ev));
     c.addEventListener('pointerleave', () => {
       this.mousePx = null;
+      this.updateCursor(); // drops the snap marker too
       this.redraw();
     });
     c.addEventListener('contextmenu', (ev) => {
