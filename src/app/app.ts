@@ -26,6 +26,9 @@ const SCREEN: PlotOptions = { includeConstruction: true, screenColors: true };
 const APERTURE_PX = 10;
 const PICKBOX_PX = 5;
 const GRIP_PX = 6;
+/** A second pointerdown within this time and distance of the last one is the second click of a double-click. */
+const DOUBLE_CLICK_MS = 400;
+const DOUBLE_CLICK_SLOP_PX = 4;
 const HIGHLIGHT = '#1e6fd9';
 /** Rollover highlight of the object under the pick box: lighter than the selection, so both are told apart. */
 const HOVER = '#6fa3e8';
@@ -95,6 +98,7 @@ export class App {
   private windowStart: { sheet: Vec2; px: Vec2 } | null = null;
   private panning: Vec2 | null = null;
   private lastMiddle = 0;
+  private lastDown: { t: number; p: Vec2 } | null = null;
   private before: string | null = null;
   private prims: Primitive[] | null = null;
   private plotError = false;
@@ -781,6 +785,9 @@ export class App {
       return;
     }
     this.updateCursor();
+    const now = performance.now();
+    const doubleClick = this.lastDown !== null && now - this.lastDown.t < DOUBLE_CLICK_MS && dist(p, this.lastDown.p) <= DOUBLE_CLICK_SLOP_PX * this.dpr;
+    this.lastDown = { t: now, p };
     const req = this.runner.request;
     const raw = this.raw!;
     if (req?.kind === 'point') {
@@ -791,7 +798,7 @@ export class App {
       this.finishWindow(raw, ev.shiftKey);
     } else if (this.hotGrip && ev.shiftKey) {
       this.toggleHotGrip(this.hotGrip);
-    } else if (this.hotGrip) {
+    } else if (this.hotGrip && !doubleClick) {
       this.startGripDrag(this.hotGrip);
     } else {
       const id = pick(this.doc, raw, this.tol(PICKBOX_PX));
