@@ -1,6 +1,6 @@
 // DOM construction: toolbar, canvas, command line, status bar, title block dialog.
 import { LINE_TYPES } from '../model/standards';
-import type { LineTypeId, TitleBlockField } from '../model/types';
+import type { LineTypeId, PartsListRow, TitleBlockField } from '../model/types';
 
 type Attrs = Record<string, string>;
 
@@ -57,13 +57,13 @@ export function lineTypeLabel(id: LineTypeId): string {
 }
 
 const BUTTONS: [string, string, string][][] = [
-  [['NEW', 'New', 'New drawing'], ['OPEN', 'Open', 'Open .mcad (Ctrl+O)'], ['SAVE', 'Save', 'Save .mcad (Ctrl+S)'], ['PLOT', 'PDF', 'Export PDF'], ['TITLEBLOCK', 'Title block', 'Edit title block (TB)']],
+  [['NEW', 'New', 'New drawing (NEW); UNDO restores the previous one'], ['OPEN', 'Open', 'Open .mcad (Ctrl+O)'], ['SAVE', 'Save', 'Save .mcad (Ctrl+S)'], ['PLOT', 'PDF', 'Export PDF'], ['TITLEBLOCK', 'Title block', 'Edit title block (TB), or double-click it'], ['PARTSLIST', 'Parts list', 'Edit parts list (PARTS), or double-click it; -PARTSLIST on the command line']],
   [['LINE', 'Line', 'LINE (L)'], ['CIRCLE', 'Circle', 'CIRCLE (C)'], ['ARC', 'Arc', 'ARC (A)'], ['RECTANG', 'Rect', 'RECTANG (REC)'], ['HATCH', 'Hatch', 'HATCH (H)']],
   [['OFFSET', 'Offset', 'OFFSET (O)'], ['TRIM', 'Trim', 'TRIM (TR)'], ['EXTEND', 'Extend', 'EXTEND (EX)'], ['FILLET', 'Fillet', 'FILLET (F)'], ['CHAMFER', 'Chamfer', 'CHAMFER (CHA)']],
   [['MOVE', 'Move', 'MOVE (M)'], ['COPY', 'Copy', 'COPY (CO)'], ['MIRROR', 'Mirror', 'MIRROR (MI)'], ['ERASE', 'Erase', 'ERASE (E / Del)']],
-  [['TEXT', 'Text', 'TEXT (DT)'], ['SKETCH', 'Freehand', 'SKETCH (SK): freehand break line, ISO 128-2 01.1']],
+  [['TEXT', 'Text', 'TEXT (DT)'], ['SKETCH', 'Freehand', 'SKETCH (SK): freehand break line, ISO 128-2 01.1'], ['LEADER', 'Leader', 'LEADER (LE): note on a leader line, ISO 128-22'], ['BALLOON', 'Item no.', 'BALLOON (BAL): item number on a leader, ISO 6433']],
   [['DIMLINEAR', 'Linear', 'DIMLINEAR (DLI)'], ['DIMALIGNED', 'Aligned', 'DIMALIGNED (DAL)'], ['DIMRADIUS', 'Radius', 'DIMRADIUS (DRA)'], ['DIMDIAMETER', 'Diameter', 'DIMDIAMETER (DDI)'], ['DIMANGULAR', 'Angular', 'DIMANGULAR (DAN)'], ['DIMEDIT', 'Dim text', 'DIMEDIT (DED)']],
-  [['VIEW', 'View', 'VIEW (V)'], ['ZOOM E', 'Fit', 'ZOOM Extents'], ['UNDO', 'Undo', 'UNDO (Ctrl+Z)'], ['REDO', 'Redo', 'REDO (Ctrl+Y)']],
+  [['VIEW', 'View', 'VIEW (V)'], ['ZOOM E', 'Fit', 'ZOOM Extents (Z E), or double-click the middle mouse button'], ['UNDO', 'Undo', 'UNDO (Ctrl+Z)'], ['REDO', 'Redo', 'REDO (Ctrl+Y)']],
 ];
 
 export function buildUI(root: HTMLElement): UIRefs {
@@ -162,4 +162,66 @@ export function openTitleBlockDialog(values: Partial<Record<TitleBlockField, str
     onClose();
   });
   dlg.showModal();
+}
+
+const PL_COLUMNS: [keyof PartsListRow, string, number][] = [
+  ['item', 'Item', 4],
+  ['quantity', 'Qty', 4],
+  ['name', 'Name', 16],
+  ['standard', 'Part no. / standard', 14],
+  ['material', 'Material', 11],
+  ['stock', 'Stock size', 9],
+  ['remark', 'Remark', 8],
+];
+
+/**
+ * Modal parts list editor (ISO 7573): one row per part, row 1 is drawn lowest above the title block.
+ * Calls `onSave` with the rows that have any value, in order.
+ */
+export function openPartsListDialog(rows: PartsListRow[], onSave: (rows: PartsListRow[]) => void, onClose: () => void): void {
+  const body = el('tbody', {});
+  const blank = (item: string): PartsListRow => ({ item, quantity: '1', name: '', standard: '', material: '', stock: '', remark: '' });
+  const addRow = (r: PartsListRow) => {
+    const tr = el('tr', {});
+    for (const [f, label, size] of PL_COLUMNS) tr.append(el('td', {}, el('input', { name: f, value: r[f], size: String(size), 'aria-label': label })));
+    const del = el('button', { type: 'button', title: 'Delete row' }, '×');
+    del.addEventListener('click', () => tr.remove());
+    tr.append(el('td', {}, del));
+    body.append(tr);
+    return tr;
+  };
+  for (const r of rows) addRow(r);
+  const add = el('button', { type: 'button' }, 'Add row');
+  add.addEventListener('click', () => {
+    const tr = addRow(blank(String(body.children.length + 1)));
+    tr.querySelector<HTMLInputElement>('input[name="name"]')?.focus();
+  });
+  const head = el('thead', {}, el('tr', {}, ...PL_COLUMNS.map(([, label]) => el('th', {}, label)), el('th', {})));
+  const ok = el('button', { type: 'submit', class: 'mc-primary' }, 'OK');
+  const cancel = el('button', { type: 'button' }, 'Cancel');
+  const form = el(
+    'form',
+    { method: 'dialog' },
+    el('h3', {}, 'Parts list (ISO 7573)'),
+    el('table', { class: 'mc-pl-table' }, head, body),
+    el('div', { class: 'mc-dialog-buttons' }, add, el('span', { class: 'mc-spacer' }), cancel, ok),
+  );
+  const dlg = el('dialog', { class: 'mc-dialog' }, form);
+  document.body.append(dlg);
+  cancel.addEventListener('click', () => dlg.close());
+  form.addEventListener('submit', () => {
+    const out: PartsListRow[] = [];
+    for (const tr of body.children) {
+      const r = blank('');
+      for (const i of tr.querySelectorAll('input')) r[i.name as keyof PartsListRow] = i.value.trim();
+      if (PL_COLUMNS.some(([f]) => f !== 'quantity' && r[f])) out.push(r);
+    }
+    onSave(out);
+  });
+  dlg.addEventListener('close', () => {
+    dlg.remove();
+    onClose();
+  });
+  dlg.showModal();
+  if (rows.length === 0) add.click();
 }

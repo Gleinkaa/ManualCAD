@@ -63,6 +63,12 @@ export const TEXT_HEIGHTS: number[] = [1.8, 2.5, 3.5, 5, 7, 10, 14, 20];
 /** Default hatch line spacing on paper, mm (ISO 128-50: chosen to suit the size of the hatched area). */
 export const HATCH_SPACING_DEFAULT = 2;
 
+/** Item numbers (ISO 6433) are lettered larger than the dimension values: twice their height. */
+export const ITEM_NUMBER_HEIGHT_FACTOR = 2;
+
+/** Dot terminator of a leader line ending inside an outline (ISO 128-22): diameter as a multiple of the narrow line width. */
+export const LEADER_DOT_FACTOR = 5;
+
 /** Standard scales per ISO 5455. */
 export const STANDARD_SCALES: number[] = [50, 20, 10, 5, 2, 1, 1 / 2, 1 / 5, 1 / 10, 1 / 20, 1 / 50, 1 / 100];
 
@@ -83,5 +89,8 @@ export const NORM_RULES: NormRule[] = [
   { id: 'LT-FREEHAND', source: 'ISO 128-2', text: 'Limits of partial sections and break-outs are narrow freehand lines; they never coincide with edges or centre lines.' },
   { id: 'HATCH-ANGLE', source: 'ISO 128-50', text: 'Cut surfaces are hatched with narrow continuous lines, preferably at 45° to the main outline; one part keeps the same hatching in all its views.' },
   { id: 'HATCH-TEXT', source: 'ISO 128-50', text: 'Hatching is interrupted where dimension values or other text sit inside a hatched area.' },
+  { id: 'LEADER-TERM', source: 'ISO 128-22', text: 'A leader line ends with a dot inside the outline of a part, with an arrowhead on an outline, and without a terminator on a dimension line.' },
+  { id: 'LEADER-REF', source: 'ISO 128-22', text: 'Notes stand on a short horizontal reference line at the end of the leader line.' },
+  { id: 'ITEM-NUMBER', source: 'ISO 6433', text: 'Item numbers are lettered larger than the dimension values and connected to their part by a leader line ending in a dot.' },
   { id: 'TB-POSITION', source: 'ISO 7200', text: 'The title block sits in the bottom-right corner of the drawing area.' },
 ];

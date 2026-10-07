@@ -3,9 +3,11 @@ import type { Vec2 } from '../geom/types';
 import { toLocal, toSheet } from '../model/doc';
 import type { Entity } from '../model/types';
 import { COMMANDS, resolveCommand } from './commands';
+import { updateAssociativeHatches } from './commands/hatch';
 import type { CommandContext, CommandGen, Input, Option, Request } from './commands/types';
 import { fmt, parseCoordinate, resolveInput } from './input';
-import type { SnapHit } from './snap';
+import type { SnapKind } from '../geom/types';
+import { SNAP_LABELS, SNAP_OVERRIDES, type SnapHit } from './snap';
 import { visibleEntities } from './xform';
 
 export interface RunnerHost {
@@ -47,6 +49,10 @@ export class CommandRunner {
   /** Objects gathered during a "Select objects" request. */
   gathering: string[] = [];
   private gen: CommandGen | null = null;
+  /** One-shot object snap typed at the current point prompt (END, MID, PER, ...); cleared by the next point. */
+  snapOverride: SnapKind | null = null;
+  /** Set when the last typed text was rejected as invalid input. */
+  private rejected = false;
 
   readonly ctx: CommandContext;
   private readonly host: RunnerHost;
@@ -91,8 +97,14 @@ export class CommandRunner {
     this.finish();
   }
 
-  /** Text from the command line (Enter pressed). Empty text = Enter. */
-  text(raw: string): void {
+  /** Text from the command line (Enter pressed). Empty text = Enter. Returns false when the text was rejected, so the UI can leave it in the input for correction. */
+  text(raw: string): boolean {
+    this.rejected = false;
+    this.feedText(raw);
+    return !this.rejected;
+  }
+
+  private feedText(raw: string): void {
     const text = raw.trim();
     if (!this.gen || !this.request) {
       this.ctx.log(`Command: ${text}`);
@@ -121,9 +133,19 @@ export class CommandRunner {
     }
     switch (req.kind) {
       case 'point': {
+        const override = SNAP_OVERRIDES[text.toUpperCase()];
+        if (override) {
+          if ((override === 'perpendicular' || override === 'tangent') && !req.base) {
+            this.invalid(`${SNAP_LABELS[override]} needs a base point; pick the first point another way.`);
+            return;
+          }
+          this.snapOverride = override;
+          this.ctx.log(`${SNAP_LABELS[override]} snap for the next point.`);
+          return;
+        }
         const p = this.parsePoint(text, req.base ?? null);
         if (p) this.feedPoint(p, null);
-        else this.invalid(req.options?.length ? 'Point or option keyword required.' : 'Invalid point.');
+        else this.invalid(req.base ? `Requires a point or a distance${req.options?.length ? ', or an option keyword' : ''}.` : req.options?.length ? 'Point or option keyword required.' : 'Invalid point.');
         return;
       }
       case 'number': {
@@ -185,11 +207,15 @@ export class CommandRunner {
     if (!this.gen || !req) return;
     if (req.kind === 'point' || req.kind === 'entity') this.ctx.log(this.prompt);
     if (req.kind === 'point') {
+      if (this.snapOverride && snap?.kind !== this.snapOverride) {
+        this.ctx.log(`No ${SNAP_LABELS[this.snapOverride].toLowerCase()} found at that point.`);
+        return;
+      }
       this.feedPoint(p, snap);
     } else if (req.kind === 'entity') {
       const id = this.host.pick(p, req.filter);
       if (id) this.step({ kind: 'entity', id, p });
-      else this.ctx.log('No object found.');
+      else this.ctx.log(req.filter && this.host.pick(p) ? 'Object is not valid for this command.' : 'No object found.');
     }
   }
 
@@ -199,6 +225,7 @@ export class CommandRunner {
   }
 
   private feedPoint(p: Vec2, snap: SnapHit | null): void {
+    this.snapOverride = null;
     this.lastPoint = p;
     this.step({ kind: 'point', p, snap });
   }
@@ -216,6 +243,7 @@ export class CommandRunner {
   }
 
   private invalid(msg: string): void {
+    this.rejected = true;
     this.ctx.log(msg);
   }
 
@@ -237,6 +265,9 @@ export class CommandRunner {
     this.request = null;
     this.name = null;
     this.gathering = [];
+    this.snapOverride = null;
+    const lost = updateAssociativeHatches(this.ctx.doc);
+    if (lost > 0) this.ctx.log(`${lost} hatch(es) lost their boundary and no longer follow edits.`);
     this.host.onEnd(name);
   }
 }

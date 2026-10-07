@@ -108,3 +108,8 @@ export function parse(json: string): SheetDoc {
   doc.partsList ??= [];
   return doc;
 }
+
+/** Layers that are missing from the list count as visible. */
+export function layerVisible(doc: SheetDoc, name: string): boolean {
+  return doc.layers.find((l) => l.name === name)?.visible ?? true;
+}

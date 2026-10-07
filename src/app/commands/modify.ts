@@ -1,7 +1,7 @@
 // Modify commands: OFFSET, TRIM, EXTEND, FILLET, CHAMFER, MOVE, COPY, MIRROR, ERASE.
 import { chamfer as geomChamfer, distanceTo, intersect, extend as geomExtend, fillet as geomFillet, mirror as geomMirror, offset as geomOffset, translate, trim as geomTrim } from '../../geom';
 import type { Curve, Vec2 } from '../../geom/types';
-import { mirrorAnnotation, translateAnnotation } from '../../model/annot';
+import { mirrorAnnotation, remapHatchBoundary, translateAnnotation } from '../../model/annot';
 import { dimensionAnchors, newId, resolveAnchor, toSheet } from '../../model/doc';
 import type { Annotation, AnchorPoint, DimAnchor, Dimension, Entity, LinearDimension } from '../../model/types';
 import { fmt } from '../input';
@@ -318,8 +318,13 @@ export function* move(ctx: CommandContext): CommandGen {
   if (!r) return;
   const d = { x: r.to.x - r.base.x, y: r.to.y - r.base.y };
   const moved = new Set(ents.map((e) => e.id));
+  const inPlace = new Map(ents.map((e) => [e.id, e.id]));
   for (const e of ents) e.geom = translate(e.geom, localDelta(ctx, e.viewId, d));
-  for (const a of annots) Object.assign(a, translateAnnotation(a, localDelta(ctx, a.viewId, d)));
+  for (const a of annots) {
+    const m = remapHatchBoundary(translateAnnotation(a, localDelta(ctx, a.viewId, d)), inPlace);
+    if (a.kind === 'hatch' && m.kind === 'hatch' && !m.assoc) delete a.assoc;
+    Object.assign(a, m);
+  }
   for (const dim of dims) for (const an of dimensionAnchors(dim)) shiftAnchor(ctx, an, dim.viewId, d, moved);
 }
 
@@ -352,7 +357,10 @@ export function* copy(ctx: CommandContext): CommandGen {
       const c = ctx.addEntity(translate(e.geom, localDelta(ctx, e.viewId, d)), { viewId: e.viewId, layer: e.layer, lineType: e.lineType });
       map.set(e.id, c.id);
     }
-    for (const a of annots) ctx.doc.annotations.push({ ...translateAnnotation(structuredClone(a), localDelta(ctx, a.viewId, d)), id: newId('a') });
+    for (const a of annots) {
+      const copy = remapHatchBoundary(translateAnnotation(structuredClone(a), localDelta(ctx, a.viewId, d)), map);
+      ctx.doc.annotations.push({ ...copy, id: newId('a') });
+    }
     for (const dim of dims) {
       const cp = (an: DimAnchor) => copyAnchor(ctx, an, dim.viewId, d, map);
       if (dim.kind === 'linear') {
@@ -504,8 +512,11 @@ export function* mirror(ctx: CommandContext): CommandGen {
     else ctx.doc.dimensions.push({ ...m, id: newId('d') });
   }
   for (const x of annots) {
-    const m = mirrorAnnotation(structuredClone(x), ctx.localIn(x.viewId, a.p), ctx.localIn(x.viewId, b.p));
-    if (erase) Object.assign(x, m);
+    const m = remapHatchBoundary(mirrorAnnotation(structuredClone(x), ctx.localIn(x.viewId, a.p), ctx.localIn(x.viewId, b.p)), idMap);
+    if (erase) {
+      if (x.kind === 'hatch' && m.kind === 'hatch' && !m.assoc) delete x.assoc;
+      Object.assign(x, m);
+    }
     else ctx.doc.annotations.push({ ...m, id: newId('a') });
   }
 }

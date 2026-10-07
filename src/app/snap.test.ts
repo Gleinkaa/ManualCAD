@@ -25,16 +25,44 @@ describe('findSnap priority', () => {
     expect(hit?.anchor).not.toBeNull();
   });
 
-  it('prefers an intersection over a closer midpoint', () => {
+  it('takes the midpoint under the cursor, but an intersection wins a near-tie', () => {
     const doc = docWith(
       { kind: 'line', a: { x: 0, y: 0 }, b: { x: 2, y: 0 } },
       { kind: 'line', a: { x: 1.8, y: -5 }, b: { x: 1.8, y: 5 } },
     );
-    const hit = findSnap(doc, at(doc, 1.1, 0), 1.5, null);
-    expect(hit?.kind).toBe('endpoint');
-    const hit2 = findSnap(doc, at(doc, 1.2, 0.1), 0.75, null);
-    expect(hit2?.kind).toBe('intersection');
-    expect(hit2?.point.x).toBeCloseTo(at(doc, 1.8, 0).x);
+    // on the midpoint: closest wins, as in AutoCAD
+    expect(findSnap(doc, at(doc, 1.05, 0), 1.5, null)?.kind).toBe('midpoint');
+    // slightly nearer the midpoint than the intersection: the handicap gives it to the intersection
+    const hit = findSnap(doc, at(doc, 1.35, 0), 1.5, null);
+    expect(hit?.kind).toBe('intersection');
+    expect(hit?.point.x).toBeCloseTo(at(doc, 1.8, 0).x);
+  });
+
+  it('reaches the midpoint of a line shorter than the aperture', () => {
+    const doc = docWith({ kind: 'line', a: { x: 0, y: 0 }, b: { x: 5, y: 0 } });
+    expect(findSnap(doc, at(doc, 2.5, 0.1), 6.6, null)?.kind).toBe('midpoint');
+    expect(findSnap(doc, at(doc, 4.6, 0.1), 6.6, null)?.kind).toBe('endpoint');
+  });
+
+  it('snaps perpendicular onto the extension of a line', () => {
+    const doc = docWith({ kind: 'line', a: { x: 0, y: 0 }, b: { x: 100, y: 0 } });
+    const hit = findSnap(doc, at(doc, 110, 0.3), 2, at(doc, 110, 30));
+    expect(hit?.kind).toBe('perpendicular');
+    expect(hit?.point).toEqual(at(doc, 110, 0));
+    // without a base point there is nothing to snap to out there
+    expect(findSnap(doc, at(doc, 110, 0.3), 2, null)).toBeNull();
+  });
+
+  it('keeps nearest as a fallback only', () => {
+    const doc = docWith({ kind: 'line', a: { x: 0, y: 0 }, b: { x: 100, y: 0 } });
+    expect(findSnap(doc, at(doc, 51, 0), 2, null)?.kind).toBe('midpoint');
+    expect(findSnap(doc, at(doc, 30, 0.2), 2, null)?.kind).toBe('nearest');
+  });
+
+  it('restricts the result to a typed override', () => {
+    const doc = docWith({ kind: 'line', a: { x: 0, y: 0 }, b: { x: 100, y: 0 } });
+    expect(findSnap(doc, at(doc, 99, 0), 2, null, 'nearest')?.kind).toBe('nearest');
+    expect(findSnap(doc, at(doc, 99, 0), 2, null, 'midpoint')).toBeNull();
   });
 
   it('still snaps a lone midpoint and breaks ties by distance', () => {

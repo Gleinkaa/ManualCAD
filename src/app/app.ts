@@ -5,7 +5,7 @@ import type { Vec2 } from '../geom/types';
 import { getView, newSheet, parse, serialize, toLocal } from '../model/doc';
 import { formatScale, sheetSize } from '../model/standards';
 import type { LineGroupId, LineTypeId, Orientation, SheetDoc, SheetFormat } from '../model/types';
-import { exportPdf, loadFonts, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
+import { exportPdf, frameGeometry, loadFonts, PARTS_LIST, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
 import { resolveCommand } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
 import { History, snapshot } from './history';
@@ -15,7 +15,7 @@ import { CommandRunner } from './runner';
 import { decodeSession, docHash, encodeSession, PERSISTED_UNDO, type SessionView } from './session';
 import { boxSelect, pick, pickEntity } from './selection';
 import { findSnap, SNAP_LABELS, type SnapHit } from './snap';
-import { buildUI, el, lineTypeLabel, openTitleBlockDialog, setOptions, type UIRefs } from './ui';
+import { buildUI, el, lineTypeLabel, openPartsListDialog, openTitleBlockDialog, setOptions, type UIRefs } from './ui';
 import { Viewport } from './viewport';
 
 const AUTOSAVE_KEY = 'manualcad.autosave';
@@ -106,6 +106,7 @@ export class App {
     this.ctx = new CommandContext(() => this.doc, this.settings, (m) => this.log(m), {
       zoomExtents: () => this.zoomExtents(),
       titleBlock: () => this.titleBlock(),
+      partsList: () => this.partsList(),
     });
     this.runner = new CommandRunner(this.ctx, {
       pick: (p, filter) => pickEntity(this.doc, p, this.tol(PICKBOX_PX), filter ? (id) => filter(this.doc.entities.find((e) => e.id === id)!) : undefined),
@@ -251,6 +252,25 @@ export class App {
     );
   }
 
+  private partsList(): void {
+    openPartsListDialog(
+      this.doc.partsList,
+      (rows) => this.mutate((d) => (d.partsList = rows)),
+      () => this.ui.input.focus(),
+    );
+  }
+
+  /** Double-click on the title block or the parts list (no command running) opens its editor. */
+  private onDoubleClick(ev: MouseEvent): void {
+    if (this.runner.active) return;
+    const px = this.px(ev);
+    const p = this.vp.toSheet(px.x, px.y);
+    const { titleBlock: tb } = frameGeometry(this.doc);
+    if (p.x < tb.x0 || p.x > tb.x1 || p.y < tb.y0) return;
+    if (p.y <= tb.y1) this.titleBlock();
+    else if (p.y <= tb.y1 + PARTS_LIST.headerHeight + this.doc.partsList.length * PARTS_LIST.rowHeight) this.partsList();
+  }
+
   zoomExtents(): void {
     const s = sheetSize(this.doc.format, this.doc.orientation);
     this.vp.fit(s.w, s.h, 0.03);
@@ -290,7 +310,7 @@ export class App {
   private submit(): void {
     const text = this.ui.input.value;
     this.ui.input.value = '';
-    this.runner.text(text);
+    if (!this.runner.text(text)) this.ui.input.value = text.trim();
     this.afterInput();
   }
 
@@ -412,8 +432,10 @@ export class App {
     c.addEventListener('pointermove', (ev) => this.onMove(ev));
     c.addEventListener('pointerdown', (ev) => this.onDown(ev));
     c.addEventListener('pointerup', (ev) => this.onUp(ev));
+    c.addEventListener('dblclick', (ev) => this.onDoubleClick(ev));
     c.addEventListener('pointerleave', () => {
       this.mousePx = null;
+      this.updateCursor(); // drops the snap marker too
       this.redraw();
     });
     c.addEventListener('contextmenu', (ev) => {
@@ -621,9 +643,10 @@ export class App {
     }
     const aperture = this.tol(APERTURE_PX);
     const base = req.base ?? null;
-    if (this.snapOn) {
+    const only = this.runner.snapOverride ?? undefined;
+    if (this.snapOn || only) {
       try {
-        this.snapHit = findSnap(this.doc, raw, aperture, base);
+        this.snapHit = findSnap(this.doc, raw, aperture, base, only);
       } catch {
         this.snapHit = null;
       }

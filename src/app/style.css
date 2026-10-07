@@ -250,3 +250,22 @@ body {
   border-color: #2559a8 !important;
   color: #fff;
 }
+
+.mc-pl-table {
+  border-collapse: collapse;
+}
+
+.mc-pl-table th {
+  font-weight: 600;
+  text-align: left;
+  padding: 2px 4px;
+}
+
+.mc-pl-table td {
+  padding: 1px 2px;
+}
+
+.mc-pl-table input {
+  font: inherit;
+  padding: 2px 4px;
+}

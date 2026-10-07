@@ -17,7 +17,7 @@ export { arcFrom3Points, arcFromCenter, translate, rotate, mirror, scaleCurve } 
 
 // --- regions & hatching ---
 export { findRegion } from './region';
-export { hatchSegments } from './hatch';
+export { hatchSegments, clipOutsideConvex } from './hatch';
 
 // --- edit operations (AutoCAD semantics) ---
 export { offset, trim, extend, fillet, chamfer } from './edit';

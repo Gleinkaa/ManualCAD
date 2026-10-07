@@ -128,7 +128,7 @@ export interface TextNote {
 /**
  * Section hatching per ISO 128-50: parallel narrow continuous lines inside closed boundary loops.
  * Loops are view-local and filled even-odd, so inner loops (islands, holes) stay free.
- * The boundary is captured when the hatch is created; it does not follow later geometry edits.
+ * With `assoc`, the loops are found again around the picked point when a boundary entity changes (app/commands/hatch.ts).
  */
 export interface Hatch {
   kind: 'hatch';
@@ -138,10 +138,36 @@ export interface Hatch {
   loops: Curve[][];          // each loop a closed chain of curves, view-local
   angle: number;             // degrees, normally 45 or 135
   spacing: number;           // paper mm between hatch lines
+  /** Associativity: when a boundary entity changes, the region around `seed` is found again. Absent = fixed loops. */
+  assoc?: HatchAssoc;
+}
+
+export interface HatchAssoc {
+  seed: Vec2;                // view-local internal point picked by HATCH
+  boundary: string[];        // ids of the entities the loops lie on
+  key: string;               // fingerprint of those entities when the loops were found
+}
+
+/**
+ * Leader line (ISO 128-22): a narrow continuous line from the tip to a note or item number.
+ * The terminator says where the tip ends: arrowhead on an outline, dot inside an outline, none on a dimension line.
+ * `note`: the text stands on a horizontal reference line at the last point.
+ * `item`: an item number (ISO 6433) at the end of the leader, without reference line.
+ */
+export interface Leader {
+  kind: 'leader';
+  id: string;
+  viewId: string;
+  layer: string;
+  points: Vec2[];            // view-local; points[0] is the tip; at least two points
+  terminator: 'arrow' | 'dot' | 'none';
+  style: 'note' | 'item';
+  text: string;              // empty = leader without text
+  height: number;            // paper mm, ISO 3098 series
 }
 
 /** Sheet objects that are neither part geometry nor dimensions. */
-export type Annotation = TextNote | Hatch;
+export type Annotation = TextNote | Hatch | Leader;
 
 export type TitleBlockField =
   | 'owner'          // legal owner / company / school
