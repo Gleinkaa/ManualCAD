@@ -61,10 +61,10 @@ Hatches still have no grips: they follow their boundary, and that is the ISO-cor
 
 ## Known limitations and next steps
 
-1. **Grip Base point option** (AutoCAD's B to pick another base mid-drag) is not built; Esc and drag another grip instead.
-2. **Autocomplete ranks substring matches too** (typing `di` also lists HATCHEDIT and TEXTEDIT after the DIM* commands). Drop rank 3 in `suggestCommands` if that annoys.
-4. **The toolbar wraps to two rows below ~1250 px.** Still usable; icon-only buttons could lose their captions at narrow widths.
-5. The items 1–7 of the previous handoff still apply where not superseded (toolbar item 5 is done; `chrome-devtools-axi` item 7 still true).
+Done since the fourth pass: grip modes have a Base point option (B) so the drag can be measured from another point; autocomplete lists prefix matches of names and aliases only, with no substring matches.
+
+1. **The toolbar wraps to two rows below ~1250 px.** Still usable; icon-only buttons could lose their captions at narrow widths.
+2. The items 1–7 of the previous handoff still apply where not superseded (toolbar item 5 is done; `chrome-devtools-axi` item 7 still true).
 
 ## How to resume
 

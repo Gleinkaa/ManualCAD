@@ -292,6 +292,15 @@ describe('grip modes', () => {
     expect(m.kind === 'line' && m.b.y).toBeCloseTo(-20);
   });
 
+  it('Base point moves the reference of the drag: the grip lands at base-relative displacement', () => {
+    const { doc, ctx, runner, g1, type } = withLine();
+    ctx.grip = { grips: [g1], base: g1.p, selection: [g1.id] };
+    runner.start('GRIPSTRETCH', []);
+    type('B', '0,0', '5,5');
+    // displacement (5,5) from the new base moves the end (10,0) to (15,5)
+    expect(doc.entities[0].geom).toEqual({ kind: 'line', a: { x: 0, y: 0 }, b: { x: 15, y: 5 } });
+  });
+
   it('Stretch with Copy stretches a copy and leaves the original', () => {
     const { doc, ctx, runner, g1, type } = withLine();
     ctx.grip = { grips: [g1], base: g1.p, selection: [g1.id] };
