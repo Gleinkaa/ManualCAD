@@ -41,6 +41,8 @@ export interface UIRefs {
   history: HTMLElement;
   prompt: HTMLElement;
   input: HTMLInputElement;
+  /** Command name autocomplete list, shown above the command line. */
+  suggestions: HTMLElement;
   coords: HTMLElement;
   viewInfo: HTMLElement;
   toggles: Record<'snap' | 'ortho' | 'polar', HTMLButtonElement>;
@@ -109,7 +111,8 @@ export function buildUI(root: HTMLElement): UIRefs {
   const history = el('div', { class: 'mc-history' });
   const prompt = el('span', { class: 'mc-prompt' }, 'Command:');
   const input = el('input', { class: 'mc-input', autocomplete: 'off', spellcheck: 'false' });
-  const cmd = el('section', { class: 'mc-command' }, history, el('div', { class: 'mc-cmdline' }, prompt, input));
+  const suggestions = el('ul', { class: 'mc-suggest', role: 'listbox', hidden: '' });
+  const cmd = el('section', { class: 'mc-command' }, history, el('div', { class: 'mc-cmdline' }, prompt, input, suggestions));
 
   const coords = el('span', { class: 'mc-coords' }, '0.00, 0.00');
   const viewInfo = el('span', { class: 'mc-viewinfo' });
@@ -120,7 +123,7 @@ export function buildUI(root: HTMLElement): UIRefs {
   const fileInput = el('input', { type: 'file', accept: '.mcad,.json,application/json', style: 'display:none' });
 
   root.replaceChildren(el('div', { class: 'mc-root' }, toolbar, canvasWrap, cmd, status, fileInput));
-  return { canvas, canvasWrap, format, orientation, lineGroup, view, lineType, layer, layerList, layerNew, history, prompt, input, coords, viewInfo, toggles, fileInput, commandButtons };
+  return { canvas, canvasWrap, format, orientation, lineGroup, view, lineType, layer, layerList, layerNew, history, prompt, input, suggestions, coords, viewInfo, toggles, fileInput, commandButtons };
 }
 
 const TB_FIELDS: [TitleBlockField, string][] = [

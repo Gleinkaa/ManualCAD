@@ -152,6 +152,7 @@ body {
 }
 
 .mc-cmdline {
+  position: relative;
   display: flex;
   gap: 6px;
   align-items: center;
@@ -162,6 +163,46 @@ body {
 .mc-prompt {
   white-space: nowrap;
   color: #f0f3f6;
+}
+
+.mc-suggest {
+  position: absolute;
+  bottom: 100%;
+  left: 8px;
+  min-width: 16em;
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+  background: #1b1e22;
+  border: 1px solid #111;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+}
+
+.mc-suggest[hidden] {
+  display: none;
+}
+
+.mc-suggest li {
+  display: flex;
+  gap: 12px;
+  padding: 1px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mc-suggest li:hover {
+  background: #2c3138;
+}
+
+.mc-suggest li.active {
+  background: #3a5f8a;
+  color: #fff;
+}
+
+.mc-suggest .mc-suggest-kind {
+  margin-left: auto;
+  color: #7d8792;
 }
 
 .mc-input {
