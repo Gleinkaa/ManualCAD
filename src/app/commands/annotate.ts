@@ -95,7 +95,7 @@ type Terminator = Leader['terminator'];
  * anywhere else (inside the outline) → dot. The Terminator option overrides it, e.g. None for a tip on a dimension line.
  */
 export function autoTerminator(snap: SnapHit | null): Terminator {
-  return snap?.entityId && snap.kind !== 'center' ? 'arrow' : 'dot';
+  return snap && snap.kind !== 'center' ? 'arrow' : 'dot';
 }
 
 const TERMINATORS: Record<string, Terminator | null> = { A: 'arrow', D: 'dot', N: 'none', U: null };

@@ -9,6 +9,7 @@ import {
   ARROW_ANGLE,
   ARROW_LENGTH_FACTOR,
   EXTENSION_OVERSHOOT_FACTOR,
+  MAX_ANGULAR_EXTENSION,
   MAX_DECIMALS,
   OUTSIDE_TAIL_FACTOR,
   TEXT_GAP_FACTOR,
@@ -237,14 +238,18 @@ function plotAngular(doc: SheetDoc, dim: AngularDimension, c: Ctx): Primitive[] 
     return prims;
   }
   // Too short: arrows outside pointing in, with short tails; text outside beyond the second arrow if needed.
-  const tail = (c.al * (1 + OUTSIDE_TAIL_FACTOR)) / R;
+  // The tail and the outside text offset are physical lengths divided by R; bound the turn so a small radius
+  // cannot wrap the arc past the sector.
+  const maxExt = Math.min(sweep, MAX_ANGULAR_EXTENSION);
+  const tail = Math.min((c.al * (1 + OUTSIDE_TAIL_FACTOR)) / R, maxExt);
   prims.push(arrow(c, at(th1), tangent(th1)), arrow(c, at(th2), scale(tangent(th2), -1)));
   if (L >= tw + 2 * c.gap) {
     prims.push(arc(th1 - tail, th2 + tail), label(c, at(mid), tangent(mid), text));
   } else {
     const s0 = c.al + c.gap;
-    const tm = th2 + (s0 + tw / 2) / R;
-    prims.push(arc(th1 - tail, th2 + (s0 + tw) / R), label(c, at(tm), tangent(tm), text));
+    const ext = Math.min((s0 + tw) / R, maxExt);
+    const tm = th2 + ext / 2;
+    prims.push(arc(th1 - tail, th2 + ext), label(c, at(tm), tangent(tm), text));
   }
   return prims;
 }

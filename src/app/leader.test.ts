@@ -115,7 +115,20 @@ describe('LEADER', () => {
     expect(autoTerminator(hit({ kind: 'endpoint' }))).toBe('arrow');
     expect(autoTerminator(hit({ kind: 'midpoint' }))).toBe('arrow');
     expect(autoTerminator(hit({ kind: 'center' }))).toBe('dot');
-    expect(autoTerminator(hit({ kind: 'intersection', entityId: null }))).toBe('dot');
+    expect(autoTerminator(hit({ kind: 'intersection', entityId: null }))).toBe('arrow');
+  });
+
+  it('uses an arrow when the tip snaps to the crossing of two outlines', () => {
+    const { doc, runner, type } = setup();
+    type('L', '0,0', '40,40', '');
+    type('L', '0,40', '40,0', '');
+    const view = doc.views[0];
+    type('LE');
+    const p = toSheet(view, { x: 20, y: 20 });
+    runner.click(p, findSnap(doc, p, 1, runner.lastPoint));
+    runner.click(toSheet(view, { x: 30, y: 30 }), null);
+    type('', '');
+    expect(leaders(doc).map((l) => l.terminator)).toEqual(['arrow']);
   });
 
   it('takes the terminator from the snap at the tip end to end', () => {

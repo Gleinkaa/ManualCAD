@@ -29,6 +29,12 @@ export const TEXT_WIDTH_FACTOR = 0.7;
 /** Dimension line continues beyond an outside arrowhead by this many arrow lengths (drawing-board practice). */
 export const OUTSIDE_TAIL_FACTOR = 1;
 
+/**
+ * Largest angle (radians) an angular dimension's outside tail or text offset may turn the dimension arc:
+ * those offsets are physical lengths divided by the radius, so without a bound a small radius wraps the arc.
+ */
+export const MAX_ANGULAR_EXTENSION = Math.PI / 2;
+
 /** Maximum decimals of a dimension value. */
 export const MAX_DECIMALS = 3;
 

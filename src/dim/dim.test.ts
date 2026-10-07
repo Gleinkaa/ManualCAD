@@ -315,6 +315,20 @@ describe('angular', () => {
     expect(of(short, 'fill')).toHaveLength(2);
   });
 
+  it('bounds the arc and text for a small radius', () => {
+    const doc = angularSheet();
+    const sector = Math.PI / 6; // the 30° sector of angularSheet
+    const bound = sector + 2 * Math.min(sector, Math.PI / 2) + 1e-9;
+    for (const r of [8, 5, 1e-6]) {
+      const prims = plotDimension(doc, angular(r));
+      const arc = of(prims, 'arc')[0];
+      expect(Number.isFinite(arc.start) && Number.isFinite(arc.end)).toBe(true);
+      expect(arc.end - arc.start).toBeLessThanOrEqual(bound);
+      const text = of(prims, 'text')[0];
+      expect(Number.isFinite(text.pos.x) && Number.isFinite(text.pos.y)).toBe(true);
+    }
+  });
+
   it('vertex is the intersection of the infinite legs; parallel legs plot nothing', () => {
     const doc = angularSheet();
     const h = doc.entities.find((e) => e.id === 'h')!;
