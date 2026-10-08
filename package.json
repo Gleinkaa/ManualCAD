@@ -16,6 +16,7 @@
     "vitest": "^5.0.3"
   },
   "dependencies": {
+    "@mlightcad/libredwg-web": "^0.7.15",
     "jspdf": "^4.2.1"
   }
 }

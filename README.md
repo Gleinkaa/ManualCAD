@@ -13,6 +13,7 @@ A 2D drafting program for Austrian mechanical manufacturing drawings (Fertigungs
 - **Associative dimensions and hatching.** A dimension follows the geometry it measures — never the reverse. Hatching re-finds its region when an edge of its boundary is edited, and breaks around text inside it. HATCH previews the area under the cursor and explains a failed pick: an outline closed only by hidden or centre lines, a gap (its open ends marked in red), or nothing around the point.
 - **Notes and item numbers.** Leaders per ISO 128-22 (a note stands on a short horizontal reference line) and item numbers per ISO 6433, lettered at twice the dimension text height.
 - **Export.** PDF and SVG, at sheet scale.
+- **DXF and DWG exchange.** `OPEN` or `DXFIN` reads a DXF (R12 to R2018) or DWG (R13 to R2018) drawing as a new sheet: layers, pen colours and line types become ISO line types, layout viewports become views, title block attributes fill the title block, and the command line reports what was approximated or left out. `DXFOUT` writes DXF R2000 with real-mm model space per view and a Sheet layout with frame, title block and viewports, in the layer convention of the Austrian training drawings. DWG is read in the browser with LibreDWG (WebAssembly, loaded on first use); writing DWG is a conversion of the exported DXF (`scripts/dwg2dxf.sh`). Details in ADR-0004.
 
 ## Why it exists
 
@@ -50,13 +51,14 @@ Dimension text accepts AutoCAD escapes: `%%c` → ⌀, `%%d` → °, `%%p` → �
 TypeScript + Vite + Canvas2D, no runtime framework. Dependencies point one way only:
 
 ```
-app → plot → dim → model → geom
+app → io → plot → dim → model → geom
 ```
 
 - `geom/` — pure 2D curve maths (line, circle, arc): intersections, snaps, offset, trim, extend, fillet, chamfer, freehand arcs, closed regions, hatch lines. No DOM.
 - `model/` — document types (`SheetDoc`), the norm rule data, and doc helpers (view transforms, projection links, anchors, annotation transforms, JSON).
 - `dim/` — dimensions rendered to plot primitives per ISO 129-1.
 - `plot/` — sheet to device-independent primitives in sheet millimetres (y up), plus the canvas renderer and the PDF/SVG export.
+- `io/` — DXF reader and writer, DWG reader (LibreDWG as WebAssembly), and the import that maps a foreign drawing onto sheet, views and line types. Sample drawings in `samples/`.
 - `app/` — the UI: viewport, command line (autocomplete, option chips), commands, grips, snaps, selection, undo, help.
 
 Coordinates are paper millimetres with the origin bottom-left and y up; entity geometry is stored in view-local real millimetres and converted on the way to the sheet.

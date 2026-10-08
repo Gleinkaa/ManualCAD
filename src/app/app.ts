@@ -5,6 +5,7 @@ import type { Vec2 } from '../geom/types';
 import { getView, newSheet, parse, serialize, toLocal } from '../model/doc';
 import { formatScale, sheetSize } from '../model/standards';
 import type { LineGroupId, LineTypeId, Orientation, SheetDoc, SheetFormat } from '../model/types';
+import { exportDxf, importDwg, importDxf, type ImportResult } from '../io';
 import { exportPdf, frameGeometry, loadFonts, PARTS_LIST, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
 import { resolveCommand, suggestCommands } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
@@ -241,8 +242,17 @@ export class App {
         this.log(`Saved ${safeName(this.doc)}.mcad`);
         return;
       case 'OPEN':
+      case 'DXFIN':
         this.ui.fileInput.value = '';
         this.ui.fileInput.click();
+        return;
+      case 'DXFOUT':
+        try {
+          download(new Blob([exportDxf(this.doc)], { type: 'application/dxf' }), `${safeName(this.doc)}.dxf`);
+          this.log(`Exported ${safeName(this.doc)}.dxf (DXF R2000).`);
+        } catch (err) {
+          this.log(`DXF export failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
         return;
       case 'NEW':
         this.replaceDoc(newSheet(), true);
@@ -566,18 +576,33 @@ export class App {
     ui.fileInput.addEventListener('change', () => {
       const f = ui.fileInput.files?.[0];
       if (!f) return;
-      f.text().then(
-        (text) => {
-          try {
-            this.replaceDoc(parse(text), true);
+      const ext = f.name.replace(/^.*\./, '').toLowerCase();
+      const fail = (err: unknown) => this.log(`Cannot open ${f.name}: ${err instanceof Error ? err.message : String(err)}`);
+      const imported = (r: ImportResult) => {
+        this.replaceDoc(r.doc, true);
+        this.zoomExtents();
+        this.log(`Imported ${f.name}.`);
+        for (const line of r.report) this.log(`  ${line}`);
+      };
+      if (ext === 'dwg' || ext === 'dwt') {
+        this.log(`Reading ${f.name} (loading the DWG reader on first use) ...`);
+        f.arrayBuffer().then((buf) => importDwg(new Uint8Array(buf))).then(imported, fail);
+        return;
+      }
+      f.arrayBuffer().then((buf) => {
+        try {
+          const bytes = new Uint8Array(buf);
+          const head = new TextDecoder('latin1').decode(bytes.subarray(0, 64));
+          if (ext === 'dxf' || /^\s*0\s*\r?\nSECTION/.test(head)) imported(importDxf(bytes));
+          else {
+            this.replaceDoc(parse(new TextDecoder().decode(bytes)), true);
             this.zoomExtents();
             this.log(`Opened ${f.name}`);
-          } catch (err) {
-            this.log(`Cannot open ${f.name}: ${err instanceof Error ? err.message : String(err)}`);
           }
-        },
-        () => this.log(`Cannot read ${f.name}`),
-      );
+        } catch (err) {
+          fail(err);
+        }
+      }, fail);
     });
 
     ui.input.addEventListener('keydown', (ev) => this.onInputKey(ev));

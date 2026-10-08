@@ -6,6 +6,7 @@ export const ICONS: Record<string, string> = {
   SAVE: '<path d="M2.5 13v4.5h15V13"/><path d="M10 2.5v10M6.5 9l3.5 3.5L13.5 9"/>',
   PLOT:
     '<path d="M6 7.5V3h8v4.5"/><path d="M6 14.5H3.5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H14"/><path d="M6 11.5h8v5.5H6z"/>',
+  DXFOUT: '<path d="M4.5 2.5h7l4 4v11h-11z"/><path d="M11.5 2.5v4h4"/><path d="M7 14l2-2.5L7 9M11 9l2 2.5L11 14" stroke-width="1.2"/>',
   TITLEBLOCK:
     '<rect x="2.5" y="3.5" width="15" height="13"/><path d="M9.5 16.5V12h8"/><path d="M9.5 14.25h8" stroke-width="1"/>',
   PARTSLIST:

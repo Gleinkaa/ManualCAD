@@ -73,9 +73,10 @@ const GROUPS: { caption: string; buttons: (ButtonDef | '|')[] }[] = [
     caption: 'File',
     buttons: [
       ['NEW', 'New', 'New drawing (NEW). UNDO restores the previous one'],
-      ['OPEN', 'Open', 'Open .mcad (OPEN, Ctrl+O)'],
+      ['OPEN', 'Open', 'Open .mcad, .dxf or .dwg (OPEN, Ctrl+O)'],
       ['SAVE', 'Save', 'Save .mcad (SAVE, Ctrl+S)'],
       ['PLOT', 'PDF', 'Export PDF (PLOT)'],
+      ['DXFOUT', 'DXF', 'Export DXF (DXFOUT)'],
       '|',
       ['TITLEBLOCK', 'Title block', 'Edit title block (TB), or double-click it on the sheet'],
       ['PARTSLIST', 'Parts list', 'Edit parts list (PARTS), or double-click it on the sheet'],
@@ -224,7 +225,7 @@ export function buildUI(root: HTMLElement): UIRefs {
   };
   const status = el('footer', { class: 'mc-status' }, coords, viewInfo, selInfo, hint, el('span', { class: 'mc-spacer' }), toggles.snap, toggles.ortho, toggles.polar);
 
-  const fileInput = el('input', { type: 'file', accept: '.mcad,.json,application/json', style: 'display:none' });
+  const fileInput = el('input', { type: 'file', accept: '.mcad,.json,.dxf,.dwg,application/json', style: 'display:none' });
 
   root.replaceChildren(el('div', { class: 'mc-root' }, toolbar, canvasWrap, cmd, status, fileInput));
   return { canvas, canvasWrap, format, orientation, lineGroup, view, lineType, layer, layerList, layerNew, history, prompt, input, chips, suggest, coords, viewInfo, selInfo, hint, toggles, fileInput, commandButtons };
