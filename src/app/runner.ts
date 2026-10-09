@@ -5,7 +5,7 @@ import type { Entity } from '../model/types';
 import { COMMANDS, isHiddenCommand, resolveCommand } from './commands';
 import { updateAssociativeHatches } from './commands/hatch';
 import type { CommandContext, CommandGen, Input, Option, Request } from './commands/types';
-import { fmt, parseCoordinate, resolveInput } from './input';
+import { applyLock, fmt, parseCoordinate, resolveInput, type InputLock } from './input';
 import type { SnapKind } from '../geom/types';
 import { SNAP_LABELS, SNAP_OVERRIDES, type SnapHit } from './snap';
 import { visibleEntities } from './xform';
@@ -51,6 +51,8 @@ export class CommandRunner {
   private gen: CommandGen | null = null;
   /** One-shot object snap typed at the current point prompt (END, MID, PER, ...); cleared by the next point. */
   snapOverride: SnapKind | null = null;
+  /** Dynamic input: length and/or angle locked for the next point (typed, then Tab or Enter); cleared by the next point. */
+  lock: InputLock = { length: null, angleDeg: null };
   /** Set when the last typed text was rejected as invalid input. */
   private rejected = false;
 
@@ -150,9 +152,10 @@ export class CommandRunner {
             return;
           }
         }
+        if (req.base && this.lockText(text, 'enter')) return;
         const p = this.parsePoint(text, req.base ?? null);
         if (p) this.feedPoint(p, null);
-        else this.invalid(req.base ? `Requires a point or a distance${req.options?.length ? ', or an option keyword' : ''}.` : req.options?.length ? 'Point or option keyword required.' : 'Invalid point.');
+        else this.invalid(req.base ? `Requires a point, a distance or an angle${req.options?.length ? ', or an option keyword' : ''}.` : req.options?.length ? 'Point or option keyword required.' : 'Invalid point.');
         return;
       }
       case 'number': {
@@ -233,8 +236,51 @@ export class CommandRunner {
 
   private feedPoint(p: Vec2, snap: SnapHit | null): void {
     this.snapOverride = null;
+    this.lock = { length: null, angleDeg: null };
     this.lastPoint = p;
     this.step({ kind: 'point', p, snap });
+  }
+
+  /** True while a length or angle is locked for the next point. */
+  get locked(): boolean {
+    return this.lock.length !== null || this.lock.angleDeg !== null;
+  }
+
+  /**
+   * Dynamic input at a rubber-band point prompt: `50` / `50mm` is a length, `<20` / `20°` an angle.
+   * `tab` locks the value and keeps prompting (the mouse sets the other one); `enter` places the point
+   * as soon as both are known, or with a bare length along the locked angle or the cursor direction.
+   * Returns false when the text is not a length or angle, so the caller can treat it as a point.
+   */
+  lockText(text: string, how: 'tab' | 'enter'): boolean {
+    const req = this.request;
+    if (req?.kind !== 'point' || !req.base) return false;
+    const parsed = parseCoordinate(text);
+    if (!parsed || (parsed.kind !== 'number' && parsed.kind !== 'angle')) return false;
+    const lock: InputLock = { ...this.lock };
+    if (parsed.kind === 'number') lock.length = parsed.value;
+    else lock.angleDeg = parsed.deg;
+    if (how === 'enter' && lock.length !== null && lock.angleDeg === null && this.lock.angleDeg === null) {
+      return false; // plain direct distance along the cursor: handled by parsePoint
+    }
+    if (how === 'enter' && lock.length !== null && lock.angleDeg !== null) {
+      const view = this.ctx.view();
+      const lb = toLocal(view, req.base);
+      const p = applyLock(lb, lb, lock);
+      if (p) this.feedPoint(toSheet(view, p), null);
+      return true;
+    }
+    this.lock = lock;
+    this.ctx.log(`${this.lockLabel()} · move the mouse or type the other value, Tab locks it`);
+    return true;
+  }
+
+  /** "Length 50.00 mm locked", "Angle 20° locked" or both, for the status bar. */
+  lockLabel(): string {
+    const parts: string[] = [];
+    if (this.lock.length !== null) parts.push(`Length ${fmt(this.lock.length)} mm`);
+    if (this.lock.angleDeg !== null) parts.push(`Angle ${fmt(this.lock.angleDeg, 1)}°`);
+    return parts.length ? `${parts.join(', ')} locked` : '';
   }
 
   private parsePoint(text: string, base: Vec2 | null): Vec2 | null {
@@ -273,6 +319,7 @@ export class CommandRunner {
     this.name = null;
     this.gathering = [];
     this.snapOverride = null;
+    this.lock = { length: null, angleDeg: null };
     const lost = updateAssociativeHatches(this.ctx.doc);
     if (lost > 0) this.ctx.log(`${lost} hatch(es) lost their boundary and no longer follow edits.`);
     this.host.onEnd(name);

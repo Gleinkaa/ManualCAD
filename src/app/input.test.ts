@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyOrtho, applyPolar, directDistance, parseCoordinate, parseScale, resolveInput } from './input';
+import { applyLock, applyOrtho, applyPolar, directDistance, parseCoordinate, parseScale, resolveInput } from './input';
 
 describe('parseCoordinate', () => {
   it('parses absolute, relative and polar input', () => {
@@ -23,6 +23,46 @@ describe('parseCoordinate', () => {
     expect(parseCoordinate('')).toBeNull();
     expect(parseCoordinate('abc')).toBeNull();
     expect(parseCoordinate('1,2,3')).toBeNull();
+  });
+
+  it('accepts mm and degree suffixes and an angle on its own', () => {
+    expect(parseCoordinate('50mm')).toEqual({ kind: 'number', value: 50 });
+    expect(parseCoordinate('50 mm')).toEqual({ kind: 'number', value: 50 });
+    expect(parseCoordinate('<20')).toEqual({ kind: 'angle', deg: 20 });
+    expect(parseCoordinate('20°')).toEqual({ kind: 'angle', deg: 20 });
+    expect(parseCoordinate('20deg')).toEqual({ kind: 'angle', deg: 20 });
+    expect(parseCoordinate('-45d')).toEqual({ kind: 'angle', deg: -45 });
+    const pol = parseCoordinate('@50mm<20°');
+    expect(pol?.kind).toBe('relative');
+    if (pol?.kind === 'relative') {
+      expect(pol.d.x).toBeCloseTo(50 * Math.cos(Math.PI / 9));
+      expect(pol.d.y).toBeCloseTo(50 * Math.sin(Math.PI / 9));
+    }
+    expect(parseCoordinate('mm')).toBeNull();
+    expect(parseCoordinate('°')).toBeNull();
+  });
+});
+
+describe('applyLock', () => {
+  const base = { x: 10, y: 10 };
+  it('does nothing without a lock', () => {
+    expect(applyLock(base, { x: 20, y: 25 }, { length: null, angleDeg: null })).toBeNull();
+  });
+  it('projects the cursor onto a locked angle', () => {
+    const p = applyLock(base, { x: 30, y: 1 }, { length: null, angleDeg: 0 })!;
+    expect(p).toEqual({ x: 30, y: 10 });
+    expect(applyLock(base, { x: -5, y: 10 }, { length: null, angleDeg: 0 })).toEqual(base); // behind: no negative length
+  });
+  it('keeps the cursor direction at a locked length', () => {
+    const p = applyLock(base, { x: 10, y: 100 }, { length: 5, angleDeg: null })!;
+    expect(p.x).toBeCloseTo(10);
+    expect(p.y).toBeCloseTo(15);
+    expect(applyLock(base, base, { length: 5, angleDeg: null })).toEqual({ x: 15, y: 10 });
+  });
+  it('fixes the point when both are locked', () => {
+    const p = applyLock(base, { x: 0, y: 0 }, { length: 2, angleDeg: 90 })!;
+    expect(p.x).toBeCloseTo(10);
+    expect(p.y).toBeCloseTo(12);
     expect(parseCoordinate('@x,1')).toBeNull();
   });
 });

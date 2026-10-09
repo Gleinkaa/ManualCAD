@@ -2,14 +2,14 @@
 import { plotDimension } from '../dim';
 import { dist } from '../geom';
 import type { Vec2 } from '../geom/types';
-import { getView, newSheet, parse, serialize, toLocal } from '../model/doc';
+import { getView, newSheet, parse, serialize, toLocal, toSheet } from '../model/doc';
 import { formatScale, sheetSize } from '../model/standards';
 import type { LineGroupId, LineTypeId, Orientation, SheetDoc, SheetFormat } from '../model/types';
 import { exportPdf, frameGeometry, loadFonts, PARTS_LIST, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
 import { resolveCommand, suggestCommands } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
 import { History, snapshot } from './history';
-import { applyOrtho, applyPolar, fmt } from './input';
+import { applyLock, applyOrtho, applyPolar, fmt } from './input';
 import { drawCrosshair, drawGrip, drawMarker, drawSelectionBox, drawSnapMarker, drawTrackLine, drawViewOrigin, tooltip } from './overlay';
 import { nearestGrip, objectGrips, type Grip } from './grips';
 import { CommandRunner } from './runner';
@@ -375,7 +375,10 @@ export class App {
     if (this.windowStart) this.windowStart = null;
     else if (this.hotSet.length > 0) this.hotSet = [];
     else if (this.panMode) this.endPan();
-    else if (this.runner.active) this.runner.cancel();
+    else if (this.runner.locked) {
+      this.runner.lock = { length: null, angleDeg: null };
+      this.log('<Lock released>');
+    } else if (this.runner.active) this.runner.cancel();
     else this.selection = [];
     this.ui.input.value = '';
     this.clearSuggestions();
@@ -460,7 +463,10 @@ export class App {
     }
     switch (req.kind) {
       case 'point':
-        return 'Click a point or type coordinates · right-click = Enter · Esc cancels';
+        if (this.runner.locked) return `${this.runner.lockLabel()} · click or type the other value · Esc releases`;
+        return req.base
+          ? 'Click a point or type coordinates · 50 = length, <20 or 20° = angle, Tab locks it · right-click = Enter · Esc cancels'
+          : 'Click a point or type coordinates · right-click = Enter · Esc cancels';
       case 'entity':
         return 'Click the object · Esc cancels';
       case 'selection':
@@ -653,6 +659,14 @@ export class App {
         this.moveSuggestion(1);
         return;
       }
+    }
+    if (ev.key === 'Tab' && input.value.trim() && this.runner.lockText(input.value, 'tab')) {
+      // dynamic input: Tab locks the typed length or angle, the mouse sets the other
+      ev.preventDefault();
+      input.value = '';
+      this.clearSuggestions();
+      this.afterInput();
+      return;
     }
     if (ev.key === 'Enter' || (ev.key === ' ' && !(this.runner.request?.kind === 'text' && input.value.trim() !== ''))) {
       ev.preventDefault();
@@ -895,6 +909,16 @@ export class App {
     }
     const aperture = this.tol(APERTURE_PX);
     const base = req.base ?? null;
+    if (base && this.runner.locked) {
+      // dynamic input lock: the typed length/angle wins over snap, ortho and polar
+      const view = getView(this.doc, this.settings.currentViewId);
+      const lp = applyLock(toLocal(view, base), toLocal(view, raw), this.runner.lock);
+      this.eff = lp ? toSheet(view, lp) : raw;
+      this.runner.cursor = this.eff;
+      this.hint = this.runner.lockLabel();
+      this.track.push(base);
+      return;
+    }
     const only = this.runner.snapOverride ?? undefined;
     if (this.snapOn || only) {
       try {
@@ -1142,7 +1166,8 @@ export class App {
       const b = toLocal(view, req.base);
       const d = Math.hypot(l.x - b.x, l.y - b.y);
       const a = (Math.atan2(l.y - b.y, l.x - b.x) * 180) / Math.PI;
-      text += `   ${fmt(d)} < ${fmt((a + 360) % 360, 1)}°`;
+      const { length, angleDeg } = this.runner.lock;
+      text += `   ${fmt(length ?? d)}${length !== null ? ' mm 🔒' : ''} < ${fmt(angleDeg ?? (a + 360) % 360, 1)}°${angleDeg !== null ? ' 🔒' : ''}`;
     }
     this.ui.coords.textContent = text;
   }
