@@ -1,0 +1,186 @@
+{
+ "version": 1,
+ "format": "A4",
+ "orientation": "portrait",
+ "lineGroup": "0.5",
+ "titleBlock": {
+  "documentType": "Fertigungszeichnung",
+  "generalTolerance": "ISO 2768-m",
+  "sheet": "1/1"
+ },
+ "layers": [
+  {
+   "name": "0",
+   "visible": true
+  },
+  {
+   "name": "0.35",
+   "visible": true
+  },
+  {
+   "name": "0.25",
+   "visible": true
+  }
+ ],
+ "views": [
+  {
+   "id": "v-front",
+   "name": "Front view",
+   "scale": 1,
+   "origin": {
+    "x": 94.23025253169416,
+    "y": 165.55025253169416
+   },
+   "link": null
+  }
+ ],
+ "entities": [
+  {
+   "id": "emv0mws514n",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 14.899494936611665,
+     "y": 9.899494936611664
+    },
+    "b": {
+     "x": 14.899494936611665,
+     "y": 13.899494936611664
+    }
+   }
+  },
+  {
+   "id": "emv0mws514o",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 14.899494936611665,
+     "y": 13.899494936611664
+    },
+    "b": {
+     "x": 22.899494936611667,
+     "y": 9.899494936611664
+    }
+   }
+  },
+  {
+   "id": "emv0mws514p",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 14.899494936611665,
+     "y": 9.899494936611664
+    },
+    "b": {
+     "x": 14.899494936611665,
+     "y": 5.899494936611664
+    }
+   }
+  },
+  {
+   "id": "emv0mws514q",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 14.899494936611665,
+     "y": 5.899494936611664
+    },
+    "b": {
+     "x": 22.899494936611667,
+     "y": 9.899494936611664
+    }
+   }
+  },
+  {
+   "id": "emv0mws514r",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 14.899494936611665,
+     "y": 11.899494936611664
+    },
+    "b": {
+     "x": 14.899494936611665,
+     "y": 7.899494936611664
+    }
+   }
+  },
+  {
+   "id": "emv0mws514s",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 14.899494936611665,
+     "y": 7.899494936611664
+    },
+    "b": {
+     "x": 22.899494936611667,
+     "y": 9.899494936611664
+    }
+   }
+  },
+  {
+   "id": "emv0mws514t",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 22.899494936611667,
+     "y": 9.899494936611664
+    },
+    "b": {
+     "x": 14.899494936611665,
+     "y": 11.899494936611664
+    }
+   }
+  }
+ ],
+ "dimensions": [],
+ "annotations": [
+  {
+   "kind": "leader",
+   "id": "lmv0mws514u",
+   "viewId": "v-front",
+   "layer": "0.25",
+   "points": [
+    {
+     "x": 0,
+     "y": 0
+    },
+    {
+     "x": 9.899494936611665,
+     "y": 9.899494936611664
+    },
+    {
+     "x": 31.539494936611668,
+     "y": 9.899494936611664
+    }
+   ],
+   "terminator": "arrow",
+   "style": "note",
+   "text": "",
+   "height": 3.5
+  }
+ ],
+ "partsList": []
+}

@@ -23,3 +23,7 @@ Converted with the ODA File Converter (`scripts/dwg2dxf.sh`), then the embedded 
 ## `synthetic/` — a part drawing written by ezdxf
 
 `part-r2000.dxf` and `part-r2018.dxf` (same content, two DXF versions) exercise every entity type the importer handles: lines, circle, arc, polylines with a bulge, hatch with an island, TEXT, MTEXT with formatting codes, linear/rotated/radial/diameter/angular dimensions, a block with an attribute, a leader, a spline, an ellipse, an old-style polyline, and a 420 × 297 layout with a 2:1 viewport. `part-r2018.dwg` is the ODA conversion of the R2018 file. The generator script is in the commit that added them (`git log -- samples/synthetic`).
+
+## `bbrz-mcad/` — the templates imported into ManualCAD
+
+The seven DWG/DWT files run through the DWG importer and saved as `.mcad` (`MCAD_OUT=samples/bbrz-mcad npx vitest run scripts/import-samples.test.ts`). Open them with `OPEN` in the app. The frame and parts-list drawings carry all sheet formats A4 to A0 in model space, so they come in at 1:2 on A1; the master template comes in as A4 portrait with its title block fields filled.

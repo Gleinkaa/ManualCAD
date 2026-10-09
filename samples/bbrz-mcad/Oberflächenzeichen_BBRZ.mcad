@@ -1,0 +1,349 @@
+{
+ "version": 1,
+ "format": "A4",
+ "orientation": "portrait",
+ "lineGroup": "0.5",
+ "titleBlock": {
+  "documentType": "Fertigungszeichnung",
+  "generalTolerance": "ISO 2768-m",
+  "sheet": "1/1"
+ },
+ "layers": [
+  {
+   "name": "0",
+   "visible": true
+  },
+  {
+   "name": "0.35",
+   "visible": true
+  },
+  {
+   "name": "Text Höhe 3.5",
+   "visible": true
+  }
+ ],
+ "views": [
+  {
+   "id": "v-front",
+   "name": "Front view",
+   "scale": 1,
+   "origin": {
+    "x": 107.28503671652823,
+    "y": 164.75
+   },
+   "link": null
+  }
+ ],
+ "entities": [
+  {
+   "id": "emv0mws9w8b",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -2.020725942163609,
+     "y": 3.5000000000000013
+    },
+    "b": {
+     "x": 0,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "emv0mws9w8c",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 0,
+     "y": 0
+    },
+    "b": {
+     "x": 4.6188021535167545,
+     "y": 8.000000000000002
+    }
+   }
+  },
+  {
+   "id": "emv0mws9w8d",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -2.020725942163609,
+     "y": 3.5000000000000013
+    },
+    "b": {
+     "x": 2.02072594216358,
+     "y": 3.5000000000000013
+    }
+   }
+  },
+  {
+   "id": "emv0mws9w8e",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "circle",
+    "c": {
+     "x": -1.509903313490213e-14,
+     "y": 2.333333333333389
+    },
+    "r": 1.1666666666666592
+   }
+  },
+  {
+   "id": "emv0mws9w8f",
+   "viewId": "v-front",
+   "layer": "0.35",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 4.618802153516754,
+     "y": 8
+    },
+    "b": {
+     "x": 9.618802153516754,
+     "y": 7.999999999999547
+    }
+   }
+  }
+ ],
+ "dimensions": [],
+ "annotations": [
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8g",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "geschliffen",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8h",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "geschlichtet",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8i",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.500000000000004
+   },
+   "text": "feingeschlichtet",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8j",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.500000000000004
+   },
+   "text": "gefräst",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8k",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "feingeschliffen",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8l",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "feinstgeschliffen",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8m",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "geschruppt",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8n",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "gehärtet",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8o",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "verchromt",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8p",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "matt vernickelt",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8q",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "vernickelt",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8r",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "geläppt",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8s",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.499999999999993
+   },
+   "text": "und geschliffen",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8t",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 9.5
+   },
+   "text": "Spitze gehärtet",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8u",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": 5.621302164431256,
+    "y": 15.499999999999993
+   },
+   "text": "Spitze gehärtet",
+   "height": 3.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws9w8v",
+   "viewId": "v-front",
+   "layer": "Text Höhe 3.5",
+   "pos": {
+    "x": -4.188875586573204,
+    "y": 1.7763568394002505e-15
+   },
+   "text": "(   )",
+   "height": 7,
+   "angle": 0,
+   "align": "left"
+  }
+ ],
+ "partsList": []
+}

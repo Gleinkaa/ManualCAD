@@ -1,0 +1,394 @@
+{
+ "version": 1,
+ "format": "A3",
+ "orientation": "portrait",
+ "lineGroup": "0.5",
+ "titleBlock": {
+  "documentType": "Fertigungszeichnung",
+  "generalTolerance": "ISO 2768-m",
+  "sheet": "1/1"
+ },
+ "layers": [
+  {
+   "name": "0",
+   "visible": true
+  }
+ ],
+ "views": [
+  {
+   "id": "v-front",
+   "name": "Front view",
+   "scale": 1,
+   "origin": {
+    "x": 48.5,
+    "y": 85.49999999999994
+   },
+   "link": null
+  }
+ ],
+ "entities": [
+  {
+   "id": "emv0mws4041",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 200,
+     "y": 287.0000000000001
+    },
+    "b": {
+     "x": 20.000000000000114,
+     "y": 287
+    }
+   }
+  },
+  {
+   "id": "emv0mws4042",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 20.000000000000114,
+     "y": 287
+    },
+    "b": {
+     "x": 20.000000000000114,
+     "y": 10
+    }
+   }
+  },
+  {
+   "id": "emv0mws4043",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 20,
+     "y": 10
+    },
+    "b": {
+     "x": 200,
+     "y": 10
+    }
+   }
+  },
+  {
+   "id": "emv0mws4044",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 0,
+     "y": 5
+    },
+    "b": {
+     "x": 0,
+     "y": -5
+    }
+   }
+  },
+  {
+   "id": "emv0mws4045",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 5,
+     "y": 0
+    },
+    "b": {
+     "x": -5,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "emv0mws4046",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 0,
+     "y": 292.0000000000001
+    },
+    "b": {
+     "x": 0,
+     "y": 302.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mws4047",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 5,
+     "y": 297.0000000000001
+    },
+    "b": {
+     "x": -5,
+     "y": 297.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mws4048",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 20.000000000000114,
+     "y": 148.5
+    },
+    "b": {
+     "x": 1.1435297153639112e-13,
+     "y": 148.5
+    }
+   }
+  },
+  {
+   "id": "emv0mws4049",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 210,
+     "y": 5
+    },
+    "b": {
+     "x": 210,
+     "y": -5
+    }
+   }
+  },
+  {
+   "id": "emv0mws404a",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 215,
+     "y": 0
+    },
+    "b": {
+     "x": 205,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "emv0mws404b",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 210,
+     "y": 292.0000000000001
+    },
+    "b": {
+     "x": 210,
+     "y": 302.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mws404c",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 215,
+     "y": 297.0000000000001
+    },
+    "b": {
+     "x": 205,
+     "y": 297.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mws404d",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 200,
+     "y": 287
+    },
+    "b": {
+     "x": 200,
+     "y": 10
+    }
+   }
+  },
+  {
+   "id": "emv0mws404e",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 20,
+     "y": 17.5
+    },
+    "b": {
+     "x": 100.00000000000011,
+     "y": 17.5
+    }
+   }
+  },
+  {
+   "id": "emv0mws404f",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 20,
+     "y": 25
+    },
+    "b": {
+     "x": 200,
+     "y": 25
+    }
+   }
+  },
+  {
+   "id": "emv0mws404g",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 65.00000000000011,
+     "y": 25.000000000000004
+    },
+    "b": {
+     "x": 65.00000000000011,
+     "y": 10
+    }
+   }
+  },
+  {
+   "id": "emv0mws404h",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 100.00000000000011,
+     "y": 25.000000000000004
+    },
+    "b": {
+     "x": 100.00000000000011,
+     "y": 10
+    }
+   }
+  }
+ ],
+ "dimensions": [],
+ "annotations": [
+  {
+   "kind": "text",
+   "id": "tmv0mws404i",
+   "viewId": "v-front",
+   "layer": "0",
+   "pos": {
+    "x": 20.97241661110627,
+    "y": 21.902906728744824
+   },
+   "text": "Name",
+   "height": 2.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws404j",
+   "viewId": "v-front",
+   "layer": "0",
+   "pos": {
+    "x": 20.972416611106155,
+    "y": 14.402906728744824
+   },
+   "text": "Blatt Nr.",
+   "height": 2.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws404k",
+   "viewId": "v-front",
+   "layer": "0",
+   "pos": {
+    "x": 65.97241661110627,
+    "y": 21.902906728744828
+   },
+   "text": "Datum",
+   "height": 2.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws404l",
+   "viewId": "v-front",
+   "layer": "0",
+   "pos": {
+    "x": 65.97241661110615,
+    "y": 14.402906728744828
+   },
+   "text": "Klasse",
+   "height": 2.5,
+   "angle": 0,
+   "align": "left"
+  },
+  {
+   "kind": "text",
+   "id": "tmv0mws404m",
+   "viewId": "v-front",
+   "layer": "0",
+   "pos": {
+    "x": 100.97241661110627,
+    "y": 21.902906728744828
+   },
+   "text": "Benennung",
+   "height": 2.5,
+   "angle": 0,
+   "align": "left"
+  }
+ ],
+ "partsList": []
+}

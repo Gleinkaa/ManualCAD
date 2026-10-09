@@ -1,0 +1,1802 @@
+{
+ "version": 1,
+ "format": "A1",
+ "orientation": "landscape",
+ "lineGroup": "0.5",
+ "titleBlock": {
+  "documentType": "Fertigungszeichnung",
+  "generalTolerance": "ISO 2768-m",
+  "sheet": "1/1"
+ },
+ "layers": [
+  {
+   "name": "0",
+   "visible": true
+  }
+ ],
+ "views": [
+  {
+   "id": "v-front",
+   "name": "Front view",
+   "scale": 0.5,
+   "origin": {
+    "x": 722.75,
+    "y": 110.75000000000003
+   },
+   "link": null
+  }
+ ],
+ "entities": [
+  {
+   "id": "emv0mwsbdc0",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -180,
+     "y": 0
+    },
+    "b": {
+     "x": 0,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdc1",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -180,
+     "y": 6
+    },
+    "b": {
+     "x": 0,
+     "y": 6
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdc2",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -75.00000000000003,
+     "y": 0
+    },
+    "b": {
+     "x": -75,
+     "y": 6
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdc3",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -129.99999999999997,
+     "y": 0
+    },
+    "b": {
+     "x": -129.99999999999994,
+     "y": 6
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdc4",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -139.99999999999997,
+     "y": 0
+    },
+    "b": {
+     "x": -139.99999999999994,
+     "y": 6
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdc5",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -170,
+     "y": 0
+    },
+    "b": {
+     "x": -170,
+     "y": 6
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdc6",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -400.0000000000001,
+     "y": 282.5
+    },
+    "b": {
+     "x": -400.0000000000001,
+     "y": 9.999999999999886
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdc7",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -400.0000000000001,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -10.000000000000227,
+     "y": 9.999999999999886
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdc8",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190,
+     "y": 10
+    },
+    "b": {
+     "x": -190,
+     "y": 8.881784197001252e-16
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdc9",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -295.00000000000006,
+     "y": 10
+    },
+    "b": {
+     "x": -295.00000000000006,
+     "y": 8.881784197001252e-16
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdca",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1169,
+     "y": 9.9999999999999
+    },
+    "b": {
+     "x": -10.000000000000227,
+     "y": 9.999999999999886
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcb",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000227,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -10,
+     "y": 830.9999999999998
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcc",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10,
+     "y": 830.9999999999998
+    },
+    "b": {
+     "x": -1169,
+     "y": 831.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcd",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1169,
+     "y": 9.9999999999999
+    },
+    "b": {
+     "x": -1169,
+     "y": 831.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdce",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1189,
+     "y": 846
+    },
+    "b": {
+     "x": -1189,
+     "y": 836
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcf",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1194,
+     "y": 841
+    },
+    "b": {
+     "x": -1184,
+     "y": 841
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcg",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1189,
+     "y": 4.999999999999886
+    },
+    "b": {
+     "x": -1189,
+     "y": -5.000000000000113
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdch",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1194,
+     "y": -1.1368683772161603e-13
+    },
+    "b": {
+     "x": -1184,
+     "y": -1.1368683772161603e-13
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdci",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 0,
+     "y": 4.999999999999886
+    },
+    "b": {
+     "x": 0,
+     "y": -5.000000000000113
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcj",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -190,
+     "y": -1.127986593019159e-13
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdck",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -380,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -380,
+     "y": -1.127986593019159e-13
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcl",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -570,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -570,
+     "y": -1.127986593019159e-13
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcm",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -760,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -760,
+     "y": -1.127986593019159e-13
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcn",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -950,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -950,
+     "y": -1.127986593019159e-13
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdco",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -5,
+     "y": -1.1368683772161603e-13
+    },
+    "b": {
+     "x": 5,
+     "y": -1.1368683772161603e-13
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcp",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000066,
+     "y": 296.9999999999999
+    },
+    "b": {
+     "x": -6.572520305780927e-14,
+     "y": 296.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcq",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000066,
+     "y": 593.9999999999999
+    },
+    "b": {
+     "x": -6.572520305780927e-14,
+     "y": 593.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcr",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 0,
+     "y": 845.9999999999999
+    },
+    "b": {
+     "x": 0,
+     "y": 835.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcs",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -5,
+     "y": 840.9999999999999
+    },
+    "b": {
+     "x": 5,
+     "y": 840.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdct",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1059.5,
+     "y": 9.999999999999897
+    },
+    "b": {
+     "x": -1059.5,
+     "y": -1.021405182655144e-13
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcu",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190,
+     "y": 830.9999999999998
+    },
+    "b": {
+     "x": -190,
+     "y": 840.9999999999998
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcv",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -380,
+     "y": 830.9999999999998
+    },
+    "b": {
+     "x": -380,
+     "y": 840.9999999999998
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcw",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -570,
+     "y": 830.9999999999998
+    },
+    "b": {
+     "x": -570,
+     "y": 840.9999999999998
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcx",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -760,
+     "y": 830.9999999999998
+    },
+    "b": {
+     "x": -760,
+     "y": 840.9999999999998
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcy",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -950,
+     "y": 830.9999999999998
+    },
+    "b": {
+     "x": -950,
+     "y": 840.9999999999998
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdcz",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1169,
+     "y": 296.9999999999999
+    },
+    "b": {
+     "x": -1179,
+     "y": 296.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd0",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1169,
+     "y": 593.9999999999999
+    },
+    "b": {
+     "x": -1179,
+     "y": 593.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd1",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1169,
+     "y": 148.4999999999999
+    },
+    "b": {
+     "x": -1189,
+     "y": 148.4999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd2",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -1059.5,
+     "y": 831.0000000000001
+    },
+    "b": {
+     "x": -1059.5,
+     "y": 841.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd3",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000227,
+     "y": 10
+    },
+    "b": {
+     "x": -10.000000000000114,
+     "y": 583.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd4",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000114,
+     "y": 583.9999999999999
+    },
+    "b": {
+     "x": -821,
+     "y": 584.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd5",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -821,
+     "y": 584.0000000000001
+    },
+    "b": {
+     "x": -821.0000000000002,
+     "y": 10.000000000000114
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd6",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000341,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -821.0000000000002,
+     "y": 10.000000000000114
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd7",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -2.2737367544323206e-13,
+     "y": 5
+    },
+    "b": {
+     "x": -2.2737367544323206e-13,
+     "y": -4.999999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd8",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190.0000000000001,
+     "y": 10
+    },
+    "b": {
+     "x": -190.0000000000001,
+     "y": 8.881784197001252e-16
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdd9",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -380.0000000000001,
+     "y": 10
+    },
+    "b": {
+     "x": -380.0000000000001,
+     "y": 8.881784197001252e-16
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdda",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -570.0000000000001,
+     "y": 10
+    },
+    "b": {
+     "x": -570.0000000000001,
+     "y": 8.881784197001252e-16
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddb",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -5.000000000000227,
+     "y": 0
+    },
+    "b": {
+     "x": 4.999999999999773,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddc",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.00000000000017,
+     "y": 296.99999999999994
+    },
+    "b": {
+     "x": -1.7053025658242404e-13,
+     "y": 296.99999999999994
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddd",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -2.2737367544323206e-13,
+     "y": 589.0000000000002
+    },
+    "b": {
+     "x": -2.2737367544323206e-13,
+     "y": 599.0000000000002
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdde",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -5.000000000000227,
+     "y": 594.0000000000002
+    },
+    "b": {
+     "x": 4.999999999999773,
+     "y": 594.0000000000002
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddf",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -840.9999999999999,
+     "y": 5
+    },
+    "b": {
+     "x": -840.9999999999999,
+     "y": -4.999999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddg",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -835.9999999999999,
+     "y": 0
+    },
+    "b": {
+     "x": -845.9999999999999,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddh",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -840.9999999999999,
+     "y": 589.0000000000002
+    },
+    "b": {
+     "x": -840.9999999999999,
+     "y": 599.0000000000002
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddi",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -835.9999999999999,
+     "y": 594.0000000000002
+    },
+    "b": {
+     "x": -845.9999999999999,
+     "y": 594.0000000000002
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddj",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -821.0000000000001,
+     "y": 297.0000000000001
+    },
+    "b": {
+     "x": -831.0000000000001,
+     "y": 297.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddk",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -840.9999999999999,
+     "y": 148.49999999999997
+    },
+    "b": {
+     "x": -820.9999999999999,
+     "y": 148.49999999999997
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddl",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -695.5,
+     "y": 10.000000000000021
+    },
+    "b": {
+     "x": -695.5,
+     "y": 2.220446049250313e-14
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddm",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190.0000000000001,
+     "y": 583.9999999999999
+    },
+    "b": {
+     "x": -190.0000000000001,
+     "y": 593.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddn",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -380.0000000000001,
+     "y": 583.9999999999999
+    },
+    "b": {
+     "x": -380.0000000000001,
+     "y": 593.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddo",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -570.0000000000001,
+     "y": 583.9999999999999
+    },
+    "b": {
+     "x": -570.0000000000001,
+     "y": 593.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddp",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -695.5,
+     "y": 583.9999999999999
+    },
+    "b": {
+     "x": -695.5,
+     "y": 593.9999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddq",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000341,
+     "y": 410.0000000000001
+    },
+    "b": {
+     "x": -574.0000000000003,
+     "y": 410.0000000000002
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddr",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -574.0000000000003,
+     "y": 410.0000000000002
+    },
+    "b": {
+     "x": -574.0000000000003,
+     "y": 10.000000000000114
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdds",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -574.0000000000005,
+     "y": 10.000000000000114
+    },
+    "b": {
+     "x": -10.000000000000341,
+     "y": 9.999999999999886
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddt",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000341,
+     "y": 410
+    },
+    "b": {
+     "x": -10.000000000000341,
+     "y": 9.999999999999858
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddu",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -3.410605131648481e-13,
+     "y": 5
+    },
+    "b": {
+     "x": -3.410605131648481e-13,
+     "y": -4.999999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddv",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190.00000000000028,
+     "y": 10
+    },
+    "b": {
+     "x": -190.00000000000028,
+     "y": 8.881784197001252e-16
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddw",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -380.0000000000003,
+     "y": 10
+    },
+    "b": {
+     "x": -380.0000000000003,
+     "y": 8.881784197001252e-16
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddx",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -5.000000000000341,
+     "y": 0
+    },
+    "b": {
+     "x": 4.999999999999659,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddy",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000341,
+     "y": 297
+    },
+    "b": {
+     "x": -3.410605131648481e-13,
+     "y": 297
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbddz",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -594.0000000000003,
+     "y": 5.000000000000114
+    },
+    "b": {
+     "x": -594.0000000000003,
+     "y": -4.999999999999885
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde0",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -589.0000000000003,
+     "y": 1.1368683772161603e-13
+    },
+    "b": {
+     "x": -599.0000000000003,
+     "y": 1.1368683772161603e-13
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde1",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -574.0000000000003,
+     "y": 297.0000000000001
+    },
+    "b": {
+     "x": -584.0000000000003,
+     "y": 297.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde2",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -3.410605131648481e-13,
+     "y": 415
+    },
+    "b": {
+     "x": -3.410605131648481e-13,
+     "y": 425
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde3",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190.00000000000028,
+     "y": 410
+    },
+    "b": {
+     "x": -190.00000000000028,
+     "y": 420
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde4",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -380.0000000000003,
+     "y": 410
+    },
+    "b": {
+     "x": -380.0000000000003,
+     "y": 420
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde5",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -5.000000000000341,
+     "y": 420
+    },
+    "b": {
+     "x": 4.999999999999659,
+     "y": 420
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde6",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -594.0000000000003,
+     "y": 415
+    },
+    "b": {
+     "x": -594.0000000000003,
+     "y": 425
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde7",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -589.0000000000003,
+     "y": 420
+    },
+    "b": {
+     "x": -599.0000000000003,
+     "y": 420
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde8",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -477.00000000000034,
+     "y": 10.000000000000039
+    },
+    "b": {
+     "x": -477.00000000000034,
+     "y": 3.9968028886505635e-14
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbde9",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -477.00000000000034,
+     "y": 410.0000000000003
+    },
+    "b": {
+     "x": -477.00000000000034,
+     "y": 420.0000000000003
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdea",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -594.0000000000003,
+     "y": 148.5000000000001
+    },
+    "b": {
+     "x": -574.0000000000003,
+     "y": 148.5000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdeb",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000227,
+     "y": 287.0000000000001
+    },
+    "b": {
+     "x": -400.0000000000002,
+     "y": 287
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdec",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -400.0000000000002,
+     "y": 287
+    },
+    "b": {
+     "x": -400.0000000000002,
+     "y": 10
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbded",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -400.00000000000034,
+     "y": 10
+    },
+    "b": {
+     "x": -10.000000000000227,
+     "y": 10
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdee",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000227,
+     "y": 287
+    },
+    "b": {
+     "x": -10.000000000000227,
+     "y": 9.999999999999972
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdef",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -2.2737367544323206e-13,
+     "y": 5
+    },
+    "b": {
+     "x": -2.2737367544323206e-13,
+     "y": -4.999999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdeg",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190.00000000000017,
+     "y": 10
+    },
+    "b": {
+     "x": -190.00000000000017,
+     "y": 8.881784197001252e-16
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdeh",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -5.000000000000227,
+     "y": 0
+    },
+    "b": {
+     "x": 4.999999999999773,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbdei",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -5.000000000000227,
+     "y": 297.0000000000001
+    },
+    "b": {
+     "x": 4.999999999999773,
+     "y": 297.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeej",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -2.2737367544323206e-13,
+     "y": 292.0000000000001
+    },
+    "b": {
+     "x": -2.2737367544323206e-13,
+     "y": 302.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeek",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190.00000000000017,
+     "y": 287.0000000000001
+    },
+    "b": {
+     "x": -190.00000000000017,
+     "y": 297.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeel",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -420.0000000000002,
+     "y": 5
+    },
+    "b": {
+     "x": -420.0000000000002,
+     "y": -4.999999999999999
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeem",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -415.0000000000002,
+     "y": 0
+    },
+    "b": {
+     "x": -425.0000000000002,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeen",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -420.0000000000002,
+     "y": 292.0000000000001
+    },
+    "b": {
+     "x": -420.0000000000002,
+     "y": 302.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeeo",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -415.0000000000002,
+     "y": 297.0000000000001
+    },
+    "b": {
+     "x": -425.0000000000002,
+     "y": 297.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeep",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -295.0000000000002,
+     "y": 10
+    },
+    "b": {
+     "x": -295.0000000000002,
+     "y": -8.881784197001252e-16
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeeq",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -295.0000000000002,
+     "y": 287.0000000000001
+    },
+    "b": {
+     "x": -295.0000000000002,
+     "y": 297.0000000000001
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeer",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "thin",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -400.0000000000002,
+     "y": 148.5
+    },
+    "b": {
+     "x": -420.0000000000002,
+     "y": 148.5
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbees",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -10.000000000000227,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -10.000000000000227,
+     "y": 283.9999999999998
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeet",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -190.00000000000023,
+     "y": 9.999999999999886
+    },
+    "b": {
+     "x": -10.000000000000227,
+     "y": 9.999999999999886
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeeu",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": -180,
+     "y": 0
+    },
+    "b": {
+     "x": -180,
+     "y": 6
+    }
+   }
+  },
+  {
+   "id": "emv0mwsbeev",
+   "viewId": "v-front",
+   "layer": "0",
+   "lineType": "visible",
+   "geom": {
+    "kind": "line",
+    "a": {
+     "x": 0,
+     "y": 0
+    },
+    "b": {
+     "x": 0,
+     "y": 6
+    }
+   }
+  }
+ ],
+ "dimensions": [],
+ "annotations": [],
+ "partsList": []
+}
