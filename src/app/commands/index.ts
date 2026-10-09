@@ -56,7 +56,7 @@ export function isHiddenCommand(name: string): boolean {
 }
 
 /** Commands the app handles itself (files, undo, help, pan); they never enter the command runner. */
-export const HOST_COMMANDS = ['UNDO', 'REDO', 'SAVE', 'OPEN', 'NEW', 'PLOT', 'EXPORTPDF', 'HELP', 'PAN'] as const;
+export const HOST_COMMANDS = ['UNDO', 'REDO', 'SAVE', 'OPEN', 'NEW', 'PLOT', 'EXPORTPDF', 'DXFIN', 'DXFOUT', 'HELP', 'PAN'] as const;
 export type HostCommand = (typeof HOST_COMMANDS)[number];
 
 export const ALIASES: Record<string, string> = {
@@ -117,6 +117,10 @@ export const ALIASES: Record<string, string> = {
   QSAVE: 'SAVE',
   SAVEAS: 'SAVE',
   PRINT: 'PLOT',
+  IMPORT: 'DXFIN',
+  DWGIN: 'DXFIN',
+  EXPORT: 'DXFOUT',
+  EXPORTDXF: 'DXFOUT',
   '?': 'HELP',
 };
 
@@ -135,6 +139,8 @@ export const COMMAND_INFO: CommandInfo[] = [
   { name: 'OPEN', group: 'File', summary: 'Open a .mcad file (Ctrl+O).' },
   { name: 'SAVE', group: 'File', summary: 'Save as .mcad (Ctrl+S).' },
   { name: 'PLOT', group: 'File', summary: 'Export the sheet as PDF, black lines, construction lines left out.' },
+  { name: 'DXFIN', group: 'File', summary: 'Import a DXF or DWG drawing as a new sheet: layers and pen colours become line types, layout viewports become views. OPEN does the same for those files.' },
+  { name: 'DXFOUT', group: 'File', summary: 'Export the sheet as DXF (R2000): real-mm model space per view, a Sheet layout with frame, title block and viewports.' },
   { name: 'LINE', group: 'Draw', summary: 'Line segments: click or type points (x,y · @dx,dy · @len<angle · a distance along the cursor). Close, Undo, Enter to finish.' },
   { name: 'CIRCLE', group: 'Draw', summary: 'Circle by centre and radius (Diameter option), or 2P by two diameter end points.' },
   { name: 'ARC', group: 'Draw', summary: 'Arc through three points, or Center: centre, start, end (counter-clockwise).' },
