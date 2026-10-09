@@ -84,6 +84,32 @@ describe('LINE', () => {
     expect(runner.active).toBe(false);
   });
 
+  it('dimension input fields: Tab moves between length and angle, a bare number goes to the active field', () => {
+    const { doc, runner, type } = setup();
+    type('L', '0,0');
+    expect(runner.lockField).toBe('length');
+    expect(runner.lockText('', 'tab')).toBe(true); // empty Tab only switches
+    expect(runner.lockField).toBe('angle');
+    expect(runner.lock).toEqual({ length: null, angleDeg: null });
+    type('90'); // a bare number in the angle field is an angle
+    expect(runner.lock).toEqual({ length: null, angleDeg: 90 });
+    expect(runner.lockField).toBe('length');
+    type('40');
+    let g = doc.entities[0].geom;
+    expect(g.kind === 'line' && g.b.x).toBeCloseTo(0);
+    expect(g.kind === 'line' && g.b.y).toBeCloseTo(40);
+    // AutoCAD flow: length, Tab (locks, angle field active), angle, Enter
+    runner.lockText('30', 'tab');
+    expect(runner.lock).toEqual({ length: 30, angleDeg: null });
+    expect(runner.lockField).toBe('angle');
+    type('0');
+    g = doc.entities[1].geom;
+    expect(g.kind === 'line' && g.b.x).toBeCloseTo(30);
+    expect(g.kind === 'line' && g.b.y).toBeCloseTo(40);
+    expect(runner.lockField).toBe('length');
+    type('');
+  });
+
   it('Enter on an empty command line repeats the last command', () => {
     const { runner, type } = setup();
     type('L', '0,0', '1,1', '');
