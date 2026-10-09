@@ -4,18 +4,30 @@ import type { Vec2 } from '../geom/types';
 export type ParsedInput =
   | { kind: 'absolute'; p: Vec2 }
   | { kind: 'relative'; d: Vec2 }
-  | { kind: 'number'; value: number };
+  | { kind: 'number'; value: number }
+  /** An angle on its own: `<20`, `20°`, `20deg`, `20d`. Locks the direction of the next point. */
+  | { kind: 'angle'; deg: number };
+
+/** Length and/or angle locked while rubber-banding (AutoCAD dynamic input: type a value, Tab to lock it). */
+export interface InputLock {
+  length: number | null;
+  angleDeg: number | null;
+}
 
 const NUM = String.raw`[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?`;
-const CART = new RegExp(`^(@)?\\s*(${NUM})\\s*,\\s*(${NUM})$`, 'i');
-const POLAR = new RegExp(`^(@)?\\s*(${NUM})\\s*<\\s*(${NUM})$`, 'i');
-const NUMBER = new RegExp(`^${NUM}$`, 'i');
+const LEN = `(${NUM})\\s*(?:mm)?`;
+const ANG = `(${NUM})\\s*(?:°|deg|d)?`;
+const CART = new RegExp(`^(@)?\\s*${LEN}\\s*,\\s*${LEN}$`, 'i');
+const POLAR = new RegExp(`^(@)?\\s*${LEN}\\s*<\\s*${ANG}$`, 'i');
+const NUMBER = new RegExp(`^${LEN}$`, 'i');
+const ANGLE = new RegExp(`^(?:<\\s*${ANG}|(${NUM})\\s*(?:°|deg|d))$`, 'i');
 
 const DEG = Math.PI / 180;
 
 /**
  * `x,y` absolute, `@dx,dy` relative, `@len<angle` relative polar, `len<angle` absolute polar,
- * `@` = last point, a bare number = distance. All values in view-local real mm, angles in degrees.
+ * `@` = last point, a bare number = distance, `<angle` or `angle°` = angle only. All values in
+ * view-local real mm (an `mm` suffix is accepted), angles in degrees (`°`, `deg` or `d` accepted).
  */
 export function parseCoordinate(text: string): ParsedInput | null {
   const t = text.trim();
@@ -32,7 +44,10 @@ export function parseCoordinate(text: string): ParsedInput | null {
     const p = { x: l * Math.cos(a), y: l * Math.sin(a) };
     return m[1] ? { kind: 'relative', d: p } : { kind: 'absolute', p };
   }
-  if (NUMBER.test(t)) return { kind: 'number', value: Number(t) };
+  m = NUMBER.exec(t);
+  if (m) return { kind: 'number', value: Number(m[1]) };
+  m = ANGLE.exec(t);
+  if (m) return { kind: 'angle', deg: Number(m[1] ?? m[2]) };
   return null;
 }
 
@@ -45,7 +60,25 @@ export function resolveInput(parsed: ParsedInput, last: Vec2 | null, base: Vec2 
       return last ? { x: last.x + parsed.d.x, y: last.y + parsed.d.y } : null;
     case 'number':
       return base && dir ? directDistance(base, dir, parsed.value) : null;
+    case 'angle':
+      return null;
   }
+}
+
+/**
+ * Constrain the cursor `p` by a dynamic-input lock around `base`: a locked angle projects onto that ray,
+ * a locked length keeps the cursor direction at that distance, both fix the point. Null when nothing is locked.
+ */
+export function applyLock(base: Vec2, p: Vec2, lock: InputLock): Vec2 | null {
+  if (lock.angleDeg === null && lock.length === null) return null;
+  if (lock.angleDeg !== null) {
+    const a = lock.angleDeg * DEG;
+    const ux = Math.cos(a);
+    const uy = Math.sin(a);
+    const along = lock.length ?? Math.max(0, (p.x - base.x) * ux + (p.y - base.y) * uy);
+    return { x: base.x + along * ux, y: base.y + along * uy };
+  }
+  return directDistance(base, p, lock.length!) ?? { x: base.x + lock.length!, y: base.y };
 }
 
 /** Point at `distance` from `base` towards `toward` (the rubber-band cursor). */

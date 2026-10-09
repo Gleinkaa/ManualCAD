@@ -34,7 +34,7 @@ describe('command line feedback', () => {
     runner.text('C');
     runner.text('50,50');
     runner.text('abc');
-    expect(log.at(-1)).toBe('Requires a point or a distance, or an option keyword.');
+    expect(log.at(-1)).toBe('Requires a point, a distance or an angle, or an option keyword.');
     runner.text('10');
     expect(runner.active).toBe(false);
   });

@@ -56,6 +56,34 @@ describe('LINE', () => {
     expect(g.kind === 'line' && g.b.y).toBeCloseTo(25);
   });
 
+  it('dynamic input: 20° then 50 places the point, Tab locks a value for the mouse', () => {
+    const { doc, runner, type } = setup();
+    type('L', '0,0', '30°');
+    expect(runner.active).toBe(true);
+    expect(runner.lock).toEqual({ length: null, angleDeg: 30 });
+    type('50mm');
+    expect(runner.lock).toEqual({ length: null, angleDeg: null });
+    let g = doc.entities[0].geom;
+    expect(g.kind === 'line' && g.b.x).toBeCloseTo(50 * Math.cos(Math.PI / 6));
+    expect(g.kind === 'line' && g.b.y).toBeCloseTo(25);
+    // Tab locks the length, the typed angle finishes it
+    expect(runner.lockText('20', 'tab')).toBe(true);
+    expect(runner.lock.length).toBe(20);
+    type('<90');
+    g = doc.entities[1].geom;
+    expect(g.kind === 'line' && g.b.x).toBeCloseTo(50 * Math.cos(Math.PI / 6));
+    expect(g.kind === 'line' && g.b.y).toBeCloseTo(45);
+    // a locked angle with a click: the point is given by the (already constrained) cursor
+    type('<0');
+    runner.cursor = toSheet(doc.views[0], { x: 60, y: 45 });
+    runner.click(runner.cursor, null);
+    g = doc.entities[2].geom;
+    expect(g.kind === 'line' && g.b.x).toBeCloseTo(60);
+    expect(runner.lock).toEqual({ length: null, angleDeg: null });
+    type('');
+    expect(runner.active).toBe(false);
+  });
+
   it('Enter on an empty command line repeats the last command', () => {
     const { runner, type } = setup();
     type('L', '0,0', '1,1', '');
