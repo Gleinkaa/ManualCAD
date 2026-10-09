@@ -53,6 +53,8 @@ export class CommandRunner {
   snapOverride: SnapKind | null = null;
   /** Dynamic input: length and/or angle locked for the next point (typed, then Tab or Enter); cleared by the next point. */
   lock: InputLock = { length: null, angleDeg: null };
+  /** Dynamic input field a bare number goes to: length first, Tab moves to the angle (AutoCAD dimension input). */
+  lockField: 'length' | 'angle' = 'length';
   /** Set when the last typed text was rejected as invalid input. */
   private rejected = false;
 
@@ -145,6 +147,9 @@ export class CommandRunner {
           this.ctx.log(`${SNAP_LABELS[override]} snap for the next point.`);
           return;
         }
+        // dynamic input first once a value is locked or the angle field is active: a bare number is then not a radius
+        const dyn = !!req.base && (this.locked || this.lockField === 'angle');
+        if (dyn && this.lockText(text, 'enter')) return;
         if (req.acceptNumber) {
           const parsed = parseCoordinate(text);
           if (parsed?.kind === 'number') {
@@ -152,7 +157,7 @@ export class CommandRunner {
             return;
           }
         }
-        if (req.base && this.lockText(text, 'enter')) return;
+        if (!dyn && req.base && this.lockText(text, 'enter')) return;
         const p = this.parsePoint(text, req.base ?? null);
         if (p) this.feedPoint(p, null);
         else this.invalid(req.base ? `Requires a point, a distance or an angle${req.options?.length ? ', or an option keyword' : ''}.` : req.options?.length ? 'Point or option keyword required.' : 'Invalid point.');
@@ -236,7 +241,7 @@ export class CommandRunner {
 
   private feedPoint(p: Vec2, snap: SnapHit | null): void {
     this.snapOverride = null;
-    this.lock = { length: null, angleDeg: null };
+    this.unlock();
     this.lastPoint = p;
     this.step({ kind: 'point', p, snap });
   }
@@ -247,32 +252,51 @@ export class CommandRunner {
   }
 
   /**
-   * Dynamic input at a rubber-band point prompt: `50` / `50mm` is a length, `<20` / `20°` an angle.
-   * `tab` locks the value and keeps prompting (the mouse sets the other one); `enter` places the point
-   * as soon as both are known, or with a bare length along the locked angle or the cursor direction.
+   * Dynamic input at a rubber-band point prompt (AutoCAD dimension input). Two fields sit at the cursor,
+   * length and angle; a bare number goes to the active field (`lockField`), `50mm`, `<20`, `20°` name theirs.
+   * `tab` locks the typed value (the mouse then sets the other one) and moves to the other field; with no
+   * text it only moves. `enter` places the point once both values are known; a length alone is direct
+   * distance along the cursor (left to the caller), an angle alone locks it and asks for the length.
    * Returns false when the text is not a length or angle, so the caller can treat it as a point.
    */
   lockText(text: string, how: 'tab' | 'enter'): boolean {
     const req = this.request;
     if (req?.kind !== 'point' || !req.base) return false;
-    const parsed = parseCoordinate(text);
+    const t = text.trim();
+    const other = this.lockField === 'length' ? 'angle' : 'length';
+    if (how === 'tab' && !t) {
+      this.lockField = other;
+      return true;
+    }
+    let parsed = parseCoordinate(t);
+    if (parsed?.kind === 'number' && this.lockField === 'angle') parsed = { kind: 'angle', deg: parsed.value };
     if (!parsed || (parsed.kind !== 'number' && parsed.kind !== 'angle')) return false;
     const lock: InputLock = { ...this.lock };
     if (parsed.kind === 'number') lock.length = parsed.value;
     else lock.angleDeg = parsed.deg;
-    if (how === 'enter' && lock.length !== null && lock.angleDeg === null && this.lock.angleDeg === null) {
-      return false; // plain direct distance along the cursor: handled by parsePoint
+    if (how === 'enter') {
+      if (lock.length !== null && lock.angleDeg !== null) {
+        const view = this.ctx.view();
+        const lb = toLocal(view, req.base);
+        const p = applyLock(lb, lb, lock);
+        if (p) this.feedPoint(toSheet(view, p), null);
+        return true;
+      }
+      if (parsed.kind === 'number') return false; // direct distance along the cursor: handled by parsePoint
+      this.lock = lock;
+      this.lockField = 'length';
+    } else {
+      this.lock = lock;
+      this.lockField = parsed.kind === 'number' ? 'angle' : 'length';
     }
-    if (how === 'enter' && lock.length !== null && lock.angleDeg !== null) {
-      const view = this.ctx.view();
-      const lb = toLocal(view, req.base);
-      const p = applyLock(lb, lb, lock);
-      if (p) this.feedPoint(toSheet(view, p), null);
-      return true;
-    }
-    this.lock = lock;
-    this.ctx.log(`${this.lockLabel()} · move the mouse or type the other value, Tab locks it`);
+    this.ctx.log(`${this.lockLabel()} · move the mouse or type the ${this.lockField}, Tab locks it`);
     return true;
+  }
+
+  /** Drop a dynamic input lock (Esc) and start again at the length field. */
+  unlock(): void {
+    this.lock = { length: null, angleDeg: null };
+    this.lockField = 'length';
   }
 
   /** "Length 50.00 mm locked", "Angle 20° locked" or both, for the status bar. */
@@ -319,7 +343,7 @@ export class CommandRunner {
     this.name = null;
     this.gathering = [];
     this.snapOverride = null;
-    this.lock = { length: null, angleDeg: null };
+    this.unlock();
     const lost = updateAssociativeHatches(this.ctx.doc);
     if (lost > 0) this.ctx.log(`${lost} hatch(es) lost their boundary and no longer follow edits.`);
     this.host.onEnd(name);

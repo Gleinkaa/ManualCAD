@@ -11,7 +11,7 @@ import { resolveCommand, suggestCommands } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
 import { History, snapshot } from './history';
 import { applyLock, applyOrtho, applyPolar, fmt } from './input';
-import { drawCrosshair, drawGrip, drawMarker, drawSelectionBox, drawSnapMarker, drawTrackLine, drawViewOrigin, tooltip } from './overlay';
+import { drawCrosshair, drawDynInput, drawGrip, drawMarker, drawSelectionBox, drawSnapMarker, drawTrackLine, drawViewOrigin, tooltip, type DynField } from './overlay';
 import { nearestGrip, objectGrips, type Grip } from './grips';
 import { CommandRunner } from './runner';
 import { decodeSession, docHash, encodeSession, PERSISTED_UNDO, type SessionView } from './session';
@@ -386,7 +386,7 @@ export class App {
     else if (this.hotSet.length > 0) this.hotSet = [];
     else if (this.panMode) this.endPan();
     else if (this.runner.locked) {
-      this.runner.lock = { length: null, angleDeg: null };
+      this.runner.unlock();
       this.log('<Lock released>');
     } else if (this.runner.active) this.runner.cancel();
     else this.selection = [];
@@ -473,9 +473,9 @@ export class App {
     }
     switch (req.kind) {
       case 'point':
-        if (this.runner.locked) return `${this.runner.lockLabel()} · click or type the other value · Esc releases`;
+        if (this.runner.locked) return `${this.runner.lockLabel()} · click, or type the ${this.runner.lockField} and Enter · Tab switches field · Esc releases`;
         return req.base
-          ? 'Click a point or type coordinates · 50 = length, <20 or 20° = angle, Tab locks it · right-click = Enter · Esc cancels'
+          ? `Type the ${this.runner.lockField} and Tab to lock it, or Enter · Tab switches field · right-click = Enter · Esc cancels`
           : 'Click a point or type coordinates · right-click = Enter · Esc cancels';
       case 'entity':
         return 'Click the object · Esc cancels';
@@ -612,7 +612,10 @@ export class App {
     });
 
     ui.input.addEventListener('keydown', (ev) => this.onInputKey(ev));
-    ui.input.addEventListener('input', () => this.updateSuggestions());
+    ui.input.addEventListener('input', () => {
+      this.updateSuggestions();
+      if (this.runner.request?.kind === 'point' && this.runner.request.base) this.redraw();
+    });
     ui.input.addEventListener('blur', () => this.clearSuggestions());
     document.addEventListener('keydown', (ev) => this.onGlobalKey(ev));
 
@@ -685,12 +688,14 @@ export class App {
         return;
       }
     }
-    if (ev.key === 'Tab' && input.value.trim() && this.runner.lockText(input.value, 'tab')) {
-      // dynamic input: Tab locks the typed length or angle, the mouse sets the other
+    if (ev.key === 'Tab' && this.runner.request?.kind === 'point' && this.runner.request.base) {
+      // dynamic input: Tab locks the typed length or angle and moves to the other field; empty just moves
       ev.preventDefault();
-      input.value = '';
-      this.clearSuggestions();
-      this.afterInput();
+      if (this.runner.lockText(input.value, 'tab')) {
+        input.value = '';
+        this.clearSuggestions();
+        this.afterInput();
+      }
       return;
     }
     if (ev.key === 'Enter' || (ev.key === ' ' && !(this.runner.request?.kind === 'text' && input.value.trim() !== ''))) {
@@ -940,7 +945,6 @@ export class App {
       const lp = applyLock(toLocal(view, base), toLocal(view, raw), this.runner.lock);
       this.eff = lp ? toSheet(view, lp) : raw;
       this.runner.cursor = this.eff;
-      this.hint = this.runner.lockLabel();
       this.track.push(base);
       return;
     }
@@ -1115,8 +1119,12 @@ export class App {
 
     if (cur) {
       for (const a of this.track) drawTrackLine(g, vp.toScreen(a), cur, dpr);
+      let y = cur.y + 14 * dpr;
+      if (req?.kind === 'point' && req.base && this.eff) {
+        y += drawDynInput(g, { x: cur.x + 14 * dpr, y }, this.dynFields(req.base, this.eff), dpr) + 2 * dpr;
+      }
       if (this.snapHit) drawSnapMarker(g, cur, this.snapHit.kind, SNAP_LABELS[this.snapHit.kind], dpr);
-      else if (this.hint) tooltip(g, { x: cur.x + 14 * dpr, y: cur.y + 14 * dpr }, this.hint, dpr);
+      else if (this.hint) tooltip(g, { x: cur.x + 14 * dpr, y }, this.hint, dpr);
       this.updateCoords();
     }
   }
@@ -1179,6 +1187,24 @@ export class App {
         ? { ...p, style: { ...p.style, width: Math.max(p.style.width, minW), color: PREVIEW } }
         : { ...p, color: PREVIEW },
     );
+  }
+
+  /** The two dimension-input boxes at the cursor: live or locked length and angle, with what is being typed. */
+  private dynFields(base: Vec2, p: Vec2): DynField[] {
+    const view = getView(this.doc, this.settings.currentViewId);
+    const l = toLocal(view, p);
+    const b = toLocal(view, base);
+    const { lock, lockField } = this.runner;
+    const typed = this.ui.input.value.trim();
+    const d = lock.length ?? Math.hypot(l.x - b.x, l.y - b.y);
+    const a = lock.angleDeg ?? ((Math.atan2(l.y - b.y, l.x - b.x) * 180) / Math.PI + 360) % 360;
+    const field = (name: 'length' | 'angle', value: string, locked: boolean): DynField => ({
+      value,
+      typed: lockField === name && typed ? typed : null,
+      active: lockField === name,
+      locked,
+    });
+    return [field('length', `${fmt(d)} mm`, lock.length !== null), field('angle', `${fmt(a, 1)}°`, lock.angleDeg !== null)];
   }
 
   private updateCoords(): void {

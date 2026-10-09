@@ -94,6 +94,44 @@ export function tooltip(ctx: CanvasRenderingContext2D, p: Vec2, text: string, dp
   ctx.restore();
 }
 
+export interface DynField {
+  /** Value shown when nothing is typed: the live measurement or the locked value. */
+  value: string;
+  /** Text being typed into this field, shown with a caret instead of `value`. */
+  typed: string | null;
+  active: boolean;
+  locked: boolean;
+}
+
+/**
+ * Dynamic input at the cursor (AutoCAD dimension input): a length box and an angle box. The active box is
+ * white with a blue frame and takes a bare number; a locked box shows a padlock. Returns the drawn height.
+ */
+export function drawDynInput(ctx: CanvasRenderingContext2D, p: Vec2, fields: DynField[], dpr: number): number {
+  ctx.save();
+  ctx.font = `${12 * dpr}px system-ui, sans-serif`;
+  ctx.textBaseline = 'middle';
+  const h = 20 * dpr;
+  const pad = 5 * dpr;
+  const gap = 4 * dpr;
+  let x = p.x;
+  for (const f of fields) {
+    const text = f.typed !== null ? `${f.typed}|` : f.value;
+    const glyph = f.locked ? '🔒 ' : '';
+    const w = ctx.measureText(glyph + text).width + 2 * pad;
+    ctx.fillStyle = f.active ? '#fff' : 'rgba(255,255,225,0.95)';
+    ctx.strokeStyle = f.active ? '#2a6fd6' : '#888';
+    ctx.lineWidth = (f.active ? 1.5 : 1) * dpr;
+    ctx.fillRect(x, p.y, w, h);
+    ctx.strokeRect(x, p.y, w, h);
+    ctx.fillStyle = f.locked ? '#1a4d9c' : '#222';
+    ctx.fillText(glyph + text, x + pad, p.y + h / 2);
+    x += w + gap;
+  }
+  ctx.restore();
+  return h;
+}
+
 /** Left→right window = blue solid, right→left crossing = green dashed. */
 export function drawSelectionBox(ctx: CanvasRenderingContext2D, a: Vec2, b: Vec2, dpr: number): void {
   const crossing = b.x < a.x;
