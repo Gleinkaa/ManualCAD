@@ -4,6 +4,7 @@ import { openEnds } from '../geom';
 import type { Curve } from '../geom/types';
 import { newSheet, toSheet } from '../model/doc';
 import type { Hatch, SheetDoc, TextNote } from '../model/types';
+import { submitText } from './autocomplete';
 import { resolveCommand, suggestCommands } from './commands';
 import { diagnoseHatch, diagnosisMessage, flipAngle } from './commands/hatch';
 import { CommandContext, defaultSettings, type Request } from './commands/types';
@@ -177,5 +178,17 @@ describe('command line autocomplete', () => {
     for (const [alias, name] of [['HE', 'HATCHEDIT'], ['ED', 'TEXTEDIT'], ['RO', 'ROTATE'], ['SC', 'SCALE'], ['P', 'PAN'], ['?', 'HELP']]) {
       expect(resolveCommand(alias)).toBe(name);
     }
+  });
+
+  it('Enter runs the arrow-selected suggestion even when the typed text is a command', () => {
+    const list = suggestCommands('L');
+    const layer = list.findIndex((s) => s.name === 'LAYER');
+    expect(list[0].name).toBe('LINE');
+    expect(layer).toBe(1); // one ArrowDown from the default first row
+    // L, ArrowDown to LAYER, Enter → LAYER
+    expect(submitText('L', list, layer, true)).toBe('LAYER');
+    // no arrow navigation: the typed command stands, a partial name takes the first suggestion
+    expect(submitText('L', list, 0, false)).toBe('L');
+    expect(submitText('LAY', suggestCommands('LAY'), 0, false)).toBe('LAYER');
   });
 });
