@@ -3,7 +3,7 @@ import { formatScale, LINE_GROUPS, sheetSize } from '../model/standards';
 import type { PartsListRow, SheetDoc, TitleBlockField } from '../model/types';
 import { textWidth } from './font';
 import type { PlotOptions } from './sheet';
-import { BLACK } from './style';
+import { BLACK, fitPattern, strokeStyle } from './style';
 import type { Primitive, StrokeStyle } from './types';
 
 /** ISO 5457: drawing frame 20 mm from the trimmed edge on the left (filing margin), 10 mm elsewhere. */
@@ -220,22 +220,25 @@ function plotTitleBlock(doc: SheetDoc, tb: FrameGeometry['titleBlock'], narrow: 
     }
   }
 
-  out.push(...projectionSymbol(at(11, 43), thin, tag));
+  out.push(...projectionSymbol(doc, at(11, 43), thin, tag));
   return out;
 }
 
 /** First-angle projection method symbol (ISO 5456-2) for lettering height h = 3.5, centred at `c`. */
-function projectionSymbol(c: Vec2, style: StrokeStyle, tag: string): Primitive[] {
+function projectionSymbol(doc: SheetDoc, c: Vec2, style: StrokeStyle, tag: string): Primitive[] {
   const h = 3.5;
   const p = (x: number, y: number): Vec2 => ({ x: c.x + x, y: c.y + y });
-  const centre: StrokeStyle = { ...style, dash: [3, 0.6, 0.3, 0.6] };
+  // Centre lines from the line-type system (ADR-0001), fitted to each length like any drawn line.
+  // At this size the short vertical axis is below one period and comes out continuous (fitPattern).
+  const centreBase = strokeStyle(doc, 'center', false); // the frame is black on screen too
+  const centre = (len: number): StrokeStyle => fitPattern(centreBase, len, false);
   return [
     // Truncated cone, front view: small end left, large end right.
     line([p(-8.5, -h / 2), p(-1.5, -h), p(-1.5, h), p(-8.5, h / 2)], style, tag, true),
     // View from the left, placed on the right (first angle).
     { kind: 'arc', c: p(5, 0), r: h, start: 0, end: 2 * Math.PI, style, tag },
     { kind: 'arc', c: p(5, 0), r: h / 2, start: 0, end: 2 * Math.PI, style, tag },
-    line([p(-9.5, 0), p(9.5, 0)], centre, tag),
-    line([p(5, -h - 1), p(5, h + 1)], centre, tag),
+    line([p(-9.5, 0), p(9.5, 0)], centre(19), tag),
+    line([p(5, -h - 1), p(5, h + 1)], centre(2 * h + 2), tag),
   ];
 }
