@@ -22,7 +22,7 @@ HATCH worked before, but only told the user *that* nothing was found. Now:
 |---|---|
 | Icon toolbar: 30 px icon buttons in captioned groups (File, Draw, Modify, Annotate, Dimension, View); the running command's button is highlighted; hovering a button shows its description in the status bar | `app/icons.ts` (42 inline SVGs, 20×20, `iconElement`), `app/ui.ts` (`GROUPS`), `app/style.css` |
 | HELP (F1, `?`, the ? button): modal reference with the basics (command line, prompts, points, snaps, selecting, mouse, line types, hatching) and every command with aliases and a one-line summary | `app/commands/index.ts` (`COMMAND_INFO`, `aliasesOf`), `app/ui.ts` (`openHelpDialog`) |
-| Command line autocomplete: typing shows matching commands (alias, name, summary); ↑/↓ choose, Tab completes, Enter on a partial name runs the highlighted one; click a row | `app/commands/index.ts` (`suggestCommands`), `app/app.ts` |
+| Command line autocomplete: typing shows matching commands (alias, name, summary); ↑/↓ choose, Tab completes, Enter runs the arrow-selected suggestion, else the typed command, else the first suggestion; click a row | `app/commands/index.ts` (`suggestCommands`), `app/autocomplete.ts` (`submitText`), `app/app.ts` |
 | Option chips: the current prompt's [options] are buttons right of the input | `app/app.ts` (`refreshPrompt`) |
 | Rollover highlight: the object a click would pick is drawn in light blue (entity prompts honour their filter) | `app/app.ts` (`rollover`, `HOVER`) |
 | Status bar: selection count ("3 selected") and a mouse hint for the current prompt | `app/ui.ts`, `app/app.ts` (`defaultHint`) |
