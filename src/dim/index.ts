@@ -4,7 +4,7 @@ import type { CircleCurve, ArcCurve, Vec2 } from '../geom/types';
 import { getView, resolveAnchor, toSheet } from '../model/doc';
 import { LINE_GROUPS } from '../model/standards';
 import type { AngularDimension, Dimension, LinearDimension, LinearOrientation, RadialDimension, SheetDoc } from '../model/types';
-import type { Primitive, StrokeStyle } from '../plot/types';
+import type { Primitive, StrokeStyle } from './types';
 import {
   ARROW_ANGLE,
   ARROW_LENGTH_FACTOR,

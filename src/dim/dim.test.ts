@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Vec2 } from '../geom/types';
 import { newSheet } from '../model/doc';
 import type { AngularDimension, Dimension, DimText, LinearDimension, RadialDimension, SheetDoc } from '../model/types';
-import type { Primitive } from '../plot/types';
+import type { Primitive } from './types';
 import { angularGeometry, clampToArc, dimensionText, formatValue, measure, plotDimension, readableAngle } from './index';
 
 const noText = (): DimText => ({ override: null, prefix: '', suffix: '' });
