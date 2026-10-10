@@ -7,6 +7,7 @@ import { formatScale, sheetSize } from '../model/standards';
 import type { LineGroupId, LineTypeId, Orientation, SheetDoc, SheetFormat } from '../model/types';
 import { exportDxf, importDwg, importDxf, type ImportResult } from '../io';
 import { exportPdf, frameGeometry, loadFonts, PARTS_LIST, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
+import { submitText } from './autocomplete';
 import { resolveCommand, suggestCommands } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
 import { History, snapshot } from './history';
@@ -109,6 +110,8 @@ export class App {
   private sessionTimer = 0;
   private suggestions: { name: string; alias: string | null; summary: string }[] = [];
   private suggestIndex = -1;
+  /** True once the arrow keys moved the highlight away from the default first row. */
+  private suggestNavigated = false;
   private statusHint: string | null = null;  // hovered toolbar button
 
   constructor(root: HTMLElement) {
@@ -366,10 +369,8 @@ export class App {
 
   private submit(): void {
     let text = this.ui.input.value;
-    // Enter on a partial command name runs the highlighted suggestion (AutoCAD autocomplete).
-    if (!this.runner.active && text.trim() && !resolveCommand(text) && this.suggestions.length > 0) {
-      text = this.suggestions[Math.max(0, this.suggestIndex)].name;
-    }
+    // Enter runs the arrow-selected suggestion, else a typed command, else the first suggestion (AutoCAD autocomplete).
+    if (!this.runner.active) text = submitText(text, this.suggestions, this.suggestIndex, this.suggestNavigated);
     this.ui.input.value = '';
     this.clearSuggestions();
     if (!this.runner.text(text)) this.ui.input.value = text.trim();
@@ -408,12 +409,14 @@ export class App {
     const text = this.ui.input.value;
     this.suggestions = this.runner.active || !text.trim() ? [] : suggestCommands(text);
     this.suggestIndex = this.suggestions.length > 0 ? 0 : -1;
+    this.suggestNavigated = false;
     this.renderSuggestions();
   }
 
   private clearSuggestions(): void {
     this.suggestions = [];
     this.suggestIndex = -1;
+    this.suggestNavigated = false;
     this.renderSuggestions();
   }
 
@@ -679,12 +682,14 @@ export class App {
       if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
         ev.preventDefault();
         this.moveSuggestion(ev.key === 'ArrowDown' ? 1 : -1);
+        this.suggestNavigated = true;
         return;
       }
       if (ev.key === 'Tab') {
         ev.preventDefault();
         input.value = this.suggestions[Math.max(0, this.suggestIndex)].name;
         this.moveSuggestion(1);
+        this.suggestNavigated = false; // Enter now runs the name Tab put in the input
         return;
       }
     }
