@@ -69,6 +69,47 @@ export const ITEM_NUMBER_HEIGHT_FACTOR = 2;
 /** Dot terminator of a leader line ending inside an outline (ISO 128-22): diameter as a multiple of the narrow line width. */
 export const LEADER_DOT_FACTOR = 5;
 
+/**
+ * Surface texture symbol proportions (ISO 21920-1 Annex A, unchanged from ISO 1302 Annex A), as multiples of the
+ * lettering height h: short leg H1 = 1.4 h, long leg H2 = 3 h (the minimum, for the two text lines a and b), both
+ * legs at 60° to the surface. The bar on the long leg is as long as the longest text above or under it.
+ */
+export const SURFACE_SYMBOL = { shortLeg: 1.4, longLeg: 3, legAngle: (60 * Math.PI) / 180 } as const;
+
+/**
+ * Process words offered for position c of a surface texture symbol: the list in the BBRZ block
+ * `Oberflächenzeichen_BBRZ` (German, as lettered on Austrian drawings). Any other text may be typed.
+ */
+export const SURFACE_PROCESS_WORDS: readonly string[] = [
+  'geschliffen',
+  'geschlichtet',
+  'feingeschlichtet',
+  'gefräst',
+  'feingeschliffen',
+  'feinstgeschliffen',
+  'geschruppt',
+  'gehärtet',
+  'verchromt',
+  'vernickelt',
+  'matt vernickelt',
+  'geläppt',
+  'und geschliffen',
+  'Spitze gehärtet',
+];
+
+/**
+ * Surface lay symbols for position d (ISO 21920-1 / ISO 1302): parallel, perpendicular, crossed, multi-directional,
+ * circular, radial, particulate. `=` and `⊥` are relative to the projection plane the symbol is drawn in.
+ */
+export const SURFACE_LAY_SYMBOLS: readonly string[] = ['=', '⊥', 'X', 'M', 'C', 'R', 'P'];
+
+/**
+ * Taper and slope symbol size (ISO 3040 refers to ISO 81714-1; DIN 406-10 gives the 1:2 proportion): the triangle is
+ * one lettering height h high and two long, the taper symbol symmetric about the reference line, the slope symbol
+ * standing on it.
+ */
+export const TAPER_SYMBOL = { height: 1, length: 2 } as const;
+
 /** Standard scales per ISO 5455. */
 export const STANDARD_SCALES: number[] = [50, 20, 10, 5, 2, 1, 1 / 2, 1 / 5, 1 / 10, 1 / 20, 1 / 50, 1 / 100];
 
@@ -93,4 +134,7 @@ export const NORM_RULES: NormRule[] = [
   { id: 'LEADER-REF', source: 'ISO 128-22', text: 'Notes stand on a short horizontal reference line at the end of the leader line.' },
   { id: 'ITEM-NUMBER', source: 'ISO 6433', text: 'Item numbers are lettered larger than the dimension values and connected to their part by a leader line ending in a dot.' },
   { id: 'TB-POSITION', source: 'ISO 7200', text: 'The title block sits in the bottom-right corner of the drawing area.' },
+  { id: 'SURF-SYMBOL', source: 'ISO 21920-1', text: 'Surface texture symbols are narrow lines sized from the lettering height (H1 = 1.4 h, H2 = 3 h); the vertex touches the surface from outside the material or sits on a leader or extension line.' },
+  { id: 'SURF-READ', source: 'ISO 21920-1', text: 'Surface texture symbols and their texts are readable from the bottom or the right of the drawing; other surfaces get the symbol on a leader line.' },
+  { id: 'TAPER-SYMBOL', source: 'ISO 3040', text: 'A taper or slope is given by its symbol and ratio on the reference line of a leader; the symbol points the way the part narrows or falls.' },
 ];

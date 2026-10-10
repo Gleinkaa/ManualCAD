@@ -1,5 +1,17 @@
 # Handoff: hatch UX, icon toolbar, help, autocomplete, ROTATE/SCALE (2026-10-07)
 
+## Symbols (2026-10-10, `feat/symbols`, ADR-0005)
+
+| Feature | Where |
+|---|---|
+| Surface texture symbol (ISO 21920-1, ISO 1302 positions a–e): SURFACE (SURF, SURFSYM, AMSURFSYM). Point on the surface, rotation (typed or picked direction), then the texts a–e; option chips Any process / Removal required / removal Prohibited / Collective "(✓)"; process words of the BBRZ list as chips 1–14, lay symbols as chips | `model/types.ts` (`SurfaceSymbol`), `app/commands/symbols.ts`, `plot/symbol.ts` (`surfaceSymbolLayout`) |
+| Taper / slope symbol (ISO 3040): TAPER (TAPERSYM, AMTAPERSYM). Leader with arrowhead, Enter, ratio, which way the part narrows; Form switches taper/slope | `model/types.ts` (`TaperSymbol`), `app/commands/symbols.ts`, `plot/symbol.ts` (`taperSymbolLayout`) |
+| Sizes from the line group's lettering height h (H1 = 1.4 h, H2 = 3 h; triangle h × 2 h), narrow lines; Norm rules SURF-SYMBOL, SURF-READ, TAPER-SYMBOL | `model/standards.ts` |
+| MOVE/COPY/MIRROR/ROTATE/SCALE, grips (vertex; leader points), TEXTEDIT and double-click edit the values; symbol texts interrupt hatching | `model/annot.ts`, `app/grips.ts`, `app/commands/annotate.ts` |
+| DXF export as one attributed block per symbol with the BBRZ tags; DXF/DWG import maps blocks with `RAUHEIT` / `KKV` attributes back to symbols | `io/dxf/write.ts`, `io/import.ts`, `io/symbols.ts`, fixture `samples/synthetic/symbols-bbrz-r2018.*` |
+
+Not done: tolerance frame and datum (modelled in ADR-0005, not implemented), a surface symbol on its own leader, the all-around circle. ISO sizes win over the BBRZ block's absolute sizes (ADR-0005 lists both).
+
 This session followed the 2026-10-06 UX pass (PR #2, `feat/ux-pass`). Its notes are kept below, under "Previous handoff".
 - **Branch:** `feat/ux-hatch-help`, on `master` after PR #2.
 - **Checks:** `npm test` passes (one skip: the SVG render script, which needs `ZA38_SVG`); `npm run typecheck` and `npm run build` are clean.

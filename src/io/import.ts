@@ -19,13 +19,17 @@ import type {
   Orientation,
   SheetDoc,
   SheetFormat,
+  SurfaceFields,
+  SurfaceRemoval,
+  SymbolAnnotation,
   TextNote,
   TitleBlockField,
   View,
 } from '../model/types';
 import { FRAME, TITLE_BLOCK } from '../plot/frame';
 import { decodeTextCodes, mtextToLines } from './mtext';
-import type { RawDrawing, RawEntity, RawLayer, RawLoopEdge, RawVertex } from './raw';
+import type { RawBlock, RawDrawing, RawEntity, RawLayer, RawLoopEdge, RawVertex } from './raw';
+import { SURFACE_TAGS, TAPER_TAG, tagKey } from './symbols';
 
 export interface ImportResult {
   doc: SheetDoc;
@@ -62,7 +66,13 @@ type Item = Resolved & (
   | { kind: 'dimension'; raw: Extract<RawEntity, { kind: 'dimension' }> }
   | { kind: 'leader'; points: Vec2[]; arrow: boolean; text: string | null; height: number; annotation: string | null }
   | { kind: 'viewport'; center: Vec2; width: number; height: number; viewCenter: Vec2; viewHeight: number; id: number }
+  | { kind: 'symbol'; symbol: SymbolItem }
 );
+
+/** A recognised symbol block, in drawing mm; sizes are dropped (ManualCAD sizes symbols from the sheet). */
+type SymbolItem =
+  | { kind: 'surface'; pos: Vec2; angle: number; removal: SurfaceRemoval; fields: SurfaceFields; collective: boolean }
+  | { kind: 'taper'; form: 'taper' | 'slope'; points: Vec2[]; ratio: string; direction: 1 | -1 };
 
 /** Similarity transform (uniform scale, rotation, optional reflection, translation) applied to block contents. */
 interface Xform {
@@ -268,6 +278,11 @@ export function importDrawing(raw: RawDrawing, opts: ImportOptions = {}): Import
       layers.add(item.layer);
     }
   }
+  for (const { item, view } of placed) {
+    if (item.kind !== 'symbol') continue;
+    doc.annotations.push(symbolAnnotation(item, view));
+    layers.add(item.layer);
+  }
   doc.layers = [...layers].map((name) => ({ name, visible: true }));
   report.lines.unshift(
     `Imported ${doc.entities.length} entities, ${doc.dimensions.length} dimensions, ${doc.annotations.length} annotations into ${views.length} view${views.length === 1 ? '' : 's'}; line group ${lineGroup}.`,
@@ -387,10 +402,16 @@ function emit(
       });
       return;
     }
-    case 'insert':
+    case 'insert': {
+      const symbol = symbolFromInsert(e, m, raw, report);
+      if (symbol) {
+        out.push({ ...res, kind: 'symbol', symbol });
+        return;
+      }
       insert(e.name, e);
       for (const a of e.attribs) emit(a, resolve(a, raw.layers.get(a.layer), res), m, raw, out, report, insert);
       return;
+    }
     case 'hatch': {
       const loops: Curve[][] = [];
       for (const edges of e.loops) {
@@ -517,6 +538,10 @@ function translateItem(it: Item, d: Vec2): Item {
       return { ...it, points: it.points.map(t) };
     case 'viewport':
       return { ...it, center: t(it.center) };
+    case 'symbol': {
+      const sy = it.symbol;
+      return { ...it, symbol: sy.kind === 'surface' ? { ...sy, pos: t(sy.pos) } : { ...sy, points: sy.points.map(t) } };
+    }
   }
 }
 
@@ -694,6 +719,11 @@ function itemBox(it: Item): Box | null {
     }
     case 'viewport':
       return null;
+    case 'symbol': {
+      let b: Box | null = null;
+      for (const p of it.symbol.kind === 'surface' ? [it.symbol.pos] : it.symbol.points) b = grow(b, p);
+      return b;
+    }
   }
 }
 
@@ -1086,6 +1116,146 @@ function leader(item: Extract<Item, { kind: 'leader' }>, view: View, doc: SheetD
     height,
   };
   return l;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Symbol blocks (BBRZ `Oberflächenzeichen_BBRZ`, `Kegel-Keil-Verhältnis_BBRZ`, and ManualCAD's own export),
+// recognised by their attribute tags: RAUHEIT → surface texture symbol, KKV → taper/slope symbol.
+
+const SURFACE_KEYS = new Map(SURFACE_TAGS.map((t) => [tagKey(t.tag), t.field]));
+const TAPER_KEY = tagKey(TAPER_TAG.tag);
+
+/** The block insert as a symbol, or null when its attributes are not those of a symbol block. */
+function symbolFromInsert(e: Extract<RawEntity, { kind: 'insert' }>, m: Xform, raw: RawDrawing, report: Report): SymbolItem | null {
+  const attribs = new Map<string, string>();
+  for (const a of e.attribs) if (a.kind === 'text' && a.tag !== null) attribs.set(tagKey(a.tag), decodeTextCodes(a.text).trim());
+  const isSurface = attribs.has(tagKey('RAUHEIT'));
+  const isTaper = attribs.has(TAPER_KEY);
+  if (!isSurface && !isTaper) return null;
+  const block = raw.blocks.get(e.name);
+  const local: Xform = {
+    a: e.scale.x * Math.cos(e.rotation),
+    b: e.scale.x * Math.sin(e.rotation),
+    c: -e.scale.y * Math.sin(e.rotation),
+    d: e.scale.y * Math.cos(e.rotation),
+    e: e.pos.x,
+    f: e.pos.y,
+  };
+  const base: Xform = { a: 1, b: 0, c: 0, d: 1, e: -(block?.base.x ?? 0), f: -(block?.base.y ?? 0) };
+  const toWorld = compose(m, compose(local, base));
+  if (det(toWorld) < 0) report.count('mirrored symbol block imported unmirrored');
+  if (isSurface) {
+    const fields: SurfaceFields = { roughness: '', second: '', process: '', lay: '', allowance: '' };
+    for (const [key, value] of attribs) {
+      const field = SURFACE_KEYS.get(key);
+      if (field) fields[field] = value;
+    }
+    if (/^(Ra|Rz)$/i.test(fields.roughness)) fields.roughness = ''; // the BBRZ default "Ra " without a value
+    const shape = block ? surfaceShape(block) : { removal: 'any' as const, collective: false, ambiguous: false };
+    if (shape.ambiguous) report.lines.push(`Surface symbol block "${e.name}" has both the removal bar and the no-removal circle; imported as the basic symbol.`);
+    const collective = shape.collective && Object.values(fields).every((v) => !v);
+    report.count('surface texture symbol');
+    return { kind: 'surface', pos: apply(toWorld, block?.base ?? { x: 0, y: 0 }), angle: angleOf(toWorld), removal: shape.removal, fields, collective };
+  }
+  const ratio = attribs.get(TAPER_KEY) ?? '';
+  const shape = block ? taperShape(block, toWorld) : null;
+  const points = shape?.leader ?? [apply(toWorld, block?.base ?? { x: 0, y: 0 })];
+  if (points.length < 2) {
+    report.count('taper symbol without a leader');
+    points.push({ ...points[0] });
+  }
+  report.count(`${shape?.form ?? 'taper'} symbol`);
+  return { kind: 'taper', form: shape?.form ?? 'taper', points, ratio: ratio === '1:' ? '' : ratio, direction: shape?.direction ?? 1 };
+}
+
+/** Straight segments of a block's lines and polylines (block coordinates), with whether the path was closed. */
+function blockPaths(block: RawBlock): { pts: Vec2[]; closed: boolean }[] {
+  const out: { pts: Vec2[]; closed: boolean }[] = [];
+  for (const e of block.entities) {
+    if (e.kind === 'line') out.push({ pts: [e.a, e.b], closed: false });
+    else if (e.kind === 'polyline' && e.vertices.every((v) => Math.abs(v.bulge) < 1e-9)) out.push({ pts: e.vertices.map((v) => v.p), closed: e.closed });
+  }
+  return out;
+}
+
+/**
+ * Variant of a surface symbol block, relative to its base point (the vertex): a horizontal line across the V above
+ * the vertex is the removal bar, a circle the no-removal circle, a "(" text the collective parentheses.
+ */
+function surfaceShape(block: RawBlock): { removal: SurfaceRemoval; collective: boolean; ambiguous: boolean } {
+  const o = block.base;
+  const bar = blockPaths(block).some(({ pts }) => {
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [a, b] = [pts[i], pts[i + 1]];
+      if (Math.abs(a.y - b.y) < EPS && a.y > o.y + EPS && Math.min(a.x, b.x) < o.x - EPS && Math.max(a.x, b.x) > o.x + EPS) return true;
+    }
+    return false;
+  });
+  const circle = block.entities.some((e) => e.kind === 'circle');
+  const collective = block.entities.some((e) => (e.kind === 'text' || e.kind === 'mtext') && e.text.includes('('));
+  if (bar && circle) return { removal: 'any', collective, ambiguous: true };
+  return { removal: bar ? 'required' : circle ? 'prohibited' : 'any', collective, ambiguous: false };
+}
+
+/**
+ * Form, direction and leader of a taper/slope block in drawing mm. The triangle is the three-vertex polyline; its
+ * narrow end is the vertex with the smallest angle; equal sides there make it a taper, else a slope. The leader is
+ * the block's (multi)leader, else an open line ending at the base point, tip first; a horizontal landing is dropped.
+ */
+function taperShape(block: RawBlock, toWorld: Xform): { form: 'taper' | 'slope'; direction: 1 | -1; leader: Vec2[] | null } | null {
+  const paths = blockPaths(block).map(({ pts, closed }) => ({ pts: pts.map((p) => apply(toWorld, p)), closed }));
+  const triangles = paths.filter(({ pts }) => pts.length === 3 || (pts.length === 4 && Math.hypot(pts[0].x - pts[3].x, pts[0].y - pts[3].y) < EPS)).map(({ pts }) => pts.slice(0, 3));
+  let form: 'taper' | 'slope' = 'taper';
+  let direction: 1 | -1 = 1;
+  const angleAt = (t: Vec2[], i: number) => {
+    const p = t[i];
+    const q = t[(i + 1) % 3];
+    const r = t[(i + 2) % 3];
+    const u = { x: q.x - p.x, y: q.y - p.y };
+    const v = { x: r.x - p.x, y: r.y - p.y };
+    return Math.acos(Math.max(-1, Math.min(1, (u.x * v.x + u.y * v.y) / (Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y) || 1))));
+  };
+  const classify = (t: Vec2[]) => {
+    const i = [0, 1, 2].reduce((best, k) => (angleAt(t, k) < angleAt(t, best) ? k : best), 0);
+    const p = t[i];
+    const q = t[(i + 1) % 3];
+    const r = t[(i + 2) % 3];
+    const dq = Math.hypot(q.x - p.x, q.y - p.y);
+    const dr = Math.hypot(r.x - p.x, r.y - p.y);
+    const wide = { x: (q.x + r.x) / 2, y: (q.y + r.y) / 2 };
+    return { isTaper: Math.abs(dq - dr) < 1e-3 * Math.max(dq, dr), direction: (p.x >= wide.x ? 1 : -1) as 1 | -1 };
+  };
+  const shapes = triangles.map(classify);
+  const pickShape = shapes.find((x) => x.isTaper) ?? shapes[0];
+  if (pickShape) {
+    form = pickShape.isTaper ? 'taper' : 'slope';
+    direction = pickShape.direction;
+  }
+  let leader: Vec2[] | null = null;
+  for (const e of block.entities) {
+    if (e.kind === 'leader' && e.points.length >= 2) leader = e.points.map((p) => apply(toWorld, p));
+    else if (e.kind === 'mleader' && e.lines[0]?.length >= 2) leader = e.lines[0].map((p) => apply(toWorld, p));
+    if (leader) break;
+  }
+  if (!leader) {
+    const o = apply(toWorld, block.base);
+    const at = (p: Vec2) => Math.hypot(p.x - o.x, p.y - o.y) < 1e-6 * Math.max(1, Math.hypot(o.x, o.y));
+    for (const { pts, closed } of paths) {
+      if (closed || pts.length < 2 || pts.every((p) => Math.abs(p.y - pts[0].y) < EPS)) continue;
+      if (at(pts[pts.length - 1])) leader = pts;
+      else if (at(pts[0])) leader = [...pts].reverse();
+      if (leader) break;
+    }
+  }
+  if (leader) while (leader.length > 2 && Math.abs(leader[leader.length - 1].y - leader[leader.length - 2].y) < EPS) leader = leader.slice(0, -1);
+  return { form, direction, leader };
+}
+
+function symbolAnnotation(item: Extract<Item, { kind: 'symbol' }>, view: View): SymbolAnnotation {
+  const sy = item.symbol;
+  const base = { id: newId('a'), viewId: view.id, layer: item.layer };
+  if (sy.kind === 'surface') return { kind: 'surface', ...base, pos: localOf(view, sy.pos, item.paper), angle: sy.angle, removal: sy.removal, fields: sy.fields, collective: sy.collective };
+  return { kind: 'taper', ...base, form: sy.form, points: sy.points.map((p) => localOf(view, p, item.paper)), ratio: sy.ratio, direction: sy.direction };
 }
 
 // ---------------------------------------------------------------------------------------------------------------

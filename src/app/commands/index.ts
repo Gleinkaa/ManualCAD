@@ -3,6 +3,7 @@ import { balloon, leader, sketch, text, textedit } from './annotate';
 import { dimaligned, dimangular, dimdiameter, dimedit, dimlinear, dimradius } from './dims';
 import { arc, circle, line, rectang } from './draw';
 import { gripstretch, stretch } from './grips';
+import { surface, taper } from './symbols';
 import { hatch, hatchedit } from './hatch';
 import { chamfer, copy, erase, extend, fillet, mirror, move, offset, rotate, scaleCmd, trim } from './modify';
 import { layer, ltype, partslist, partslistCommandLine, titleblock, view, zoom } from './settings';
@@ -32,6 +33,8 @@ export const COMMANDS: Record<string, CommandFn> = {
   SKETCH: sketch,
   LEADER: leader,
   BALLOON: balloon,
+  SURFACE: surface,
+  TAPER: taper,
   DIMLINEAR: dimlinear,
   DIMALIGNED: dimaligned,
   DIMRADIUS: dimradius,
@@ -94,6 +97,11 @@ export const ALIASES: Record<string, string> = {
   MLD: 'LEADER',
   BAL: 'BALLOON',
   ITEM: 'BALLOON',
+  SURF: 'SURFACE',
+  SURFSYM: 'SURFACE',
+  AMSURFSYM: 'SURFACE',
+  TAPERSYM: 'TAPER',
+  AMTAPERSYM: 'TAPER',
   DLI: 'DIMLINEAR',
   DAL: 'DIMALIGNED',
   DRA: 'DIMRADIUS',
@@ -160,11 +168,13 @@ export const COMMAND_INFO: CommandInfo[] = [
   { name: 'MIRROR', group: 'Modify', summary: 'Mirror the selection across a line of two points; text keeps its reading direction.' },
   { name: 'ERASE', group: 'Modify', summary: 'Delete the selection (Delete key with a selection).' },
   { name: 'HATCHEDIT', group: 'Modify', summary: 'Change angle and spacing of hatches; double-click a hatch.' },
-  { name: 'TEXTEDIT', group: 'Modify', summary: 'Change the text of notes and leaders; double-click a text.' },
+  { name: 'TEXTEDIT', group: 'Modify', summary: 'Change the text of notes, leaders and symbols; double-click a text or symbol.' },
   { name: 'DIMEDIT', group: 'Modify', summary: 'Replace dimension text; <> stands for the measured value (%%c = ⌀, %%d = °, %%p = ±). Double-click a dimension.' },
   { name: 'TEXT', group: 'Annotate', summary: 'Single-line text (ISO 3098): start point, height, rotation, then lines of text. Justify Left/Center/Right.' },
   { name: 'LEADER', group: 'Annotate', summary: 'Note on a leader line (ISO 128-22): arrowhead on an outline, dot inside; Terminator overrides it.' },
   { name: 'BALLOON', group: 'Annotate', summary: 'Item number (ISO 6433) on a leader, lettered at twice the dimension text height.' },
+  { name: 'SURFACE', group: 'Annotate', summary: 'Surface texture symbol (ISO 21920-1): point on the surface, rotation, then the texts a–e (process word chips). Any process / Removal required / removal Prohibited, Collective "(✓)". TEXTEDIT changes the texts.' },
+  { name: 'TAPER', group: 'Annotate', summary: 'Taper or slope symbol with its ratio on a leader (ISO 3040): arrowhead on the outline, leader points, Enter, ratio, direction. Form switches taper/slope.' },
   { name: 'DIMLINEAR', group: 'Dimension', summary: 'Horizontal or vertical dimension between two points (Enter: pick a line). Text option overrides the value.' },
   { name: 'DIMALIGNED', group: 'Dimension', summary: 'Dimension parallel to the two points.' },
   { name: 'DIMRADIUS', group: 'Dimension', summary: 'Radius of an arc or circle, R prefixed.' },

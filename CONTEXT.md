@@ -65,8 +65,12 @@ A standards annotation (surface texture, tolerance frame, datum, edge, weld) tha
 _Avoid_: block, stamp
 
 **Surface texture indication**:
-The symbol for surface finish and its values (process, Ra/Rz, lay direction), per ISO 21920 / ISO 1302 (German: Oberflächenangabe).
+The symbol for surface finish and its values (process, Ra/Rz, lay direction), per ISO 21920 / ISO 1302 (German: Oberflächenangabe). Its variant says whether material removal is required, prohibited or left open; placed with SURFACE.
 _Avoid_: surface definition, roughness mark
+
+**Taper symbol**:
+The triangle with a ratio on a leader that gives the rate of taper of a cone (ISO 3040, German: Kegelverhältnis) or, as a right triangle, the slope of a flat surface (German: Neigung, together "Kegel-Keil-Verhältnis"). It points the way the part narrows or falls; placed with TAPER.
+_Avoid_: cone mark, incline arrow
 
 **Partial section**:
 A section of only one region of a view, bounded by a freehand line, used to show a hidden detail such as a bore without sectioning the whole part (German: Teilschnitt, Ausbruch, "aufbrechen").

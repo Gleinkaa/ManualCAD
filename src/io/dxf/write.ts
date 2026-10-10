@@ -1,12 +1,14 @@
 // SheetDoc → DXF R2000 (AC1015). Model space holds every view's geometry in real mm, placed so that
 // paper = model × view scale; a layout "Sheet" carries the frame, title block, parts list and one viewport per view.
 // Dimensions, leaders and the title block are written as plain geometry (the same primitives ManualCAD plots).
+// Symbols are blocks with attributes, tagged like the BBRZ symbol blocks, so AutoCAD users can edit their values.
 import { plotDimension } from '../../dim';
 import type { Curve, Vec2 } from '../../geom/types';
 import { layerVisible } from '../../model/doc';
 import { DASH_LENGTHS, LINE_GROUPS, LINE_TYPES, sheetSize } from '../../model/standards';
-import type { LineTypeId, SheetDoc, View } from '../../model/types';
-import { plotAnnotation, plotFrame, plotSheet, type Primitive } from '../../plot';
+import type { LineTypeId, SheetDoc, SurfaceSymbol, SymbolAnnotation, TaperSymbol, View } from '../../model/types';
+import { plotAnnotation, plotFrame, plotSheet, referenceSide, surfaceSymbolLayout, symbolTextHeight, taperSymbolLayout, type Primitive, type SymbolLayout, type SymbolText } from '../../plot';
+import { SURFACE_TAGS, TAPER_TAG } from '../symbols';
 
 const VERSION = 'AC1015';
 const PLOT: { includeConstruction: boolean; screenColors: boolean } = { includeConstruction: false, screenColors: false };
@@ -55,6 +57,11 @@ class Out {
     return this.seed.toString(16).toUpperCase();
   }
 
+  /** The handle handed out last. */
+  lastHandle(): string {
+    return (this.seed - 1).toString(16).toUpperCase();
+  }
+
   toString(): string {
     return this.parts.join('');
   }
@@ -71,13 +78,25 @@ interface Writer {
   modelHandle: string;
   paperHandle: string;
   layers: Map<string, { color: number; linetype: string; off: boolean }>;
+  /** Block record the next entities belong to while a block definition is written; null = model/paper space. */
+  owner: string | null;
+}
+
+/** A symbol block: its definition (geometry and attribute definitions in paper mm) and the record handle. */
+interface SymbolBlock {
+  name: string;
+  record: string;
+  body: (wr: Writer) => void;
+  /** The attribute texts (block frame), written again as ATTRIBs on the insert. */
+  attribs: SymbolText[];
 }
 
 export function writeDxf(doc: SheetDoc): string {
   const out = new Out();
   const sheet = sheetSize(doc.format, doc.orientation);
   const group = doc.lineGroup;
-  const w: Writer = { out, modelHandle: '', paperHandle: '', layers: new Map() };
+  const w: Writer = { out, modelHandle: '', paperHandle: '', layers: new Map(), owner: null };
+  const blocks: SymbolBlock[] = [];
   const layer = (name: string, color: number, linetype = 'CONTINUOUS', off = false) => {
     if (!w.layers.has(name)) w.layers.set(name, { color, linetype, off });
   };
@@ -137,6 +156,14 @@ export function writeDxf(doc: SheetDoc): string {
     }
     const prims = plotAnnotation(doc, a, PLOT);
     pushPrims(a.viewId, prims);
+    if (a.kind === 'surface' || a.kind === 'taper') {
+      const view = doc.views.find((v) => v.id === a.viewId)!;
+      const block = symbolBlock(doc, a, view, blocks.length + 1);
+      blocks.push(block);
+      const pen = widthPen(LINE_GROUPS[group].narrow, a.layer, DIM_LAYER);
+      model.push((wr) => insertEntity(wr, pen, block, sheetToModel(a.viewId, symbolAnchor(a, view)), 1 / s, a.kind === 'surface' ? a.angle : 0));
+      continue;
+    }
     const fallback = a.kind === 'text' ? TEXT_LAYER : DIM_LAYER;
     for (const p of prims) model.push((wr) => primitiveEntity(wr, false, p, (q) => sheetToModel(a.viewId, q), 1 / s, () => widthPen(p.kind === 'text' || p.kind === 'fill' ? 0 : p.style.width, a.layer, fallback)));
   }
@@ -337,9 +364,10 @@ export function writeDxf(doc: SheetDoc): string {
   out.tag(70, 0);
   out.tag(0, 'ENDTAB');
 
-  const blockRecordTable = tableStart(out, 'BLOCK_RECORD', 2);
+  const blockRecordTable = tableStart(out, 'BLOCK_RECORD', 2 + blocks.length);
   w.modelHandle = symbol(out, 'BLOCK_RECORD', blockRecordTable, 'AcDbBlockTableRecord', (o) => o.tag(2, '*Model_Space'));
   w.paperHandle = symbol(out, 'BLOCK_RECORD', blockRecordTable, 'AcDbBlockTableRecord', (o) => o.tag(2, '*Paper_Space'));
+  for (const b of blocks) b.record = symbol(out, 'BLOCK_RECORD', blockRecordTable, 'AcDbBlockTableRecord', (o) => o.tag(2, b.name));
   out.tag(0, 'ENDTAB');
   out.tag(0, 'ENDSEC');
 
@@ -348,6 +376,13 @@ export function writeDxf(doc: SheetDoc): string {
   out.tag(2, 'BLOCKS');
   blockDef(out, '*Model_Space', w.modelHandle, false);
   blockDef(out, '*Paper_Space', w.paperHandle, true);
+  for (const b of blocks) {
+    blockDef(out, b.name, b.record, false, () => {
+      w.owner = b.record;
+      b.body(w);
+      w.owner = null;
+    });
+  }
   out.tag(0, 'ENDSEC');
 
   // --- ENTITIES ---
@@ -422,7 +457,8 @@ function symbol(out: Out, type: string, owner: string, subclass: string, body: (
   return h;
 }
 
-function blockDef(out: Out, name: string, record: string, paper: boolean): void {
+/** BLOCK … ENDBLK; `body` writes the definition's entities (a block with a body has attribute definitions). */
+function blockDef(out: Out, name: string, record: string, paper: boolean, body?: () => void): void {
   out.tag(0, 'BLOCK');
   out.tag(5, out.handle());
   out.tag(330, record);
@@ -431,10 +467,11 @@ function blockDef(out: Out, name: string, record: string, paper: boolean): void 
   out.tag(8, '0');
   out.tag(100, 'AcDbBlockBegin');
   out.tag(2, name);
-  out.tag(70, 0);
+  out.tag(70, body ? 2 : 0);
   out.point(10, { x: 0, y: 0 });
   out.tag(3, name);
   out.tag(1, '');
+  body?.();
   out.tag(0, 'ENDBLK');
   out.tag(5, out.handle());
   out.tag(330, record);
@@ -499,7 +536,7 @@ function entityStart(w: Writer, type: string, paper: boolean, pen: Pen): void {
   const o = w.out;
   o.tag(0, type);
   o.tag(5, o.handle());
-  o.tag(330, paper ? w.paperHandle : w.modelHandle);
+  o.tag(330, w.owner ?? (paper ? w.paperHandle : w.modelHandle));
   o.tag(100, 'AcDbEntity');
   if (paper) o.tag(67, 1);
   o.tag(8, pen.layer);
@@ -681,6 +718,112 @@ function viewportEntity(w: Writer, id: number, center: Vec2, width: number, heig
   o.tag(132, 0);
   o.tag(79, 0);
   o.tag(146, 0);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Symbols as blocks with attributes
+
+/** The sheet point a symbol block is inserted at: the surface symbol's vertex, the taper symbol's reference line start. */
+function symbolAnchor(a: SymbolAnnotation, view: View): Vec2 {
+  const local = a.kind === 'surface' ? a.pos : a.points[a.points.length - 1];
+  return { x: view.origin.x + local.x * view.scale, y: view.origin.y + local.y * view.scale };
+}
+
+/** Layer, colour and line type of block contents: all by block, so the INSERT's pen decides. */
+const BY_BLOCK: Pen = { layer: '0', color: 0, linetype: 'CONTINUOUS' };
+
+/**
+ * One block per symbol (its bar length, variant and leader differ), in paper mm with the anchor at the origin.
+ * A taper block also holds its leader and arrowhead, as the BBRZ block holds its multileader.
+ */
+function symbolBlock(doc: SheetDoc, a: SurfaceSymbol | TaperSymbol, view: View, n: number): SymbolBlock {
+  const h = symbolTextHeight(doc);
+  const style = { width: LINE_GROUPS[doc.lineGroup].narrow, dash: [], dashOffset: 0, color: '#000' };
+  let layout: SymbolLayout;
+  let extra: Primitive[] = [];
+  if (a.kind === 'surface') {
+    layout = surfaceSymbolLayout(a, h, style);
+  } else {
+    const pts = a.points.map((p) => ({ x: (p.x - a.points[a.points.length - 1].x) * view.scale, y: (p.y - a.points[a.points.length - 1].y) * view.scale }));
+    layout = taperSymbolLayout(a, referenceSide(pts), h, style);
+    // the leader runs from the tip to the origin; its arrowhead is the plotted one, moved into the block's frame
+    const anchor = symbolAnchor(a, view);
+    const plotted = plotAnnotation(doc, a, PLOT);
+    const arrow = plotted.find((p) => p.kind === 'fill');
+    extra = [{ kind: 'polyline', points: pts, closed: false, style }];
+    if (arrow && arrow.kind === 'fill') extra.push({ ...arrow, points: arrow.points.map((p) => ({ x: p.x - anchor.x, y: p.y - anchor.y })) });
+  }
+  const attdefs = layout.texts.filter((t) => t.field !== 'open' && t.field !== 'close');
+  const fixed = layout.texts.filter((t) => t.field === 'open' || t.field === 'close');
+  const name = `${a.kind === 'surface' ? 'MC_SURFACE' : 'MC_TAPER'}_${n}`;
+  return {
+    name,
+    record: '',
+    attribs: attdefs,
+    body: (wr) => {
+      for (const p of [...layout.lines, ...extra]) primitiveEntity(wr, false, p, (q) => q, 1, () => BY_BLOCK);
+      for (const t of fixed) primitiveEntity(wr, false, t.prim, (q) => q, 1, () => BY_BLOCK);
+      for (const t of attdefs) attributeEntity(wr, 'ATTDEF', BY_BLOCK, t, tagOf(t), t.prim.pos, 1, 0);
+    },
+  };
+}
+
+function tagOf(t: SymbolText): { tag: string; prompt: string } {
+  if (t.field === 'ratio') return TAPER_TAG;
+  return SURFACE_TAGS.find((x) => x.field === t.field)!;
+}
+
+/** ATTDEF (in a block, default = the symbol's value) or ATTRIB (on an insert) for one symbol text. */
+function attributeEntity(w: Writer, type: 'ATTDEF' | 'ATTRIB', pen: Pen, t: SymbolText, tag: { tag: string; prompt: string }, pos: Vec2, k: number, angle: number): void {
+  const o = w.out;
+  const p = t.prim;
+  entityStart(w, type, false, pen);
+  o.tag(100, 'AcDbText');
+  o.point(10, pos);
+  o.tag(40, p.height * k);
+  o.tag(1, p.text.replace(/⌀/g, '%%c').replace(/°/g, '%%d').replace(/±/g, '%%p'));
+  o.tag(50, normDeg(angle * DEG));
+  o.tag(7, 'Standard');
+  const h72 = p.align === 'left' ? 0 : p.align === 'center' ? 1 : 2;
+  o.tag(72, h72);
+  o.point(11, pos);
+  if (type === 'ATTDEF') {
+    o.tag(100, 'AcDbAttributeDefinition');
+    o.tag(3, tag.prompt);
+    o.tag(2, tag.tag);
+    o.tag(70, 0);
+    o.tag(73, 0);
+    o.tag(74, 0);
+  } else {
+    o.tag(100, 'AcDbAttribute');
+    o.tag(2, tag.tag);
+    o.tag(70, 0);
+    o.tag(73, 0);
+    o.tag(74, 0);
+  }
+}
+
+/** INSERT of a symbol block at `at` (model mm), scaled `k` from paper mm, turned `angle`, with one ATTRIB per text. */
+function insertEntity(w: Writer, pen: Pen, block: SymbolBlock, at: Vec2, k: number, angle: number): void {
+  const o = w.out;
+  entityStart(w, 'INSERT', false, pen);
+  const handle = o.lastHandle();
+  o.tag(100, 'AcDbBlockReference');
+  o.tag(66, 1);
+  o.tag(2, block.name);
+  o.point(10, at);
+  o.tag(41, k);
+  o.tag(42, k);
+  o.tag(43, k);
+  o.tag(50, normDeg(angle * DEG));
+  const c = Math.cos(angle);
+  const sn = Math.sin(angle);
+  const place = (p: Vec2): Vec2 => ({ x: at.x + k * (p.x * c - p.y * sn), y: at.y + k * (p.x * sn + p.y * c) });
+  const prev = w.owner;
+  w.owner = handle;
+  for (const t of block.attribs) attributeEntity(w, 'ATTRIB', pen, t, tagOf(t), place(t.prim.pos), k, angle);
+  entityStart(w, 'SEQEND', false, pen);
+  w.owner = prev;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
