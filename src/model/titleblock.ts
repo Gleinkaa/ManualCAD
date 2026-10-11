@@ -280,11 +280,6 @@ export function templateFitsSheet(t: TitleBlockTemplate, format: SheetFormat, or
   return !t.sheets || t.sheets.some((s) => s.format === format && s.orientation === orientation);
 }
 
-/** The fields the template prints. */
-export function templateFields(t: TitleBlockTemplate): TitleBlockField[] {
-  return t.fields.map((f) => f.field);
-}
-
 /** English labels for the title block editor (the sheet itself stays German). */
 export const TITLE_BLOCK_FIELD_LABELS: Record<TitleBlockField, string> = {
   title: 'Title',

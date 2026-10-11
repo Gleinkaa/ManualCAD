@@ -4,6 +4,7 @@ import { moveView, newId } from '../../model/doc';
 import { formatScale, LINE_TYPES } from '../../model/standards';
 import { TITLE_BLOCK_FIELD_LABELS, TITLE_BLOCK_TEMPLATES, templateFitsSheet, titleBlockTemplate } from '../../model/titleblock';
 import type { LineTypeId, PartsListRow, ProjectionLink, SheetDoc, TitleBlockField, TitleBlockTemplateId, View } from '../../model/types';
+import { titleTagKey } from '../../io/titleblock';
 import { parseScale } from '../input';
 import type { CommandContext, CommandGen, Input, Option, SubGen } from './types';
 
@@ -254,21 +255,19 @@ export function setTitleBlockTemplate(doc: SheetDoc, id: TitleBlockTemplateId, l
   log(`Title block template ${t.name}.${fits ? '' : ` It is made for ${t.sheets!.map((s) => `${s.format} ${s.orientation}`).join(', ')}; the sheet is ${doc.format} ${doc.orientation}.`}`);
 }
 
-const fieldKey = (s: string): string => s.normalize('NFD').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-
 /** A title block field by its name, its editor label or the current template's attribute tag (case and punctuation ignored). */
 function findField(doc: SheetDoc, text: string): TitleBlockField | null {
-  const k = fieldKey(text);
+  const k = titleTagKey(text);
   if (!k) return null;
   const t = titleBlockTemplate(doc);
-  const byTag = t.fields.find((f) => f.tag && fieldKey(f.tag) === k);
+  const byTag = t.fields.find((f) => f.tag && titleTagKey(f.tag) === k);
   if (byTag) return byTag.field;
   for (const [field, label] of Object.entries(TITLE_BLOCK_FIELD_LABELS) as [TitleBlockField, string][]) {
-    if (fieldKey(field) === k || fieldKey(label) === k) return field;
+    if (titleTagKey(field) === k || titleTagKey(label) === k) return field;
   }
   // a tag of another template (e.g. KLASSE while ISO 7200 is set)
   for (const other of Object.values(TITLE_BLOCK_TEMPLATES)) {
-    const f = other.fields.find((x) => x.tag && fieldKey(x.tag) === k);
+    const f = other.fields.find((x) => x.tag && titleTagKey(x.tag) === k);
     if (f) return f.field;
   }
   return null;

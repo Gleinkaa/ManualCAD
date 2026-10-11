@@ -597,6 +597,8 @@ describe('-TITLEBLOCK', () => {
     expect(doc.titleBlock.drawingNumber).toBe('ZA 38');
     type('F', 'Nebenmaßstab', '2:1');
     expect(doc.titleBlock.secondaryScale).toBe('2:1');
+    type('F', 'NEBENMASSSTAB', '3:1');
+    expect(doc.titleBlock.secondaryScale).toBe('3:1');
     type('F', 'client', 'JET MZ_1_2');
     expect(doc.titleBlock.client).toBe('JET MZ_1_2');
     type('F', 'klasse', '.');

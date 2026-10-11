@@ -9,9 +9,9 @@ import type { RawDrawing, RawEntity } from './raw';
 
 type Insert = Extract<RawEntity, { kind: 'insert' }>;
 
-/** A tag reduced for comparison: upper-case letters and digits (umlauts lose their dots, ß and punctuation go). */
+/** A tag reduced for comparison: upper-case letters and digits (umlauts lose their dots, ß becomes SS, punctuation goes). */
 export function titleTagKey(tag: string): string {
-  return decodeTextCodes(tag).normalize('NFD').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return decodeTextCodes(tag).replace(/ß/g, 'ss').replace(/ẞ/g, 'ss').normalize('NFD').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 }
 
 /** Parts list tags carry the row number (TEIL1, TEIL1-STÜCK in the first row, TEIL, TEIL-STÜCK in extensions). */
