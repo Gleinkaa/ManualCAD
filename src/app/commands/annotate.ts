@@ -65,6 +65,10 @@ export function* textedit(ctx: CommandContext): CommandGen {
   let changed = 0;
   for (const t of targets) {
     if (t.kind === 'surface' || t.kind === 'taper') {
+      if (t.kind === 'surface' && t.collective) {
+        ctx.log('A collective indication has no texts.');
+        continue;
+      }
       if (!(yield* editSymbol(t))) return;
       changed++;
       continue;

@@ -218,7 +218,6 @@ export function* taper(ctx: CommandContext): CommandGen {
 /** TEXTEDIT on a symbol: the surface texts a–e one after the other, or the taper ratio. False when cancelled. */
 export function* editSymbol(s: SurfaceSymbol | TaperSymbol): SubGen<boolean> {
   if (s.kind === 'surface') {
-    if (s.collective) return false;
     const f = yield* surfaceFields(s.fields);
     if (!f) return false;
     s.fields = f;

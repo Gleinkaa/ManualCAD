@@ -109,7 +109,7 @@ describe('SURFACE', () => {
   });
 
   it('TEXTEDIT on a collective indication asks nothing and leaves it without texts', () => {
-    const { doc, runner, type, click } = setup();
+    const { doc, runner, type, click, log } = setup();
     type('SURF', 'C');
     click(0, 0);
     type('');
@@ -117,6 +117,24 @@ describe('SURFACE', () => {
     expect(c.collective).toBe(true);
     runner.start('TEXTEDIT', [c.id]);
     expect(runner.active).toBe(false);
+    expect(c.fields).toEqual({ roughness: '', second: '', process: '', lay: '', allowance: '' });
+    expect(log).toContain('A collective indication has no texts.');
+  });
+
+  it('TEXTEDIT skips a collective indication and still edits the later texts', () => {
+    const { doc, runner, type, click, log } = setup();
+    type('SURF', 'C');
+    click(0, 0);
+    type('');
+    type('DT', '10,10', '', '', 'Bohrung', '');
+    const c = surfaces(doc)[0];
+    const note = doc.annotations.find((a) => a.kind === 'text');
+    if (note?.kind !== 'text') throw new Error('text expected');
+    runner.start('TEXTEDIT', [c.id, note.id]);
+    expect(runner.prompt).toBe('Enter text <Bohrung>:');
+    type('%%c12 H7');
+    expect(note.text).toBe('⌀12 H7');
+    expect(log).toContain('A collective indication has no texts.');
     expect(c.fields).toEqual({ roughness: '', second: '', process: '', lay: '', allowance: '' });
   });
 });
