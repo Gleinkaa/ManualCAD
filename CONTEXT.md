@@ -30,6 +30,10 @@ _Avoid_: view alignment, constraint
 The standardised information field in the sheet's bottom-right corner, per ISO 7200 (German: Schriftfeld). Its layout comes from a title block template; ISO 7200 is the default.
 _Avoid_: header, stamp
 
+**Title block template**:
+The layout of the title block and of the parts list above it: field positions, captions, lettering heights, and the DXF attribute tag that carries each field (German: Schriftkopf-Vorlage). The sheet chooses one: ISO 7200, BBRZ (A4–A0) or BBRZ small (A4 portrait). Line widths never come from the template, always from the line group (ADR-0006).
+_Avoid_: title block style, stamp layout
+
 **Parts list**:
 The table of the parts shown on the sheet, directly above the title block, per ISO 7573 (German: Stückliste). Row 1 sits lowest, just above the column headings.
 _Avoid_: BOM table, item list

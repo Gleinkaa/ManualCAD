@@ -38,6 +38,7 @@ describe('importDwg (BBRZ templates)', () => {
       expect(dwg.doc.annotations.length).toBeGreaterThanOrEqual(dxf.doc.annotations.length - defaults);
       expect(dwg.doc.views.length).toBe(dxf.doc.views.length);
       expect(dwg.doc.titleBlock).toEqual(dxf.doc.titleBlock);
+      expect(dwg.doc.titleBlockTemplate).toBe(dxf.doc.titleBlockTemplate);
     }, 60000);
   }
 });
@@ -67,4 +68,18 @@ describe('importDwg (BBRZ symbol blocks, converted to DWG 2018)', () => {
       JSON.parse(JSON.stringify(strip(dxf.doc)), (_, v) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v)),
     );
   }, 60000);
+});
+
+describe('importDwg (BBRZ title blocks and parts list, converted to DWG 2018)', () => {
+  for (const name of ['titleblock-bbrz-r2018', 'titleblock-bbrz-small-r2018']) {
+    it(`${name}: same template, fields and parts list as the DXF import`, async () => {
+      const dwg = await importDwg(new Uint8Array(readFileSync(join(SAMPLES, 'synthetic', `${name}.dwg`))), { wasmDir: WASM });
+      show(`${name}.dwg`, dwg.report);
+      const dxf = importDxf(new Uint8Array(readFileSync(join(SAMPLES, 'synthetic', `${name}.dxf`))));
+      expect(dwg.doc.titleBlockTemplate).not.toBe('iso7200');
+      expect(dwg.doc.titleBlockTemplate).toBe(dxf.doc.titleBlockTemplate);
+      expect(dwg.doc.titleBlock).toEqual(dxf.doc.titleBlock);
+      expect(dwg.doc.partsList).toEqual(dxf.doc.partsList);
+    }, 60000);
+  }
 });

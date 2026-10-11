@@ -1,5 +1,16 @@
 # Handoff: hatch UX, icon toolbar, help, autocomplete, ROTATE/SCALE (2026-10-07)
 
+## Title block templates (2026-10-11, `feat/title-block-templates`, ADR-0006)
+
+| Feature | Where |
+|---|---|
+| Template registry: ISO 7200 (default, unchanged), BBRZ (A4–A0, 180 × 51), BBRZ small (A4 portrait, 180 × 15), each with its parts list layout (BBRZ: Stückliste_BBRZ columns, 8 mm header, 6 mm rows) | `model/titleblock.ts` |
+| Sheet chooses the template (`SheetDoc.titleBlockTemplate`, missing = ISO 7200); toolbar select "Title block", template select in the TITLEBLOCK dialog, `-TITLEBLOCK` (`-TB`) on the command line: Template / Field (by name or attribute tag, "." clears) / List | `app/ui.ts`, `app/app.ts`, `app/commands/settings.ts` |
+| New fields: client/class (`KLASSE`), secondary scale, approval date. Inner rulings narrow from the line group, outline as wide as the frame | `model/types.ts`, `plot/frame.ts` |
+| DXF/DWG import: a BBRZ title block insert selects its template and fills the fields by tag; Stückliste inserts become parts list rows (row 1 lowest); both are not exploded. Fixtures `samples/synthetic/titleblock-bbrz*-r2018.*` | `io/titleblock.ts`, `io/import.ts`, `scripts/make-titleblock-fixture.py` |
+
+Not done: DXF export of the title block as an attributed block (still geometry), `ACAD_TABLE` parts lists, `DK1`/`DK2` (invisible). ISO wins over the BBRZ pens for rulings; ADR-0006 lists every disagreement.
+
 ## Symbols (2026-10-10, `feat/symbols`, ADR-0005)
 
 | Feature | Where |

@@ -24,13 +24,14 @@ import type {
   SurfaceRemoval,
   SymbolAnnotation,
   TextNote,
-  TitleBlockField,
   View,
 } from '../model/types';
-import { FRAME, TITLE_BLOCK } from '../plot/frame';
+import { titleBlockTemplate } from '../model/titleblock';
+import { FRAME, frameGeometry } from '../plot/frame';
 import { decodeTextCodes, mtextToLines } from './mtext';
 import type { RawBlock, RawDrawing, RawEntity, RawLayer, RawLoopEdge, RawVertex } from './raw';
 import { SURFACE_TAGS, TAPER_TAG, tagKey } from './symbols';
+import { readSheetBlocks, sheetBlockKind } from './titleblock';
 
 export interface ImportResult {
   doc: SheetDoc;
@@ -142,6 +143,9 @@ export function importDrawing(raw: RawDrawing, opts: ImportOptions = {}): Import
   const paperItems = items.filter((i) => i.paper && i.kind !== 'viewport');
   const viewports = items.filter((i): i is Extract<Item, { kind: 'viewport' }> => i.paper && i.kind === 'viewport' && i.id !== 1 && i.viewHeight > 0);
   const extents = bboxOf(modelItems);
+  // title block template, its fields and the parts list rows from the BBRZ blocks (ADR-0006)
+  const sheetBlocks = readSheetBlocks(raw);
+  const templateHeight = titleBlockTemplate({ titleBlockTemplate: sheetBlocks.template ?? undefined }).height;
 
   let format: SheetFormat;
   let orientation: Orientation;
@@ -153,6 +157,7 @@ export function importDrawing(raw: RawDrawing, opts: ImportOptions = {}): Import
     orientation: 'landscape',
     lineGroup,
     titleBlock: { documentType: 'Fertigungszeichnung', generalTolerance: 'ISO 2768-m', sheet: '1/1' },
+    titleBlockTemplate: sheetBlocks.template ?? 'iso7200',
     layers: [{ name: '0', visible: true }],
     views,
     entities: [],
@@ -167,13 +172,13 @@ export function importDrawing(raw: RawDrawing, opts: ImportOptions = {}): Import
     doc.orientation = orientation;
     report.lines.push(`Sheet ${format} ${orientation} from layout "${paperLayout.name}" (${fmt(paperLayout.paperWidth)} × ${fmt(paperLayout.paperHeight)} mm).`);
   } else {
-    const fit = fitSheet(extents);
+    const fit = fitSheet(extents, templateHeight);
     doc.format = fit.format;
     doc.orientation = fit.orientation;
     report.lines.push(`Sheet ${fit.format} ${fit.orientation} chosen to fit the drawing at ${scaleText(fit.scale)}.`);
     viewports.length = 0;
     const size = sheetSizeOf(fit.format, fit.orientation);
-    const area = drawingArea(size);
+    const area = drawingArea(size, templateHeight);
     const cx = extents ? (extents.min.x + extents.max.x) / 2 : 0;
     const cy = extents ? (extents.min.y + extents.max.y) / 2 : 0;
     views.push({
@@ -233,8 +238,14 @@ export function importDrawing(raw: RawDrawing, opts: ImportOptions = {}): Import
     placed.push({ item: it, view: w?.view ?? views[0] });
   }
 
-  // title block fields from block attributes
-  for (const [field, value] of titleFields(raw)) doc.titleBlock[field] = value;
+  // title block fields and parts list rows from block attributes
+  for (const [field, value] of sheetBlocks.fields) doc.titleBlock[field] = value;
+  doc.partsList = sheetBlocks.rows;
+  report.lines.push(...sheetBlocks.report);
+  const template = titleBlockTemplate(doc);
+  if (template.sheets && !template.sheets.some((s) => s.format === doc.format && s.orientation === doc.orientation)) {
+    report.lines.push(`Title block template ${template.name} is made for ${template.sheets.map((s) => `${s.format} ${s.orientation}`).join(', ')}, the sheet is ${doc.format} ${doc.orientation}.`);
+  }
 
   // entities first (dimensions and leaders look them up), then the rest
   const layers = new Set<string>(['0']);
@@ -407,6 +418,12 @@ function emit(
       const symbol = symbolFromInsert(e, m, raw, report);
       if (symbol) {
         out.push({ ...res, kind: 'symbol', symbol });
+        return;
+      }
+      // title block and parts list blocks: ManualCAD draws its own, readSheetBlocks takes their values
+      const sheetBlock = sheetBlockKind(e);
+      if (sheetBlock) {
+        report.count(sheetBlock === 'titleblock' ? 'title block insert' : 'parts list block insert');
         return;
       }
       insert(e.name, e);
@@ -770,11 +787,11 @@ function nearestFormat(w: number, h: number): { format: SheetFormat; orientation
 }
 
 /** Space for views: inside the frame, above the title block row. */
-function drawingArea(size: { w: number; h: number }): { x0: number; y0: number; x1: number; y1: number } {
-  return { x0: FRAME.left, y0: FRAME.bottom + TITLE_BLOCK.height, x1: size.w - FRAME.right, y1: size.h - FRAME.top };
+function drawingArea(size: { w: number; h: number }, titleHeight: number): { x0: number; y0: number; x1: number; y1: number } {
+  return { x0: FRAME.left, y0: FRAME.bottom + titleHeight, x1: size.w - FRAME.right, y1: size.h - FRAME.top };
 }
 
-function fitSheet(extents: Box | null): { format: SheetFormat; orientation: Orientation; scale: number } {
+function fitSheet(extents: Box | null, titleHeight: number): { format: SheetFormat; orientation: Orientation; scale: number } {
   if (!extents) return { format: 'A3', orientation: 'landscape', scale: 1 };
   const w = extents.max.x - extents.min.x;
   const h = extents.max.y - extents.min.y;
@@ -783,7 +800,7 @@ function fitSheet(extents: Box | null): { format: SheetFormat; orientation: Orie
   for (const scale of scales) {
     for (const format of ['A4', 'A3', 'A2', 'A1', 'A0'] as SheetFormat[]) {
       for (const orientation of (format === 'A4' ? ['portrait', 'landscape'] : ['landscape', 'portrait']) as Orientation[]) {
-        const area = drawingArea(sheetSizeOf(format, orientation));
+        const area = drawingArea(sheetSizeOf(format, orientation), titleHeight);
         if (w * scale + 2 * margin <= area.x1 - area.x0 && h * scale + 2 * margin <= area.y1 - area.y0) return { format, orientation, scale };
       }
     }
@@ -792,9 +809,7 @@ function fitSheet(extents: Box | null): { format: SheetFormat; orientation: Orie
 }
 
 function titleBlockRect(doc: SheetDoc): { x0: number; y0: number; x1: number; y1: number } {
-  const size = sheetSizeOf(doc.format, doc.orientation);
-  const x1 = size.w - FRAME.right;
-  return { x0: x1 - TITLE_BLOCK.width, y0: FRAME.bottom, x1, y1: FRAME.bottom + TITLE_BLOCK.height };
+  return frameGeometry(doc).titleBlock;
 }
 
 function snapScale(s: number): number {
@@ -1258,50 +1273,6 @@ function symbolAnnotation(item: Extract<Item, { kind: 'symbol' }>, view: View): 
   const base = { id: newId('a'), viewId: view.id, layer: item.layer };
   if (sy.kind === 'surface') return { kind: 'surface', ...base, pos: localOf(view, sy.pos, item.paper), angle: sy.angle, removal: sy.removal, fields: sy.fields, collective: sy.collective };
   return { kind: 'taper', ...base, form: sy.form, points: sy.points.map((p) => localOf(view, p, item.paper)), ratio: sy.ratio, direction: sy.direction };
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Title block fields from block attributes (BBRZ and common German/English tags)
-
-const FIELD_TAGS: [RegExp, TitleBlockField][] = [
-  [/zeichnung(s)?-?n(r|ummer)|drawing-?no|dwg-?no|^znr|^nummer$/i, 'drawingNumber'],
-  [/titel|benennung|^title$|bezeichnung/i, 'title'],
-  [/^ma(ss|ß)stab$|^scale$/i, 'scale'],
-  [/klasse|firma|schule|owner|^company$|auftraggeber/i, 'owner'],
-  [/toleranz|tolerance/i, 'generalTolerance'],
-  [/gez|gezeichnet|drawn|erstellt|^name$|bearbeiter/i, 'createdBy'],
-  [/gepr|geprüft|gepruft|approved|genehmigt/i, 'approvedBy'],
-  [/datum|date|tag$/i, 'date'],
-  [/doku|dokumentenart|dokumentart|document/i, 'documentType'],
-  [/blatt|sheet/i, 'sheet'],
-  [/werkstoff|material/i, 'material'],
-];
-
-function titleFields(raw: RawDrawing): Map<TitleBlockField, string> {
-  const out = new Map<TitleBlockField, string>();
-  const visit = (entities: RawEntity[], depth: number) => {
-    for (const e of entities) {
-      if (e.kind !== 'insert') continue;
-      for (const a of e.attribs) {
-        if (a.kind !== 'text' || a.tag === null) continue;
-        const value = decodeTextCodes(a.text).trim();
-        if (!value) continue;
-        const tag = a.tag.replace(/[_\-.]/g, ' ');
-        const hit = FIELD_TAGS.find(([re]) => re.test(tag));
-        if (!hit) continue;
-        const field = hit[1];
-        if (field === 'createdBy' && /tag|datum/i.test(tag)) continue;
-        if (field === 'date' && /gepr/i.test(tag)) continue;
-        if (field === 'approvedBy' && /tag|datum/i.test(tag)) continue;
-        if (out.has(field)) continue;
-        out.set(field, field === 'generalTolerance' && /^[a-z]{1,2}$/i.test(value) ? `ISO 2768-${value}` : value);
-      }
-      const block = raw.blocks.get(e.name);
-      if (block && depth < 4) visit(block.entities, depth + 1);
-    }
-  };
-  visit(raw.entities, 0);
-  return out;
 }
 
 // re-export for the DWG adapter and tests

@@ -2,7 +2,9 @@
 import type { Vec2 } from '../../geom/types';
 import { moveView, newId } from '../../model/doc';
 import { formatScale, LINE_TYPES } from '../../model/standards';
-import type { LineTypeId, PartsListRow, ProjectionLink, SheetDoc, View } from '../../model/types';
+import { TITLE_BLOCK_FIELD_LABELS, TITLE_BLOCK_TEMPLATES, templateFitsSheet, titleBlockTemplate } from '../../model/titleblock';
+import type { LineTypeId, PartsListRow, ProjectionLink, SheetDoc, TitleBlockField, TitleBlockTemplateId, View } from '../../model/types';
+import { titleTagKey } from '../../io/titleblock';
 import { parseScale } from '../input';
 import type { CommandContext, CommandGen, Input, Option, SubGen } from './types';
 
@@ -230,8 +232,86 @@ export function* zoom(ctx: CommandContext): CommandGen {
   if (r.kind === 'option' || r.kind === 'text') ctx.host.zoomExtents?.();
 }
 
+/** TITLEBLOCK opens the dialog where there is one; -TITLEBLOCK (and tests) use the command line. */
 export function* titleblock(ctx: CommandContext): CommandGen {
-  ctx.host.titleBlock?.();
+  if (ctx.host.titleBlock) {
+    ctx.host.titleBlock();
+    return;
+  }
+  yield* titleblockCommandLine(ctx);
+}
+
+export const TEMPLATE_OPTIONS: { key: string; id: TitleBlockTemplateId }[] = [
+  { key: 'I', id: 'iso7200' },
+  { key: 'B', id: 'bbrz' },
+  { key: 'S', id: 'bbrz-small' },
+];
+
+/** Set the sheet's title block template; says so when the template is not made for the sheet format. */
+export function setTitleBlockTemplate(doc: SheetDoc, id: TitleBlockTemplateId, log: (m: string) => void): void {
+  doc.titleBlockTemplate = id;
+  const t = titleBlockTemplate(doc);
+  const fits = templateFitsSheet(t, doc.format, doc.orientation);
+  log(`Title block template ${t.name}.${fits ? '' : ` It is made for ${t.sheets!.map((s) => `${s.format} ${s.orientation}`).join(', ')}; the sheet is ${doc.format} ${doc.orientation}.`}`);
+}
+
+/** A title block field by its name, its editor label or the current template's attribute tag (case and punctuation ignored). */
+function findField(doc: SheetDoc, text: string): TitleBlockField | null {
+  const k = titleTagKey(text);
+  if (!k) return null;
+  const t = titleBlockTemplate(doc);
+  const byTag = t.fields.find((f) => f.tag && titleTagKey(f.tag) === k);
+  if (byTag) return byTag.field;
+  for (const [field, label] of Object.entries(TITLE_BLOCK_FIELD_LABELS) as [TitleBlockField, string][]) {
+    if (titleTagKey(field) === k || titleTagKey(label) === k) return field;
+  }
+  // a tag of another template (e.g. KLASSE while ISO 7200 is set)
+  for (const other of Object.values(TITLE_BLOCK_TEMPLATES)) {
+    const f = other.fields.find((x) => x.tag && titleTagKey(x.tag) === k);
+    if (f) return f.field;
+  }
+  return null;
+}
+
+export function* titleblockCommandLine(ctx: CommandContext): CommandGen {
+  const doc = ctx.doc;
+  for (;;) {
+    const r = yield {
+      kind: 'text',
+      prompt: `Title block ${titleBlockTemplate(doc).name}. Enter an option`,
+      options: [{ key: 'T', label: 'Template' }, { key: 'F', label: 'Field' }, { key: 'L', label: 'List' }],
+      allowEnter: true,
+    };
+    if (r.kind !== 'option') return;
+    if (r.key === 'T') {
+      const t = yield {
+        kind: 'text',
+        prompt: 'Title block template',
+        options: TEMPLATE_OPTIONS.map((o) => ({ key: o.key, label: TITLE_BLOCK_TEMPLATES[o.id].name })),
+      };
+      if (t.kind !== 'option') return;
+      const id = TEMPLATE_OPTIONS.find((o) => o.key === t.key)?.id;
+      if (id) setTitleBlockTemplate(doc, id, (m) => ctx.log(m));
+      continue;
+    }
+    if (r.key === 'L') {
+      const t = titleBlockTemplate(doc);
+      ctx.log(t.fields.map((f) => `${f.tag ?? TITLE_BLOCK_FIELD_LABELS[f.field]} = ${doc.titleBlock[f.field] ?? ''}`).join('   |   '));
+      continue;
+    }
+    const n = yield { kind: 'text', prompt: 'Field name or attribute tag' };
+    if (n.kind !== 'text') return;
+    const field = findField(doc, n.text);
+    if (!field) {
+      ctx.log(`No field "${n.text.trim()}". Fields: ${titleBlockTemplate(doc).fields.map((f) => f.tag ?? f.field).join(', ')}.`);
+      continue;
+    }
+    const v = yield { kind: 'text', prompt: `${TITLE_BLOCK_FIELD_LABELS[field]} ("." clears)`, default: doc.titleBlock[field] ?? '' };
+    if (v.kind !== 'text') return;
+    const value = v.text.trim();
+    if (value === '.' || value === '') delete doc.titleBlock[field];
+    else doc.titleBlock[field] = value;
+  }
 }
 
 // --- PARTSLIST: ISO 7573 parts list above the title block ---

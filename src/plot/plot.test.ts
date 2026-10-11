@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newSheet } from '../model/doc';
 import type { SheetDoc } from '../model/types';
-import { fitDash, lineStyle, PARTS_COLUMNS, plotCurve, plotFrame, plotSheet, textWidth, titleBlockFields, viewLabel, type Primitive } from './index';
+import { fitDash, frameGeometry, lineStyle, PARTS_COLUMNS, partsListRect, plotCurve, plotFrame, plotSheet, textWidth, titleBlockFields, viewLabel, type Primitive } from './index';
 import { arcBeziers } from './pdf';
 
 const screen = { includeConstruction: true, screenColors: true };
@@ -200,6 +200,81 @@ describe('parts list (ISO 7573)', () => {
         expect(textWidth(cap, t.height)).toBeLessThanOrEqual(c.w - 2);
       }
     }
+  });
+});
+
+describe('title block templates', () => {
+  const texts = (doc: SheetDoc) => plotFrame(doc, print).filter((p): p is Extract<Primitive, { kind: 'text' }> => p.kind === 'text');
+  const lines = (doc: SheetDoc, tag: string) => plotFrame(doc, print).filter((p): p is Extract<Primitive, { kind: 'polyline' }> => p.kind === 'polyline' && p.tag === tag);
+
+  it('a sheet without a template (older files) draws the ISO 7200 block', () => {
+    const doc = sheet({ titleBlock: { title: 'Welle' } });
+    delete doc.titleBlockTemplate;
+    expect(plotFrame(doc, print)).toEqual(plotFrame({ ...doc, titleBlockTemplate: 'iso7200' }, print));
+    expect(frameGeometry(doc).titleBlock).toEqual({ x0: 230, y0: 10, x1: 410, y1: 58 });
+  });
+
+  it('BBRZ: 180 × 51 mm in the bottom-right corner, BBRZ captions, values in their fields', () => {
+    const doc = sheet({
+      titleBlockTemplate: 'bbrz',
+      titleBlock: { drawingNumber: 'ZA 38', title: 'Gabelgelenk', client: 'JET MZ_1_2', scale: '1:1', secondaryScale: '2:1', createdBy: 'Muster', generalTolerance: 'ISO 2768-m' },
+    });
+    expect(frameGeometry(doc).titleBlock).toEqual({ x0: 230, y0: 10, x1: 410, y1: 61 });
+    const t = texts(doc);
+    expect(t.map((x) => x.text)).toEqual(
+      expect.arrayContaining(['Maßstab', 'Allgemein-', 'toleranzen', 'Projektion', 'Gezeichnet von', 'Geprüft von', 'Dokumentenart', 'Titel', 'Auftraggeber / Klasse', 'Firma / Schule', 'Zeichnungsnummer']),
+    );
+    // each value sits inside its field's box, and fits it
+    for (const f of titleBlockFields(doc)) {
+      const v = t.find((x) => x.tag === `titleblock:${f.field}`);
+      if (!v) continue;
+      expect(v.pos.y).toBeGreaterThan(f.y);
+      expect(v.pos.y).toBeLessThan(f.y + f.h);
+      const w = textWidth(v.text, v.height);
+      const x0 = v.align === 'center' ? v.pos.x - w / 2 : v.pos.x;
+      expect(x0).toBeGreaterThanOrEqual(f.x);
+      expect(x0 + w).toBeLessThanOrEqual(f.x + f.w);
+    }
+    expect(t.find((x) => x.tag === 'titleblock:drawingNumber')).toMatchObject({ text: 'ZA 38', height: 5, align: 'center' });
+    expect(t.find((x) => x.tag === 'titleblock:title')).toMatchObject({ text: 'Gabelgelenk', height: 7 });
+    expect(t.find((x) => x.tag === 'titleblock:secondaryScale')).toMatchObject({ text: '2:1', height: 2.5 });
+    // the ISO 7200 fields the BBRZ block has no place for are not printed
+    expect(titleBlockFields(doc).map((f) => f.field)).not.toContain('material');
+  });
+
+  it('BBRZ: outline as wide as the frame, inner rulings narrow in either line group (ISO, not the template pens)', () => {
+    for (const lineGroup of ['0.5', '0.7'] as const) {
+      const ls = lines(sheet({ titleBlockTemplate: 'bbrz', lineGroup }), 'titleblock');
+      const outline = ls.find((l) => l.points.length === 3)!;
+      expect(outline.style.width).toBe(0.7);
+      expect(outline.points[1]).toEqual({ x: 230, y: 61 });
+      const inner = ls.filter((l) => l !== outline && l.points.length === 2 && l.style.dash.length === 0 && l.points.every((p) => p.x >= 230 && p.y <= 61));
+      expect(inner.length).toBeGreaterThanOrEqual(10);
+      for (const l of inner) expect(l.style.width).toBe(lineGroup === '0.5' ? 0.25 : 0.35);
+    }
+  });
+
+  it('BBRZ small: 15 mm high on A4 portrait, no projection symbol, no scale', () => {
+    const doc = sheet({ format: 'A4', orientation: 'portrait', titleBlockTemplate: 'bbrz-small', titleBlock: { createdBy: 'Muster', sheet: '3', title: 'Grundplatte', client: 'JET MZ_1_2', date: '11.10.2026' } });
+    expect(frameGeometry(doc).titleBlock).toEqual({ x0: 20, y0: 10, x1: 200, y1: 25 });
+    const t = texts(doc);
+    expect(t.map((x) => x.text)).toEqual(expect.arrayContaining(['Name', 'Blatt Nr.', 'Datum', 'Klasse', 'Benennung', 'Muster', '3', 'Grundplatte', 'JET MZ_1_2', '11.10.2026']));
+    expect(t.some((x) => x.text === '1:1')).toBe(false);
+    expect(plotFrame(doc, print).some((p) => p.kind === 'arc' && p.tag === 'titleblock')).toBe(false);
+    for (const f of titleBlockFields(doc)) expect(f.y + f.h).toBeLessThanOrEqual(25);
+  });
+
+  it('BBRZ parts list: the five Stückliste_BBRZ columns, 8 mm header, 6 mm rows, on top of the title block', () => {
+    const row = { item: '1', quantity: '1', name: 'Gabel', standard: 'ZA 38-1', material: 'S235JR', stock: 'Ø40', remark: 'x' };
+    const doc = sheet({ titleBlockTemplate: 'bbrz', partsList: [row, { ...row, item: '2', name: 'Bolzen' }] });
+    const t = texts(doc).filter((x) => x.tag?.startsWith('partslist'));
+    expect(t.map((x) => x.text)).toEqual(expect.arrayContaining(['Pos.-', 'Nr.', 'Zeichn.-/Sach-Nr.', 'Menge/', 'Einheit', 'Benennung', 'Werkstoff / Normkurzbezeichnung / Spez.']));
+    expect(t.map((x) => x.text)).not.toContain('Rohmaße');
+    expect(t.map((x) => x.text)).not.toContain('Ø40'); // no stock column in the BBRZ list
+    expect(t.find((x) => x.tag === 'partslist:1:name')!.pos.y).toBeCloseTo(61 + 8 + 6 + 3);
+    expect(partsListRect(doc)).toEqual({ x0: 230, y0: 61, x1: 410, y1: 61 + 8 + 2 * 6 });
+    const cols = lines(doc, 'partslist').filter((l) => l.points.length === 2 && l.points[0].x === l.points[1].x);
+    expect(cols.map((l) => l.points[0].x - 230)).toEqual([10, 40, 50, 105]);
   });
 });
 

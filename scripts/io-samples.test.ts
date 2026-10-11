@@ -66,13 +66,68 @@ describe('importDxf (BBRZ templates, DWG converted by the ODA File Converter)', 
     });
   }
 
-  it('fills the title block from the master template attributes', () => {
-    const { doc } = importDxf(read('bbrz-dxf/MASTER_MET_JET_23.dxf'));
+  it('selects the BBRZ title block template and fills it from the master template attributes', () => {
+    const { doc, report } = importDxf(read('bbrz-dxf/MASTER_MET_JET_23.dxf'));
+    show('MASTER_MET_JET_23.dxf', report);
     expect(doc.format).toBe('A4');
     expect(doc.orientation).toBe('portrait');
-    expect(doc.titleBlock.owner).toBe('JET MZ');
+    expect(doc.titleBlockTemplate).toBe('bbrz');
+    expect(doc.titleBlock.client).toBe('JET MZ'); // KLASSE: "Auftraggeber / Klasse"
     expect(doc.titleBlock.generalTolerance).toBe('ISO 2768-m');
     expect(doc.titleBlock.drawingNumber).toBe('ZA');
+    expect(report).toContainEqual(expect.stringMatching(/Title block template BBRZ \(A4–A0\) from block "A4 bis A0_PLR_m_SK_BBRZ"/));
+    // the title block insert is not exploded: no copy of its frame lines on the sheet next to ManualCAD's own frame
+    const sheet = doc.views.find((v) => v.name === 'Sheet');
+    const long = doc.entities.filter((e) => e.viewId === sheet?.id && e.geom.kind === 'line' && Math.hypot(e.geom.b.x - e.geom.a.x, e.geom.b.y - e.geom.a.y) > 150);
+    expect(long).toEqual([]);
+  });
+
+  it('selects the template of a BBRZ template drawing opened as it is, without taking the prompts as values', () => {
+    const large = importDxf(read('bbrz-dxf/A4 bis A0_PLR_m_SK_BBRZ.dxf')).doc;
+    expect(large.titleBlockTemplate).toBe('bbrz');
+    expect(large.titleBlock.client).toBeUndefined();
+    expect(importDxf(read('bbrz-dxf/A4-PLR_m_kleinem_SK_BBRZ-MB.dxf')).doc.titleBlockTemplate).toBe('bbrz-small');
+    expect(importDxf(read('bbrz-dxf/Stückliste_BBRZ.dxf')).doc.titleBlockTemplate).toBe('iso7200');
+  });
+});
+
+describe('importDxf (BBRZ title blocks and parts list, scripts/make-titleblock-fixture.py)', () => {
+  it('fills the large BBRZ title block and the parts list rows, row 1 lowest', () => {
+    const { doc, report } = importDxf(read('synthetic/titleblock-bbrz-r2018.dxf'));
+    show('titleblock-bbrz-r2018.dxf', report);
+    expect(doc.format).toBe('A3');
+    expect(doc.orientation).toBe('landscape');
+    expect(doc.titleBlockTemplate).toBe('bbrz');
+    expect(doc.titleBlock).toMatchObject({
+      drawingNumber: 'ZA 38',
+      title: 'Gabelgelenk',
+      scale: '1:1',
+      secondaryScale: '2:1',
+      client: 'JET MZ_1_2',
+      generalTolerance: 'ISO 2768-m',
+      createdBy: 'Muster',
+      documentType: 'Zusammenbauzeichnung',
+    });
+    expect(doc.titleBlock.date).toBeUndefined(); // PLOT-TAG "----" is a placeholder
+    expect(doc.partsList).toEqual([
+      { item: '1', quantity: '1', name: 'Gabel', standard: 'ZA 38-1', material: 'S235JR', stock: '', remark: '' },
+      { item: '2', quantity: '1', name: 'Bolzen', standard: 'ZA 38-2', material: 'C45', stock: '', remark: '' },
+      { item: '3', quantity: '2', name: 'Sicherungsring', standard: '', material: 'DIN 471 - 12x1', stock: '', remark: '' },
+    ]);
+    expect(report).toContainEqual('Parts list: 3 rows from the BBRZ parts list blocks.');
+    // neither block is exploded: the paper space holds only the viewport, so no sheet view and no attribute texts
+    expect(doc.views.some((v) => v.name === 'Sheet')).toBe(false);
+    expect(doc.annotations.filter((a) => a.kind === 'text')).toEqual([]);
+  });
+
+  it('fills the small BBRZ title block on A4 portrait', () => {
+    const { doc, report } = importDxf(read('synthetic/titleblock-bbrz-small-r2018.dxf'));
+    show('titleblock-bbrz-small-r2018.dxf', report);
+    expect(doc.format).toBe('A4');
+    expect(doc.orientation).toBe('portrait');
+    expect(doc.titleBlockTemplate).toBe('bbrz-small');
+    expect(doc.titleBlock).toMatchObject({ createdBy: 'Muster', sheet: '3', date: '11.10.2026', title: 'Grundplatte', client: 'JET MZ_1_2' });
+    expect(doc.partsList).toEqual([]);
   });
 });
 

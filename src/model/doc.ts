@@ -15,6 +15,7 @@ export function newSheet(): SheetDoc {
     orientation: 'landscape',
     lineGroup: '0.5',
     titleBlock: { documentType: 'Fertigungszeichnung', generalTolerance: 'ISO 2768-m', sheet: '1/1' },
+    titleBlockTemplate: 'iso7200',
     layers: [{ name: '0', visible: true }],
     views: [{ id: 'v-front', name: 'Front view', scale: 1, origin: { x: 120, y: 160 }, link: null }],
     entities: [],
