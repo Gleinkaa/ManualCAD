@@ -1,6 +1,7 @@
 // DOM construction: toolbar, canvas, command line (with autocomplete and option chips), status bar, dialogs.
 import { LINE_TYPES } from '../model/standards';
-import type { LineTypeId, PartsListRow, TitleBlockField } from '../model/types';
+import { TITLE_BLOCK_FIELD_LABELS, TITLE_BLOCK_TEMPLATES } from '../model/titleblock';
+import type { LineTypeId, PartsListRow, TitleBlockField, TitleBlockTemplateId } from '../model/types';
 import { aliasesOf, COMMAND_INFO, type CommandGroup } from './commands';
 import { iconElement } from './icons';
 
@@ -35,6 +36,7 @@ export interface UIRefs {
   format: HTMLSelectElement;
   orientation: HTMLSelectElement;
   lineGroup: HTMLSelectElement;
+  titleTemplate: HTMLSelectElement;
   view: HTMLSelectElement;
   lineType: HTMLSelectElement;
   layer: HTMLSelectElement;
@@ -161,6 +163,7 @@ export function buildUI(root: HTMLElement): UIRefs {
   const format = select('mc-format', 'Sheet format', ['A4', 'A3', 'A2', 'A1', 'A0'].map((f) => [f, f]));
   const orientation = select('mc-orientation', 'Orientation', [['landscape', 'Landscape'], ['portrait', 'Portrait']]);
   const lineGroup = select('mc-linegroup', 'Line group (ISO 128-2): line widths 0.5/0.25 or 0.7/0.35 mm', [['0.5', '0.5'], ['0.7', '0.7']]);
+  const titleTemplate = select('mc-titletemplate', 'Title block template', TEMPLATE_CHOICES);
   const view = select('mc-view', 'Current view', []);
   const lineType = select('mc-linetype', 'Line type for new objects, or for the selection', LINE_TYPE_ORDER.map((id) => [id, lineTypeLabel(id)]));
   const layer = select('mc-layer', 'Current layer', []);
@@ -192,6 +195,7 @@ export function buildUI(root: HTMLElement): UIRefs {
     labelled('Sheet', format),
     orientation,
     labelled('Line group', lineGroup),
+    labelled('Title block', titleTemplate),
     el('span', { class: 'mc-sep' }),
     labelled('View', view),
     labelled('Line type', lineType),
@@ -230,7 +234,7 @@ export function buildUI(root: HTMLElement): UIRefs {
   const fileInput = el('input', { type: 'file', accept: '.mcad,.json,.dxf,.dwg,application/json', style: 'display:none' });
 
   root.replaceChildren(el('div', { class: 'mc-root' }, toolbar, canvasWrap, cmd, status, fileInput));
-  return { canvas, canvasWrap, format, orientation, lineGroup, view, lineType, layer, layerList, layerNew, history, prompt, input, chips, suggest, coords, viewInfo, selInfo, hint, toggles, fileInput, commandButtons };
+  return { canvas, canvasWrap, format, orientation, lineGroup, titleTemplate, view, lineType, layer, layerList, layerNew, history, prompt, input, chips, suggest, coords, viewInfo, selInfo, hint, toggles, fileInput, commandButtons };
 }
 
 /** Modal dialog helper: the form submits with OK, Cancel and Esc close it; `onClose` runs after either. */
@@ -250,41 +254,51 @@ function modal(title: string, body: Node[], buttons: Node[], onSubmit: () => voi
   return dlg;
 }
 
-const TB_FIELDS: [TitleBlockField, string][] = [
-  ['title', 'Title'],
-  ['drawingNumber', 'Drawing number'],
-  ['owner', 'Owner / company'],
-  ['material', 'Material'],
-  ['scale', 'Scale (empty = main view)'],
-  ['generalTolerance', 'General tolerance'],
-  ['createdBy', 'Created by'],
-  ['approvedBy', 'Approved by'],
-  ['date', 'Date'],
-  ['revision', 'Revision'],
-  ['sheet', 'Sheet'],
-  ['documentType', 'Document type'],
-];
+const TEMPLATE_CHOICES: [string, string][] = Object.values(TITLE_BLOCK_TEMPLATES).map((t) => [t.id, t.name]);
 
-/** Modal title block editor. Calls `onSave` with all fields (empty strings removed). */
-export function openTitleBlockDialog(values: Partial<Record<TitleBlockField, string>>, onSave: (v: Partial<Record<TitleBlockField, string>>) => void, onClose: () => void): void {
+/**
+ * Modal title block editor: the template, then the fields that template prints. Calls `onSave` with every field
+ * (values of fields the chosen template does not print are kept, empty strings removed) and the template.
+ */
+export function openTitleBlockDialog(
+  values: Partial<Record<TitleBlockField, string>>,
+  template: TitleBlockTemplateId,
+  onSave: (v: Partial<Record<TitleBlockField, string>>, template: TitleBlockTemplateId) => void,
+  onClose: () => void,
+): void {
   const inputs = new Map<TitleBlockField, HTMLInputElement>();
-  const rows = TB_FIELDS.map(([f, label]) => {
-    const i = el('input', { name: f, value: values[f] ?? '' });
-    inputs.set(f, i);
-    return el('label', { class: 'mc-tb-row' }, el('span', {}, label), i);
-  });
+  const input = (f: TitleBlockField): HTMLInputElement => {
+    let i = inputs.get(f);
+    if (!i) {
+      i = el('input', { name: f, value: values[f] ?? '' });
+      inputs.set(f, i);
+    }
+    return i;
+  };
+  const choice = select('mc-tb-template', 'Title block template', TEMPLATE_CHOICES);
+  choice.value = template;
+  const rows = el('div', { class: 'mc-tb-rows' });
+  const render = (): void => {
+    const t = TITLE_BLOCK_TEMPLATES[choice.value as TitleBlockTemplateId];
+    rows.replaceChildren(...t.fields.map((f) => el('label', { class: 'mc-tb-row', title: f.tag ? `DXF attribute ${f.tag}` : '' }, el('span', {}, TITLE_BLOCK_FIELD_LABELS[f.field]), input(f.field))));
+  };
+  choice.addEventListener('change', render);
+  render();
   modal(
-    'Title block (ISO 7200)',
-    rows,
+    'Title block',
+    [el('label', { class: 'mc-tb-row' }, el('span', {}, 'Template'), choice), rows],
     [],
     () => {
-      const out: Partial<Record<TitleBlockField, string>> = {};
-      for (const [f, i] of inputs) if (i.value.trim()) out[f] = i.value.trim();
-      onSave(out);
+      const out: Partial<Record<TitleBlockField, string>> = { ...values };
+      for (const [f, i] of inputs) {
+        if (i.value.trim()) out[f] = i.value.trim();
+        else delete out[f];
+      }
+      onSave(out, choice.value as TitleBlockTemplateId);
     },
     onClose,
   );
-  inputs.get('title')?.focus();
+  input('title').focus();
 }
 
 const PL_COLUMNS: [keyof PartsListRow, string, number][] = [

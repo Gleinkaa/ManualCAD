@@ -586,3 +586,30 @@ describe('HATCH', () => {
     expect(log).toContain('Hatch spacing yields no lines in this region; adjust the spacing.');
   });
 });
+
+describe('-TITLEBLOCK', () => {
+  it('switches the template and sets fields by name or by the template\'s attribute tag', () => {
+    const { doc, runner, type, log } = setup();
+    expect(doc.titleBlockTemplate).toBe('iso7200');
+    type('-TB', 'T', 'B');
+    expect(doc.titleBlockTemplate).toBe('bbrz');
+    type('F', 'ZEICHNUNGNR.', 'ZA 38');
+    expect(doc.titleBlock.drawingNumber).toBe('ZA 38');
+    type('F', 'Nebenmaßstab', '2:1');
+    expect(doc.titleBlock.secondaryScale).toBe('2:1');
+    type('F', 'client', 'JET MZ_1_2');
+    expect(doc.titleBlock.client).toBe('JET MZ_1_2');
+    type('F', 'klasse', '.');
+    expect(doc.titleBlock.client).toBeUndefined();
+    type('F', 'nonsense');
+    expect(log.at(-1)).toMatch(/No field "nonsense"/);
+    type('L');
+    expect(log.at(-1)).toMatch(/ZEICHNUNGNR\. = ZA 38/);
+    type('T', 'S');
+    expect(doc.titleBlockTemplate).toBe('bbrz-small');
+    expect(log.at(-1)).toMatch(/made for A4 portrait/);
+    type('');
+    expect(runner.active).toBe(false);
+  });
+});
+

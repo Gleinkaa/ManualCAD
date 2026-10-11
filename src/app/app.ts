@@ -4,12 +4,13 @@ import { dist } from '../geom';
 import type { Vec2 } from '../geom/types';
 import { getView, newSheet, parse, serialize, toLocal, toSheet } from '../model/doc';
 import { formatScale, sheetSize } from '../model/standards';
-import type { LineGroupId, LineTypeId, Orientation, SheetDoc, SheetFormat } from '../model/types';
+import type { LineGroupId, LineTypeId, Orientation, SheetDoc, SheetFormat, TitleBlockTemplateId } from '../model/types';
 import { exportDxf, importDwg, importDxf, type ImportResult } from '../io';
-import { exportPdf, frameGeometry, loadFonts, PARTS_LIST, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
+import { exportPdf, frameGeometry, loadFonts, partsListRect, plotAnnotation, plotCurve, plotSheet, renderCanvas, type PlotOptions, type Primitive } from '../plot';
 import { submitText } from './autocomplete';
 import { resolveCommand, suggestCommands } from './commands';
 import { CommandContext, defaultSettings, type AppSettings, type Preview } from './commands/types';
+import { setTitleBlockTemplate } from './commands/settings';
 import { History, snapshot } from './history';
 import { applyLock, applyOrtho, applyPolar, fmt } from './input';
 import { drawCrosshair, drawDynInput, drawGrip, drawMarker, drawSelectionBox, drawSnapMarker, drawTrackLine, drawViewOrigin, tooltip, type DynField } from './overlay';
@@ -288,7 +289,12 @@ export class App {
   private titleBlock(): void {
     openTitleBlockDialog(
       this.doc.titleBlock,
-      (v) => this.mutate((d) => (d.titleBlock = v)),
+      this.doc.titleBlockTemplate ?? 'iso7200',
+      (v, template) =>
+        this.mutate((d) => {
+          d.titleBlock = v;
+          if ((d.titleBlockTemplate ?? 'iso7200') !== template) setTitleBlockTemplate(d, template, (m) => this.log(m));
+        }),
       () => this.ui.input.focus(),
     );
   }
@@ -322,7 +328,7 @@ export class App {
     const { titleBlock: tb } = frameGeometry(this.doc);
     if (p.x < tb.x0 || p.x > tb.x1 || p.y < tb.y0) return;
     if (p.y <= tb.y1) this.titleBlock();
-    else if (p.y <= tb.y1 + PARTS_LIST.headerHeight + this.doc.partsList.length * PARTS_LIST.rowHeight) this.partsList();
+    else if (p.y <= partsListRect(this.doc).y1) this.partsList();
   }
 
   zoomExtents(): void {
@@ -494,6 +500,7 @@ export class App {
     ui.format.value = doc.format;
     ui.orientation.value = doc.orientation;
     ui.lineGroup.value = doc.lineGroup;
+    ui.titleTemplate.value = doc.titleBlockTemplate ?? 'iso7200';
     setOptions(ui.view, doc.views.map((v) => [v.id, `${v.name} (${formatScale(v.scale)})${v.link ? ' ⇄' : ''}`]), settings.currentViewId);
     ui.lineType.value = this.selectedLineType() ?? settings.lineType;
     setOptions(ui.layer, doc.layers.map((l) => [l.name, l.name]), settings.layer);
@@ -535,6 +542,7 @@ export class App {
     ui.format.addEventListener('change', () => this.mutate((d) => (d.format = ui.format.value as SheetFormat)));
     ui.orientation.addEventListener('change', () => this.mutate((d) => (d.orientation = ui.orientation.value as Orientation)));
     ui.lineGroup.addEventListener('change', () => this.mutate((d) => (d.lineGroup = ui.lineGroup.value as LineGroupId)));
+    ui.titleTemplate.addEventListener('change', () => this.mutate((d) => setTitleBlockTemplate(d, ui.titleTemplate.value as TitleBlockTemplateId, (m) => this.log(m))));
     ui.view.addEventListener('change', () => {
       this.settings.currentViewId = ui.view.value;
       this.refreshUI();

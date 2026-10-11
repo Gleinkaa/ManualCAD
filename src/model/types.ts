@@ -247,7 +247,13 @@ export type TitleBlockField =
   | 'material'
   | 'scale'          // auto-filled from the main view if empty
   | 'generalTolerance' // e.g. "ISO 2768-m"
-  | 'documentType';  // e.g. "Fertigungszeichnung"
+  | 'documentType'   // e.g. "Fertigungszeichnung"
+  | 'client'         // ordering party or school class (BBRZ "Auftraggeber / Klasse")
+  | 'secondaryScale' // scale of detail views (BBRZ "Nebenmaßstab")
+  | 'approvedDate';  // date of approval (BBRZ "Geprüft von / Tag")
+
+/** Title block templates (CONTEXT.md "Title block"): ISO 7200, BBRZ large (A4–A0), BBRZ small (A4 portrait). */
+export type TitleBlockTemplateId = 'iso7200' | 'bbrz' | 'bbrz-small';
 
 /** One parts-list row (ISO 7573). All fields are free text; `item` is the item (position) number. */
 export interface PartsListRow {
@@ -266,6 +272,8 @@ export interface SheetDoc {
   orientation: Orientation;
   lineGroup: LineGroupId;
   titleBlock: Partial<Record<TitleBlockField, string>>;
+  /** Layout of the title block and parts list; missing in files written before templates existed = ISO 7200. */
+  titleBlockTemplate?: TitleBlockTemplateId;
   layers: Layer[];
   views: View[];
   entities: Entity[];

@@ -6,7 +6,7 @@ import { gripstretch, stretch } from './grips';
 import { surface, taper } from './symbols';
 import { hatch, hatchedit } from './hatch';
 import { chamfer, copy, erase, extend, fillet, mirror, move, offset, rotate, scaleCmd, trim } from './modify';
-import { layer, ltype, partslist, partslistCommandLine, titleblock, view, zoom } from './settings';
+import { layer, ltype, partslist, partslistCommandLine, titleblock, titleblockCommandLine, view, zoom } from './settings';
 import type { CommandFn } from './types';
 
 export const COMMANDS: Record<string, CommandFn> = {
@@ -46,6 +46,7 @@ export const COMMANDS: Record<string, CommandFn> = {
   LAYER: layer,
   ZOOM: zoom,
   TITLEBLOCK: titleblock,
+  '-TITLEBLOCK': titleblockCommandLine,
   PARTSLIST: partslist,
   '-PARTSLIST': partslistCommandLine,
   GRIPSTRETCH: gripstretch,
@@ -118,6 +119,7 @@ export const ALIASES: Record<string, string> = {
   Z: 'ZOOM',
   P: 'PAN',
   TB: 'TITLEBLOCK',
+  '-TB': '-TITLEBLOCK',
   PARTS: 'PARTSLIST',
   BOM: 'PARTSLIST',
   '-PARTS': '-PARTSLIST',
@@ -185,7 +187,7 @@ export const COMMAND_INFO: CommandInfo[] = [
   { name: 'PAN', group: 'Sheet', summary: 'Pan with the left mouse button until Esc or Enter (for mice without a middle button).' },
   { name: 'LTYPE', group: 'Sheet', summary: 'Line type for new objects, or for the selection: Visible, Thin, Hidden, Center, Phantom, Freehand, COnstruction.' },
   { name: 'LAYER', group: 'Sheet', summary: 'Layers show and hide only: New, ON, OFF, Set.' },
-  { name: 'TITLEBLOCK', group: 'Sheet', summary: 'Edit the title block (ISO 7200); double-click it on the sheet.' },
+  { name: 'TITLEBLOCK', group: 'Sheet', summary: 'Edit the title block and choose its template (ISO 7200, BBRZ, BBRZ small); double-click it on the sheet. -TITLEBLOCK stays on the command line.' },
   { name: 'PARTSLIST', group: 'Sheet', summary: 'Edit the parts list (ISO 7573); double-click it on the sheet. -PARTSLIST stays on the command line.' },
   { name: 'UNDO', group: 'Sheet', summary: 'Undo (Ctrl+Z).' },
   { name: 'REDO', group: 'Sheet', summary: 'Redo (Ctrl+Y).' },
