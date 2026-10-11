@@ -113,8 +113,8 @@ describe('symbols in DXF', () => {
       { kind: 'surface', id: 's1', viewId: 'v-front', layer: '0', pos: { x: 10, y: 0 }, angle: 0, removal: 'required', fields: { roughness: 'Ra 3,2', second: 'Rz 12,5', process: 'geschliffen', lay: '⊥', allowance: '0,2' }, collective: false },
       { kind: 'surface', id: 's2', viewId: 'v-front', layer: '0', pos: { x: 0, y: 20 }, angle: Math.PI / 2, removal: 'prohibited', fields: { roughness: 'Rz 25', second: '', process: '', lay: '', allowance: '' }, collective: false },
       { kind: 'surface', id: 's3', viewId: 'v-front', layer: '0', pos: { x: 45, y: -30 }, angle: 0, removal: 'any', fields: { roughness: '', second: '', process: '', lay: '', allowance: '' }, collective: true },
-      { kind: 'taper', id: 't1', viewId: 'v-front', layer: '0', form: 'taper', points: [{ x: 30, y: 0 }, { x: 40, y: 10 }], ratio: '1:5', direction: -1 },
-      { kind: 'taper', id: 't2', viewId: 'v-front', layer: '0', form: 'slope', points: [{ x: 30, y: 0 }, { x: 20, y: 10 }, { x: 15, y: 12 }], ratio: '1:10', direction: 1 },
+      { kind: 'taper', id: 't1', viewId: 'v-front', layer: '0', form: 'taper', points: [{ x: 30, y: 0 }, { x: 40, y: 10 }], ratio: '1:5', direction: { x: -1, y: 0 } },
+      { kind: 'taper', id: 't2', viewId: 'v-front', layer: '0', form: 'slope', points: [{ x: 30, y: 0 }, { x: 20, y: 10 }, { x: 15, y: 12 }], ratio: '1:10', direction: { x: 1, y: -1 } },
     );
     return doc;
   };
@@ -144,9 +144,22 @@ describe('symbols in DXF', () => {
     const strip = (d: typeof doc) => (a: object) => {
       const { id: _id, viewId: _v, layer: _l, ...rest } = a as Record<string, unknown>;
       const o = ref(d);
-      const moved = JSON.parse(JSON.stringify(rest), (_k, v) => (v && typeof v === 'object' && 'x' in v && 'y' in v ? { x: v.x - o.x, y: v.y - o.y } : v));
+      const moved = JSON.parse(JSON.stringify(rest), (k, v) => (k !== 'direction' && v && typeof v === 'object' && 'x' in v && 'y' in v ? { x: v.x - o.x, y: v.y - o.y } : v));
       return JSON.parse(JSON.stringify(moved), (_, v) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v));
     };
     expect(back.annotations.map(strip(back))).toEqual(doc.annotations.map(strip(doc)));
+  });
+
+  it('round-trips a taper whose leader is horizontal (the block carries it as a LEADER entity)', () => {
+    const doc = newSheet();
+    doc.views[0].scale = 2;
+    doc.entities.push({ id: 'e1', viewId: 'v-front', layer: '0', lineType: 'visible', geom: { kind: 'line', a: { x: 0, y: 0 }, b: { x: 50, y: 0 } } });
+    doc.annotations.push({ kind: 'taper', id: 't1', viewId: 'v-front', layer: '0', form: 'slope', points: [{ x: 5, y: 0 }, { x: 20, y: 0 }], ratio: '1:10', direction: { x: 1, y: -1 } });
+    const [t] = importDxf(exportDxf(doc)).doc.annotations.filter((a) => a.kind === 'taper');
+    if (t.kind !== 'taper') throw new Error('taper expected');
+    expect(t.points).toHaveLength(2);
+    // the old polyline export lost a horizontal leader: the symbol came back with a zero-length one
+    expect(Math.hypot(t.points[1].x - t.points[0].x, t.points[1].y - t.points[0].y)).toBeGreaterThan(1);
+    expect(Math.abs(t.points[1].y - t.points[0].y)).toBeLessThan(1e-6);
   });
 });

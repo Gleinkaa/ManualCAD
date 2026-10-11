@@ -95,7 +95,7 @@ describe('importDxf (BBRZ symbol blocks, scripts/make-symbol-fixture.py)', () =>
     expect(whole.kind === 'surface' && whole.removal).toBe('any'); // the unedited template has bar and circle
     expect(report.some((l) => /both the removal bar and the no-removal circle/.test(l))).toBe(true);
     const [t] = tapers;
-    expect(t).toMatchObject({ form: 'taper', ratio: '1:5', direction: 1 });
+    expect(t).toMatchObject({ form: 'taper', ratio: '1:5', direction: { x: 1, y: 0 } });
     if (t.kind !== 'taper') throw new Error('taper expected');
     expect(t.points[0].x).toBeCloseTo(60);
     expect(t.points[0].y).toBeCloseTo(0);

@@ -225,8 +225,8 @@ export interface TaperSymbol {
   form: 'taper' | 'slope';
   points: Vec2[];            // view-local; points[0] is the arrow tip, the last point starts the reference line; at least two
   ratio: string;             // e.g. "1:5"
-  /** Sheet x direction the symbol narrows towards: the cone's small end, the slope's low end. */
-  direction: 1 | -1;
+  /** View-local direction the symbol narrows or falls towards: the cone's small end, the slope's low end. */
+  direction: Vec2;
 }
 
 /** Standards symbols (CONTEXT.md "Symbol"): built from entered values, never assembled by hand. */

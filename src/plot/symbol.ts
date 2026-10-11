@@ -3,6 +3,7 @@
 import { ARROW_ANGLE, ARROW_LENGTH_FACTOR, TEXT_GAP_FACTOR } from '../dim';
 import { add, norm, perp, scale, sub } from '../geom';
 import type { Vec2 } from '../geom/types';
+import { taperNarrowSign } from '../model/annot';
 import { getView, toSheet } from '../model/doc';
 import { LINE_GROUPS, SURFACE_SYMBOL, TAPER_SYMBOL } from '../model/standards';
 import type { SheetDoc, SurfaceFields, SurfaceSymbol, TaperSymbol } from '../model/types';
@@ -50,7 +51,9 @@ export function surfaceSymbolLayout(s: Pick<SurfaceSymbol, 'removal' | 'fields' 
   const h1 = SURFACE_SYMBOL.shortLeg * h;
   const h2 = SURFACE_SYMBOL.longLeg * h;
   const gap = TEXT_GAP_FACTOR * h;
-  const f = s.fields;
+  // a collective indication takes no texts: the values are dropped, but their (empty) places stay so the DXF
+  // export still writes the BBRZ attribute definitions the importer recognises the block by
+  const f: SurfaceFields = s.collective ? { roughness: '', second: '', process: '', lay: '', allowance: '' } : s.fields;
   const top = { x: h2 * cot, y: h2 };
   const tw = Math.max(textWidth(f.roughness, h), textWidth(f.second, h), textWidth(f.process, h));
   const bar = Math.max(h1, tw > 0 ? tw + 2 * gap : 0);
@@ -84,6 +87,7 @@ export function surfaceSymbolLayout(s: Pick<SurfaceSymbol, 'removal' | 'fields' 
  * Taper or slope symbol on a reference line for lettering height `h`: origin at the reference line start, which runs
  * towards `side` (+1 right, −1 left). After a gap come the triangle (h high, 2 h long) and the ratio; the reference
  * line ends a gap after the text. A taper triangle is symmetric about the line, a slope triangle stands on it.
+ * The end the triangle narrows towards comes from the symbol's view-local direction, never from `side`.
  */
 export function taperSymbolLayout(t: Pick<TaperSymbol, 'form' | 'ratio' | 'direction'>, side: 1 | -1, h: number, style: StrokeStyle): SymbolLayout {
   const gap = TEXT_GAP_FACTOR * h;
@@ -92,8 +96,9 @@ export function taperSymbolLayout(t: Pick<TaperSymbol, 'form' | 'ratio' | 'direc
   const tw = textWidth(t.ratio, h);
   const width = len + (tw > 0 ? gap + tw : 0);
   const x0 = side > 0 ? gap : -gap - width;
-  const wide = t.direction > 0 ? x0 : x0 + len; // the triangle's high or wide end
-  const narrow = t.direction > 0 ? x0 + len : x0;
+  const narrowTowards = taperNarrowSign(t.form, t.direction);
+  const wide = narrowTowards > 0 ? x0 : x0 + len; // the triangle's high or wide end
+  const narrow = narrowTowards > 0 ? x0 + len : x0;
   const tri: Vec2[] =
     t.form === 'taper'
       ? [{ x: wide, y: -high / 2 }, { x: wide, y: high / 2 }, { x: narrow, y: 0 }]

@@ -107,6 +107,18 @@ describe('SURFACE', () => {
     expect(runner.active).toBe(false);
     expect(s.fields).toMatchObject({ roughness: 'Ra 1,6', process: SURFACE_PROCESS_WORDS[4] });
   });
+
+  it('TEXTEDIT on a collective indication asks nothing and leaves it without texts', () => {
+    const { doc, runner, type, click } = setup();
+    type('SURF', 'C');
+    click(0, 0);
+    type('');
+    const c = surfaces(doc)[0];
+    expect(c.collective).toBe(true);
+    runner.start('TEXTEDIT', [c.id]);
+    expect(runner.active).toBe(false);
+    expect(c.fields).toEqual({ roughness: '', second: '', process: '', lay: '', allowance: '' });
+  });
 });
 
 describe('TAPER', () => {
@@ -120,7 +132,7 @@ describe('TAPER', () => {
     type('1:5', 'L');
     expect(runner.active).toBe(false);
     const [t] = tapers(doc);
-    expect(t).toMatchObject({ form: 'taper', ratio: '1:5', direction: -1 });
+    expect(t).toMatchObject({ form: 'taper', ratio: '1:5', direction: { x: -1, y: 0 } });
     expect(t.points).toEqual([{ x: 0, y: 0 }, { x: 10, y: 10 }]);
   });
 
@@ -130,7 +142,7 @@ describe('TAPER', () => {
     click(0, 0);
     click(10, 5);
     type('', '1:10', '');
-    expect(tapers(doc)[0]).toMatchObject({ form: 'slope', ratio: '1:10', direction: 1 });
+    expect(tapers(doc)[0]).toMatchObject({ form: 'slope', ratio: '1:10', direction: { x: 1, y: -1 } });
     type('TAPER');
     click(30, 0);
     click(40, 5);
@@ -178,7 +190,7 @@ describe('symbols under MOVE, MIRROR, ROTATE and grips', () => {
     close(s.pos, { x: -50, y: 0 });
     expect(s.angle).toBeCloseTo(0);
     const t = tapers(doc)[0];
-    expect(t.direction).toBe(-1);
+    close(t.direction, { x: -1, y: 0 });
     close(t.points[0], { x: -40, y: 0 });
   });
 
@@ -198,7 +210,34 @@ describe('symbols under MOVE, MIRROR, ROTATE and grips', () => {
     const s = surfaces(doc)[0];
     close(s.pos, { x: -10, y: 0 });
     expect(Math.abs(s.angle)).toBeCloseTo(Math.PI);
-    expect(tapers(doc)[0].direction).toBe(-1);
+    close(tapers(doc)[0].direction, { x: -1, y: 0 });
+  });
+
+  it('MIRROR across a horizontal line turns a slope the other way', () => {
+    const env = setup();
+    env.type('TAPER', 'F', 'S');
+    env.click(0, 0);
+    env.click(10, 10);
+    env.type('', '1:10', 'R');
+    const t = tapers(env.doc)[0];
+    expect(t.direction).toEqual({ x: 1, y: -1 });
+    env.runner.start('MIRROR', [t.id]);
+    env.type('-20,-5', '20,-5', 'Y');
+    close(tapers(env.doc)[0].direction, { x: 1, y: 1 });
+  });
+
+  it('two ROTATE 90° leave a taper in the same direction as one ROTATE 180°', () => {
+    const twice = withSymbols();
+    const id = tapers(twice.doc)[0].id;
+    twice.runner.start('ROTATE', [id]);
+    twice.type('0,0', '90');
+    twice.runner.start('ROTATE', [id]);
+    twice.type('0,0', '90');
+    const once = withSymbols();
+    once.runner.start('ROTATE', [tapers(once.doc)[0].id]);
+    once.type('0,0', '180');
+    close(tapers(twice.doc)[0].direction, tapers(once.doc)[0].direction);
+    close(tapers(once.doc)[0].direction, { x: -1, y: 0 });
   });
 
   it('grips: the surface vertex and the taper leader points can be dragged', () => {

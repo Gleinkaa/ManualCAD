@@ -2,6 +2,7 @@
 // ISO 1302), TAPER a taper or slope symbol with its ratio on a leader (ISO 3040). The program builds the symbol
 // from the entered values; its size comes from the sheet's lettering height, its lines are narrow lines.
 import type { Vec2 } from '../../geom/types';
+import { taperDirection } from '../../model/annot';
 import { newId } from '../../model/doc';
 import { SURFACE_LAY_SYMBOLS, SURFACE_PROCESS_WORDS } from '../../model/standards';
 import type { SurfaceFields, SurfaceRemoval, SurfaceSymbol, TaperSymbol } from '../../model/types';
@@ -152,7 +153,7 @@ const FORM_OPTIONS: Option[] = [{ key: 'F', label: 'Form' }];
 export function* taper(ctx: CommandContext): CommandGen {
   const mem = memory(ctx);
   const view = ctx.view();
-  const make = (sheetPts: Vec2[], ratio: string, direction: 1 | -1): TaperSymbol => ({
+  const make = (sheetPts: Vec2[], ratio: string, direction: Vec2): TaperSymbol => ({
     kind: 'taper',
     id: newId('a'),
     viewId: view.id,
@@ -183,7 +184,7 @@ export function* taper(ctx: CommandContext): CommandGen {
       options: pts.length > 1 ? [{ key: 'U', label: 'Undo' }] : [],
       allowEnter: pts.length > 1,
       base: pts[pts.length - 1],
-      preview: (p) => ({ annotations: [make([...pts, p], mem.ratio || '1:', 1)] }),
+      preview: (p) => ({ annotations: [make([...pts, p], mem.ratio || '1:', taperDirection(mem.form, 1))] }),
     };
     if (r.kind === 'option') {
       if (pts.length > 1) pts.pop();
@@ -211,12 +212,13 @@ export function* taper(ctx: CommandContext): CommandGen {
     default: 'R',
   };
   if (d.kind !== 'option') return;
-  ctx.doc.annotations.push(make(pts, ratio, d.key === 'L' ? -1 : 1));
+  ctx.doc.annotations.push(make(pts, ratio, taperDirection(mem.form, d.key === 'L' ? -1 : 1)));
 }
 
 /** TEXTEDIT on a symbol: the surface texts a–e one after the other, or the taper ratio. False when cancelled. */
 export function* editSymbol(s: SurfaceSymbol | TaperSymbol): SubGen<boolean> {
   if (s.kind === 'surface') {
+    if (s.collective) return false;
     const f = yield* surfaceFields(s.fields);
     if (!f) return false;
     s.fields = f;

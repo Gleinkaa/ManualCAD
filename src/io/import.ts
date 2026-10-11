@@ -2,6 +2,7 @@
 // ManualCAD's lines, circles, arcs, dimensions, texts, hatches and leaders, and reports what it could not keep.
 import { intersect } from '../geom';
 import type { ArcCurve, Curve, Vec2 } from '../geom/types';
+import { taperDirection } from '../model/annot';
 import { newId } from '../model/doc';
 import { HATCH_SPACING_DEFAULT, SHEET_SIZES, STANDARD_SCALES, TEXT_HEIGHTS } from '../model/standards';
 import type {
@@ -72,7 +73,7 @@ type Item = Resolved & (
 /** A recognised symbol block, in drawing mm; sizes are dropped (ManualCAD sizes symbols from the sheet). */
 type SymbolItem =
   | { kind: 'surface'; pos: Vec2; angle: number; removal: SurfaceRemoval; fields: SurfaceFields; collective: boolean }
-  | { kind: 'taper'; form: 'taper' | 'slope'; points: Vec2[]; ratio: string; direction: 1 | -1 };
+  | { kind: 'taper'; form: 'taper' | 'slope'; points: Vec2[]; ratio: string; direction: Vec2 };
 
 /** Similarity transform (uniform scale, rotation, optional reflection, translation) applied to block contents. */
 interface Xform {
@@ -1165,7 +1166,8 @@ function symbolFromInsert(e: Extract<RawEntity, { kind: 'insert' }>, m: Xform, r
     points.push({ ...points[0] });
   }
   report.count(`${shape?.form ?? 'taper'} symbol`);
-  return { kind: 'taper', form: shape?.form ?? 'taper', points, ratio: ratio === '1:' ? '' : ratio, direction: shape?.direction ?? 1 };
+  const form = shape?.form ?? 'taper';
+  return { kind: 'taper', form, points, ratio: ratio === '1:' ? '' : ratio, direction: shape?.direction ?? taperDirection(form, 1) };
 }
 
 /** Straight segments of a block's lines and polylines (block coordinates), with whether the path was closed. */
@@ -1202,11 +1204,11 @@ function surfaceShape(block: RawBlock): { removal: SurfaceRemoval; collective: b
  * narrow end is the vertex with the smallest angle; equal sides there make it a taper, else a slope. The leader is
  * the block's (multi)leader, else an open line ending at the base point, tip first; a horizontal landing is dropped.
  */
-function taperShape(block: RawBlock, toWorld: Xform): { form: 'taper' | 'slope'; direction: 1 | -1; leader: Vec2[] | null } | null {
+function taperShape(block: RawBlock, toWorld: Xform): { form: 'taper' | 'slope'; direction: Vec2; leader: Vec2[] | null } | null {
   const paths = blockPaths(block).map(({ pts, closed }) => ({ pts: pts.map((p) => apply(toWorld, p)), closed }));
   const triangles = paths.filter(({ pts }) => pts.length === 3 || (pts.length === 4 && Math.hypot(pts[0].x - pts[3].x, pts[0].y - pts[3].y) < EPS)).map(({ pts }) => pts.slice(0, 3));
   let form: 'taper' | 'slope' = 'taper';
-  let direction: 1 | -1 = 1;
+  let narrowing: 1 | -1 = 1;
   const angleAt = (t: Vec2[], i: number) => {
     const p = t[i];
     const q = t[(i + 1) % 3];
@@ -1229,7 +1231,7 @@ function taperShape(block: RawBlock, toWorld: Xform): { form: 'taper' | 'slope';
   const pickShape = shapes.find((x) => x.isTaper) ?? shapes[0];
   if (pickShape) {
     form = pickShape.isTaper ? 'taper' : 'slope';
-    direction = pickShape.direction;
+    narrowing = pickShape.direction;
   }
   let leader: Vec2[] | null = null;
   for (const e of block.entities) {
@@ -1248,7 +1250,7 @@ function taperShape(block: RawBlock, toWorld: Xform): { form: 'taper' | 'slope';
     }
   }
   if (leader) while (leader.length > 2 && Math.abs(leader[leader.length - 1].y - leader[leader.length - 2].y) < EPS) leader = leader.slice(0, -1);
-  return { form, direction, leader };
+  return { form, direction: taperDirection(form, narrowing), leader };
 }
 
 function symbolAnnotation(item: Extract<Item, { kind: 'symbol' }>, view: View): SymbolAnnotation {

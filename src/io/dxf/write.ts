@@ -622,6 +622,27 @@ function primitiveEntity(w: Writer, paper: boolean, p: Primitive, map: (q: Vec2)
   }
 }
 
+/** A LEADER entity for a taper/slope block: the importer reads its vertices back as the leader. */
+function leaderEntity(w: Writer, paper: boolean, pen: Pen, points: Vec2[]): void {
+  const o = w.out;
+  entityStart(w, 'LEADER', paper, pen);
+  o.tag(100, 'AcDbLeader');
+  o.tag(3, 'Standard');
+  o.tag(71, 0);
+  o.tag(72, 0);
+  o.tag(73, 3);
+  o.tag(74, 1);
+  o.tag(75, 0);
+  o.tag(40, 0);
+  o.tag(41, 0);
+  o.tag(76, points.length);
+  for (const p of points) o.point(10, p);
+  o.tag(77, 0);
+  o.tag(210, 0);
+  o.tag(220, 0);
+  o.tag(230, 1);
+}
+
 function hatchEntity(w: Writer, pen: Pen, loops: Curve[][], angleDeg: number, spacing: number): void {
   const o = w.out;
   entityStart(w, 'HATCH', false, pen);
@@ -740,18 +761,20 @@ function symbolBlock(doc: SheetDoc, a: SurfaceSymbol | TaperSymbol, view: View, 
   const h = symbolTextHeight(doc);
   const style = { width: LINE_GROUPS[doc.lineGroup].narrow, dash: [], dashOffset: 0, color: '#000' };
   let layout: SymbolLayout;
-  let extra: Primitive[] = [];
+  let leader: Vec2[] | null = null;
+  let arrow: Primitive | null = null;
   if (a.kind === 'surface') {
     layout = surfaceSymbolLayout(a, h, style);
   } else {
     const pts = a.points.map((p) => ({ x: (p.x - a.points[a.points.length - 1].x) * view.scale, y: (p.y - a.points[a.points.length - 1].y) * view.scale }));
     layout = taperSymbolLayout(a, referenceSide(pts), h, style);
-    // the leader runs from the tip to the origin; its arrowhead is the plotted one, moved into the block's frame
+    // the leader runs from the tip to the origin as a LEADER entity the importer reads back, even when horizontal;
+    // its arrowhead is the plotted one, moved into the block's frame
+    leader = pts;
     const anchor = symbolAnchor(a, view);
     const plotted = plotAnnotation(doc, a, PLOT);
-    const arrow = plotted.find((p) => p.kind === 'fill');
-    extra = [{ kind: 'polyline', points: pts, closed: false, style }];
-    if (arrow && arrow.kind === 'fill') extra.push({ ...arrow, points: arrow.points.map((p) => ({ x: p.x - anchor.x, y: p.y - anchor.y })) });
+    const found = plotted.find((p) => p.kind === 'fill');
+    if (found && found.kind === 'fill') arrow = { ...found, points: found.points.map((p) => ({ x: p.x - anchor.x, y: p.y - anchor.y })) };
   }
   const attdefs = layout.texts.filter((t) => t.field !== 'open' && t.field !== 'close');
   const fixed = layout.texts.filter((t) => t.field === 'open' || t.field === 'close');
@@ -761,7 +784,8 @@ function symbolBlock(doc: SheetDoc, a: SurfaceSymbol | TaperSymbol, view: View, 
     record: '',
     attribs: attdefs,
     body: (wr) => {
-      for (const p of [...layout.lines, ...extra]) primitiveEntity(wr, false, p, (q) => q, 1, () => BY_BLOCK);
+      for (const p of [...layout.lines, ...(arrow ? [arrow] : [])]) primitiveEntity(wr, false, p, (q) => q, 1, () => BY_BLOCK);
+      if (leader) leaderEntity(wr, false, BY_BLOCK, leader);
       for (const t of fixed) primitiveEntity(wr, false, t.prim, (q) => q, 1, () => BY_BLOCK);
       for (const t of attdefs) attributeEntity(wr, 'ATTDEF', BY_BLOCK, t, tagOf(t), t.prim.pos, 1, 0);
     },
