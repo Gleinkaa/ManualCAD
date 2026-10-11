@@ -9,6 +9,7 @@ export * from './types';
 export type { PlotOptions } from './sheet';
 export { plotSheet, viewLabel, labelHeight } from './sheet';
 export { plotAnnotation, hatchSheetSegments } from './annot';
+export { surfaceSymbolLayout, taperSymbolLayout, symbolTextHeight, referenceSide, type SymbolLayout, type SymbolText } from './symbol';
 export { plotFrame, frameGeometry, titleBlockFields, titleBlockValue, FRAME, TITLE_BLOCK, PARTS_LIST, PARTS_COLUMNS } from './frame';
 export { renderCanvas, type CanvasTransform } from './canvas';
 export { FONT_FAMILY, loadFonts, textWidth, fontSizeForCapHeight } from './font';

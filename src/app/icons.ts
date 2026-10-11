@@ -50,6 +50,10 @@ export const ICONS: Record<string, string> = {
     '<path d="M3 16l7-7h7"/><path d="M3 16l3.7-2L5 12.3z" fill="currentColor"/>',
   BALLOON:
     '<circle cx="13" cy="7" r="4.5"/><path d="M11.8 5.7l1.5-1.2v5"/><path d="M3.5 16.5l6.3-6.3"/><circle cx="3.5" cy="16.5" r="1.5" fill="currentColor" stroke="none"/>',
+  SURFACE:
+    '<path d="M3.5 9.5L7 16l6-12h4.5"/><path d="M4.6 11.5h4.65" stroke-width="1"/>',
+  TAPER:
+    '<path d="M2.5 17l5-6.5h10"/><path d="M2.5 17l1.2-3.4 1.6 1.3z" fill="currentColor"/><path d="M9.5 8.5v4l5-2z"/>',
   // --- dimensions ---------------------------------------------------------
   DIMLINEAR:
     '<path d="M3.5 3.5v11M16.5 3.5v11" stroke-width="1"/><path d="M3.5 10h13"/><path d="M3.5 10l3.5-1.2v2.4zM16.5 10L13 8.8v2.4z" fill="currentColor"/>',

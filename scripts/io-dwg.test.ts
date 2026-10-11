@@ -55,3 +55,16 @@ describe('importDwg (synthetic part written by ezdxf, converted to DWG 2018)', (
     expect(dwg.doc.annotations.map((a) => a.kind).sort()).toEqual(dxf.doc.annotations.map((a) => a.kind).sort());
   }, 60000);
 });
+
+describe('importDwg (BBRZ symbol blocks, converted to DWG 2018)', () => {
+  it('recognises the same symbols as the DXF import', async () => {
+    const dwg = await importDwg(new Uint8Array(readFileSync(join(SAMPLES, 'synthetic', 'symbols-bbrz-r2018.dwg'))), { wasmDir: WASM });
+    show('symbols-bbrz-r2018.dwg', dwg.report);
+    const dxf = importDxf(new Uint8Array(readFileSync(join(SAMPLES, 'synthetic', 'symbols-bbrz-r2018.dxf'))));
+    const strip = (doc: typeof dxf.doc) => doc.annotations.map(({ id: _, ...rest }) => rest).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    expect(dwg.doc.annotations.map((a) => a.kind).sort()).toEqual(['surface', 'surface', 'taper']);
+    expect(JSON.parse(JSON.stringify(strip(dwg.doc)), (_, v) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v))).toEqual(
+      JSON.parse(JSON.stringify(strip(dxf.doc)), (_, v) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v)),
+    );
+  }, 60000);
+});

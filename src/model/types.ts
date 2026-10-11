@@ -176,8 +176,64 @@ export interface Leader {
   height: number;            // paper mm, ISO 3098 series
 }
 
+/**
+ * Process requirement of a surface texture symbol (ISO 21920-1 / ISO 1302): basic symbol (any process permitted),
+ * bar closing the V (material shall be removed), circle in the V (material removal is not permitted).
+ */
+export type SurfaceRemoval = 'any' | 'required' | 'prohibited';
+
+/**
+ * The texts of a surface texture symbol by ISO 1302 position, with the BBRZ block attribute each one fills.
+ * Every field is free text; empty = not shown.
+ */
+export interface SurfaceFields {
+  roughness: string;         // a: under the bar, the surface texture requirement, e.g. "Ra 3,2" (BBRZ RAUHEIT)
+  second: string;            // b: under a, a second requirement (BBRZ OBERFLÄCHENANGABE_ZUSATZ)
+  process: string;           // c: above the bar, manufacturing method or treatment, e.g. "geschliffen" (BBRZ "Oberflächenbehandlung optional")
+  lay: string;               // d: right of the V, surface lay symbol, e.g. "=" (BBRZ FERTIGUNGSRIEFEN)
+  allowance: string;         // e: left of the V, machining allowance in mm (BBRZ BEARBEIT.-ZUGABE)
+}
+
+/**
+ * Surface texture indication (ISO 21920-1, layout of ISO 1302). The vertex `pos` touches the surface or a line
+ * leading to it; `angle` turns the whole symbol about it (0 = upright, standing on a top surface). The size comes
+ * from the sheet's lettering height (the line group's dimension text height), never from the symbol itself.
+ */
+export interface SurfaceSymbol {
+  kind: 'surface';
+  id: string;
+  viewId: string;
+  layer: string;
+  pos: Vec2;                 // view-local vertex
+  angle: number;             // radians, CCW
+  removal: SurfaceRemoval;
+  fields: SurfaceFields;
+  /** In parentheses: the "(✓)" of a collective indication next to the title block (ISO 21920-1 simplified indication). */
+  collective: boolean;
+}
+
+/**
+ * Taper (ISO 3040, isosceles triangle) or slope (right triangle) symbol with its ratio, on the horizontal reference
+ * line of a leader whose arrowhead touches the tapered or inclined outline. The symbol sits at the start of the
+ * reference line, the ratio text after it.
+ */
+export interface TaperSymbol {
+  kind: 'taper';
+  id: string;
+  viewId: string;
+  layer: string;
+  form: 'taper' | 'slope';
+  points: Vec2[];            // view-local; points[0] is the arrow tip, the last point starts the reference line; at least two
+  ratio: string;             // e.g. "1:5"
+  /** View-local direction the symbol narrows or falls towards: the cone's small end, the slope's low end. */
+  direction: Vec2;
+}
+
+/** Standards symbols (CONTEXT.md "Symbol"): built from entered values, never assembled by hand. */
+export type SymbolAnnotation = SurfaceSymbol | TaperSymbol;
+
 /** Sheet objects that are neither part geometry nor dimensions. */
-export type Annotation = TextNote | Hatch | Leader;
+export type Annotation = TextNote | Hatch | Leader | SymbolAnnotation;
 
 export type TitleBlockField =
   | 'owner'          // legal owner / company / school

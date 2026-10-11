@@ -75,3 +75,30 @@ describe('importDxf (BBRZ templates, DWG converted by the ODA File Converter)', 
     expect(doc.titleBlock.drawingNumber).toBe('ZA');
   });
 });
+
+describe('importDxf (BBRZ symbol blocks, scripts/make-symbol-fixture.py)', () => {
+  it('maps the inserted BBRZ symbol blocks back to symbols with their attribute values', () => {
+    const { doc, report } = importDxf(read('synthetic/symbols-bbrz-r2018.dxf'));
+    show('symbols-bbrz-r2018.dxf', report);
+    const surfaces = doc.annotations.filter((a) => a.kind === 'surface');
+    const tapers = doc.annotations.filter((a) => a.kind === 'taper');
+    expect(surfaces).toHaveLength(2);
+    expect(tapers).toHaveLength(1);
+    // no loose block geometry or attribute texts: only the two drawn lines are entities
+    expect(doc.entities).toHaveLength(2);
+    expect(doc.annotations.filter((a) => a.kind === 'text')).toHaveLength(0);
+    const cut = surfaces.find((s) => s.kind === 'surface' && s.fields.roughness === 'Ra 3,2')!;
+    expect(cut).toMatchObject({ pos: { x: 30, y: 0 }, removal: 'required', collective: false });
+    expect(cut.kind === 'surface' && cut.fields).toEqual({ roughness: 'Ra 3,2', second: '', process: 'geschliffen', lay: '=', allowance: '' });
+    const whole = surfaces.find((s) => s.kind === 'surface' && s.fields.roughness === 'Rz 25')!;
+    expect(whole.kind === 'surface' && whole.angle).toBeCloseTo(Math.PI / 2);
+    expect(whole.kind === 'surface' && whole.removal).toBe('any'); // the unedited template has bar and circle
+    expect(report.some((l) => /both the removal bar and the no-removal circle/.test(l))).toBe(true);
+    const [t] = tapers;
+    expect(t).toMatchObject({ form: 'taper', ratio: '1:5', direction: { x: 1, y: 0 } });
+    if (t.kind !== 'taper') throw new Error('taper expected');
+    expect(t.points[0].x).toBeCloseTo(60);
+    expect(t.points[0].y).toBeCloseTo(0);
+    expect(t.points[t.points.length - 1].y).toBeCloseTo(9.8995, 3);
+  });
+});

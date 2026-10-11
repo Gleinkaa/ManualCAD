@@ -116,7 +116,7 @@ export function stretchDimension(doc: SheetDoc, dim: Dimension, grip: Pick<Grip,
   return out;
 }
 
-/** Grips of one object, in sheet mm. Hatches have none: they follow their boundary. */
+/** Grips of one object, in sheet mm: a surface symbol's vertex, a taper symbol's leader points. Hatches have none: they follow their boundary. */
 export function objectGrips(doc: SheetDoc, id: string): Grip[] {
   const e = doc.entities.find((x) => x.id === id);
   if (e) {
@@ -134,8 +134,8 @@ export function objectGrips(doc: SheetDoc, id: string): Grip[] {
   const a = doc.annotations.find((x) => x.id === id);
   if (!a) return [];
   const view = getView(doc, a.viewId);
-  if (a.kind === 'text') return [{ id, kind: 'point', index: 0, p: toSheet(view, a.pos), viewId: a.viewId }];
-  if (a.kind === 'leader') return a.points.map((p, i) => ({ id, kind: 'point', index: i, p: toSheet(view, p), viewId: a.viewId }));
+  if (a.kind === 'text' || a.kind === 'surface') return [{ id, kind: 'point', index: 0, p: toSheet(view, a.pos), viewId: a.viewId }];
+  if (a.kind === 'leader' || a.kind === 'taper') return a.points.map((p, i) => ({ id, kind: 'point', index: i, p: toSheet(view, p), viewId: a.viewId }));
   return [];
 }
 
@@ -164,8 +164,8 @@ export function stretchCurve(c: Curve, grip: Pick<Grip, 'kind' | 'index'>, to: V
 
 /** The annotation after dragging one of its points to `to` (view-local). */
 export function stretchAnnotation(a: Annotation, grip: Pick<Grip, 'kind' | 'index'>, to: Vec2): Annotation {
-  if (a.kind === 'text') return { ...a, pos: to };
-  if (a.kind === 'leader') return { ...a, points: a.points.map((p, i) => (i === grip.index ? to : p)) };
+  if (a.kind === 'text' || a.kind === 'surface') return { ...a, pos: to };
+  if (a.kind === 'leader' || a.kind === 'taper') return { ...a, points: a.points.map((p, i) => (i === grip.index ? to : p)) };
   return a;
 }
 

@@ -1,4 +1,4 @@
-// Annotations (text, hatching, leaders) to sheet primitives.
+// Annotations (text, hatching, leaders, symbols) to sheet primitives.
 import { ARROW_ANGLE, ARROW_LENGTH_FACTOR, plotDimension, TEXT_GAP_FACTOR } from '../dim';
 import { add, clipOutsideConvex, hatchSegments, norm, perp, scale, sub } from '../geom';
 import type { Curve, Vec2 } from '../geom/types';
@@ -8,6 +8,7 @@ import type { Annotation, Hatch, Leader, SheetDoc, TextNote, View } from '../mod
 import { textWidth } from './font';
 import type { PlotOptions } from './sheet';
 import { BLACK, SCREEN_COLORS } from './style';
+import { plotSurfaceSymbol, plotTaperSymbol } from './symbol';
 import type { Primitive } from './types';
 
 function curveToSheet(view: View, c: Curve): Curve {
@@ -119,5 +120,7 @@ export function plotAnnotation(doc: SheetDoc, a: Annotation, opts: PlotOptions):
   const tag = `annot:${a.id}`;
   if (a.kind === 'text') return plotText(doc, a, tag);
   if (a.kind === 'leader') return plotLeader(doc, a, opts, tag);
+  if (a.kind === 'surface') return plotSurfaceSymbol(doc, a, opts, tag);
+  if (a.kind === 'taper') return plotTaperSymbol(doc, a, opts, tag);
   return plotHatch(doc, a, opts, tag);
 }

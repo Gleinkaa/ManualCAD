@@ -4,14 +4,13 @@ import { freehandCurve } from '../../geom';
 import type { Vec2 } from '../../geom/types';
 import { newId } from '../../model/doc';
 import { ITEM_NUMBER_HEIGHT_FACTOR, LINE_GROUPS, TEXT_HEIGHTS } from '../../model/standards';
-import type { Leader, TextNote } from '../../model/types';
+import type { Leader, SymbolAnnotation, TextNote } from '../../model/types';
 import type { SnapHit } from '../snap';
+import { editSymbol } from './symbols';
+import { expandControlCodes } from './text-codes';
 import { selectObjects, type CommandContext, type CommandGen, type Input, type Option, type PointInput, type SubGen } from './types';
 
-/** AutoCAD control codes: %%c → ⌀, %%d → °, %%p → ±. */
-export function expandControlCodes(s: string): string {
-  return s.replace(/%%c/gi, '⌀').replace(/%%d/gi, '°').replace(/%%p/gi, '±');
-}
+export { expandControlCodes };
 
 /** The ISO 3098 height nearest to `h` (paper mm). */
 export function isoTextHeight(h: number): number {
@@ -55,16 +54,25 @@ export function* text(ctx: CommandContext): CommandGen {
   }
 }
 
-/** TEXTEDIT (ED, DDEDIT): replace the text of selected notes and leaders, one after the other. */
+/** TEXTEDIT (ED, DDEDIT): replace the text of selected notes, leaders and symbols, one after the other. */
 export function* textedit(ctx: CommandContext): CommandGen {
   const ids = new Set(yield* selectObjects(ctx, 'Select text or leader'));
-  const targets = ctx.doc.annotations.filter((a): a is TextNote | Leader => (a.kind === 'text' || a.kind === 'leader') && ids.has(a.id));
+  const targets = ctx.doc.annotations.filter((a): a is TextNote | Leader | SymbolAnnotation => a.kind !== 'hatch' && ids.has(a.id));
   if (targets.length === 0) {
     ctx.log(ids.size > 0 ? 'No text in the selection.' : 'Nothing selected.');
     return;
   }
   let changed = 0;
   for (const t of targets) {
+    if (t.kind === 'surface' || t.kind === 'taper') {
+      if (t.kind === 'surface' && t.collective) {
+        ctx.log('A collective indication has no texts.');
+        continue;
+      }
+      if (!(yield* editSymbol(t))) return;
+      changed++;
+      continue;
+    }
     const r = yield { kind: 'text', prompt: t.kind === 'leader' ? 'Enter note text' : 'Enter text', default: t.text || undefined, allowEnter: true };
     if (r.kind !== 'text' && r.kind !== 'enter') return;
     const text = r.kind === 'text' ? expandControlCodes(r.text.trim()) : t.text;

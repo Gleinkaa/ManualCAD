@@ -118,6 +118,8 @@ const GROUPS: { caption: string; buttons: (ButtonDef | '|')[] }[] = [
       ['TEXT', 'Text', 'Text (DT), ISO 3098'],
       ['LEADER', 'Leader', 'Note on a leader line (LE), ISO 128-22'],
       ['BALLOON', 'Item no.', 'Item number on a leader (BAL), ISO 6433'],
+      ['SURFACE', 'Surface', 'Surface texture symbol (SURF), ISO 21920-1'],
+      ['TAPER', 'Taper', 'Taper or slope symbol on a leader (TAPER), ISO 3040'],
     ],
   },
   {
