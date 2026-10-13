@@ -198,7 +198,7 @@ function dimensionLine(
   };
   if (arrowheads !== 'both') {
     // The cut exists on one side only: one arrowhead on that edge, the line running from it across the centre
-    // line, and the value beyond the other measured point, clear of the centre line by the text gap.
+    // line under the value and ending at the value's far edge, clear of the centre line by the text gap.
     const paIsP1 = arrowheads === 'a' ? p1IsA : !p1IsA;
     const Pa = paIsP1 ? P1 : P2;
     const dir = scale(u, paIsP1 ? 1 : -1); // from the arrowhead towards the other measured point

@@ -88,8 +88,9 @@ export interface LinearDimension {
   /**
    * Terminators: 'both' (default) puts an arrowhead on each measured point; 'a' or 'b' is the one-sided cut
    * form (half section / break-out, ISO 129-1): a single arrowhead on that point, the dimension line running
-   * from it across the centre line and ending where the value starts, the value standing clear of the centre
-   * line. The measured value stays the full diameter, and `textShift` does not apply in this form.
+   * from it across the centre line to the far edge of the value (running under the value), the value standing
+   * clear of the centre line by the text gap. The measured value stays the full diameter, and `textShift` does
+   * not apply in this form.
    */
   arrowheads?: 'both' | 'a' | 'b';
   text: DimText;
