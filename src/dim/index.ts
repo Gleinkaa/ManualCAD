@@ -164,7 +164,7 @@ function plotLinear(doc: SheetDoc, dim: LinearDimension, c: Ctx): Primitive[] {
     if (Math.hypot(d.x, d.y) < EPS) continue;
     prims.push(line(c, p, add(P, scale(norm(d), c.overshoot))));
   }
-  prims.push(...dimensionLine(c, P1, P2, u, dimensionText(doc, dim), false, null, null));
+  prims.push(...dimensionLine(c, P1, P2, u, dimensionText(doc, dim), false, null, null, dim.textShift ?? 0, dim.arrowheads ?? 'both'));
   return prims;
 }
 
@@ -173,20 +173,38 @@ function plotLinear(doc: SheetDoc, dim: LinearDimension, c: Ctx): Primitive[] {
  * otherwise arrows outside pointing in, and text outside beyond P2 when it does not fit either.
  * `textOut` forces arrows and text outside, with the text starting that far beyond P2.
  * `from` (e.g. a circle centre): inside text is centred between `from` and P2's arrow if it fits there.
+ * `shift` slides the text along the line (see LinearDimension.textShift); it is clamped so the text stays
+ * between the terminators, and a text that has to stand outside the line ignores it.
+ * `arrowheads` 'a'/'b' is the one-sided cut form (see LinearDimension.arrowheads); it ignores `shift`.
  */
 function dimensionLine(
   c: Ctx, P1: Vec2, P2: Vec2, u: Vec2, text: string, forceOutside: boolean, textOut: number | null, from: Vec2 | null,
+  shift = 0, arrowheads: 'both' | 'a' | 'b' = 'both',
 ): Primitive[] {
   const L = dist(P1, P2);
   const tw = textWidth(text, c.h);
   const tail = c.al * (1 + OUTSIDE_TAIL_FACTOR);
+  const room = Math.max(0, L / 2 - tw / 2);
+  const s = Math.abs(shift) > room ? Math.sign(shift) * room : shift;
   const textMid = (arrowsInside: boolean) => {
     if (from) {
       const free = dist(from, P2) - (arrowsInside ? c.al : 0);
-      if (free >= tw + 2 * c.gap) return add(from, scale(u, free / 2));
+      if (free >= tw + 2 * c.gap) return add(add(from, scale(u, free / 2)), scale(u, s));
     }
-    return scale(add(P1, P2), 0.5);
+    return add(scale(add(P1, P2), 0.5), scale(u, s));
   };
+  if (arrowheads !== 'both') {
+    // The cut exists on one side only: one arrowhead on that edge, the line running from it across the centre
+    // line, and the value beyond the other measured point, clear of the centre line by the text gap.
+    const Pa = arrowheads === 'a' ? P1 : P2;
+    const dir = scale(u, arrowheads === 'a' ? 1 : -1); // from the arrowhead towards the other measured point
+    const M = scale(add(P1, P2), 0.5);
+    return [
+      arrow(c, Pa, scale(dir, -1)),
+      line(c, Pa, add(M, scale(dir, c.gap + tw))),
+      label(c, add(M, scale(dir, c.gap + tw / 2)), u, text),
+    ];
+  }
   if (!forceOutside && L >= 2 * c.al + tw + 2 * c.gap) {
     return [line(c, P1, P2), arrow(c, P1, scale(u, -1)), arrow(c, P2, u), label(c, textMid(true), u, text)];
   }

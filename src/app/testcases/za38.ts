@@ -55,6 +55,12 @@ export function drawZA38(): { doc: SheetDoc; log: string[] } {
   type('SK', '36,14', '33,6', '35,-5', '36,-14', '');
   type('SK', '56,25', '57,20', '60,17', '');
   type('H', '2,12', '64,23', '');
+  // notes from the Vorlage (ISO 128-22 leaders): the cut details are dimensioned by note, not by a diameter
+  // dimension, because their surfaces sit inside the part. Two rows above the left break-out, the collar note
+  // to the right of them.
+  type('LEADER', 'T', 'A', '12,10', '30,35', '', 'Senkung ⌀20 x 17 tief');
+  type('LEADER', 'T', 'A', '20,6.5', '30,30.5', '', 'Bohrung ⌀13 x 28 tief');
+  type('LEADER', 'T', 'A', '70,21', '80,26', '', 'Ausdrehung auf ⌀42 x 10 tief');
   // dimensions
   type('DLI', '0,-14', '40,-17.5', '20,-32');
   type('DLI', '0,-14', '52,-25', '26,-39');
@@ -62,8 +68,11 @@ export function drawZA38(): { doc: SheetDoc; log: string[] } {
   type('DLI', '108,-7.5', '136,-7.5', '122,-32');
   type('DLI', '76,-12', '136,-7.5', '106,-39');
   type('DLI', '70,-15', '136,-7.5', '103,-46');
-  for (const [x, r, loc] of [[20, 14, '-9,0'], [46, 17.5, '46,0'], [61, 25, '88,0'], [73, 15, '73,0'], [100, 12, '100,0'], [122, 7.5, '146,0']] as const) {
-    type('DLI', `${x},${r}`, `${x},${-r}`, 'T', '%%c<>', loc);
+  // Diameter dimensions: every ⌀ dimension line crosses the part's centreline, so each value is slid along
+  // its line (DLI Text shift) instead of sitting on it, alternating above and below in the order of the
+  // dimension lines: ⌀28 below, ⌀35 above, ⌀30 below, ⌀50 above, ⌀24 below, ⌀15 above.
+  for (const [x, r, loc, shift] of [[20, 14, '-9,0', -8], [46, 17.5, '46,0', 8], [61, 25, '88,0', 8], [73, 15, '73,0', -8], [100, 12, '100,0', -8], [122, 7.5, '146,0', 8]] as const) {
+    type('DLI', `${x},${r}`, `${x},${-r}`, 'T', '%%c<>', 'S', `${shift}`, loc);
   }
   type('DT', '-12,20', '5', '0', '1', '');
 
@@ -88,6 +97,13 @@ export function drawZA38(): { doc: SheetDoc; log: string[] } {
   type('SK', '32,15', '30,8', '32,0', '');
   type('SK', '66,25', '64,17', '66,10', '');
   type('H', '3,3', '29,3', '70,15', '');
+  // the item numbers above are 5 mm high (TEXT keeps its height for what follows): put the note height back to
+  // the dimension text height before the two Teil 2 notes
+  type('DT', '0,0', '3.5', '0', '');
+  // notes from the Vorlage for Teil 2's two cuts: the counterbore above its break-out, the milled recess
+  // above the arm
+  type('LEADER', 'T', 'A', '17,7', '17,-8', '', 'Senkung ⌀20 x 8 tief');
+  type('LEADER', 'T', 'A', '95,21', '95,34', '', 'Einfräsung 4 tief');
   type('DLI', '0,15', '35,15', '17,33');
   type('DLI', '53,0', '115,10', '84,-9');
   type('DLI', '0,0', '0,15', '-9,7');

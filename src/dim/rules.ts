@@ -48,5 +48,6 @@ export const DIM_RULES: NormRule[] = [
   { id: 'DIM-SPACE', source: 'ISO 129-1', text: 'If the space between extension lines is too small, arrowheads are placed outside pointing in; if the value does not fit either, it stands outside on the extended dimension line.' },
   { id: 'DIM-RADIUS', source: 'ISO 129-1', text: 'Radii carry the symbol R; one arrowhead touches the arc, the dimension line runs from (or towards) the centre.' },
   { id: 'DIM-DIAMETER', source: 'ISO 129-1', text: 'Diameters carry the symbol ⌀; the dimension line passes through the centre with arrowheads on the circle.' },
+  { id: 'DIM-HALF-SECTION', source: 'ISO 129-1', text: 'A diameter of a cut that exists on one side only (half section, break-out) carries a single arrowhead on the visible edge; the dimension line runs from it across the centre line and ends where the value starts, the value standing clear of the centre line.' },
   { id: 'DIM-DISTANCE', source: 'ISO 129-1 (training practice)', text: 'First dimension line ≈ 10 mm from the outline, further parallel dimension lines ≈ 7 mm apart.' },
 ];
