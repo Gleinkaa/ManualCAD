@@ -160,6 +160,23 @@ describe('linear', () => {
     expect(t2.pos.y).toBeGreaterThan(100);
   });
 
+  it('puts the one-sided arrowhead on the named anchor whichever end of the line it is on', () => {
+    const doc = sheet(2);
+    const cases: { a: Vec2; b: Vec2; orientation: LinearDimension['orientation']; anchorA: Vec2; anchorB: Vec2 }[] = [
+      { a: { x: 0, y: 10 }, b: { x: 0, y: -10 }, orientation: 'vertical', anchorA: { x: 100, y: 120 }, anchorB: { x: 100, y: 80 } },
+      { a: { x: 0, y: -10 }, b: { x: 0, y: 10 }, orientation: 'vertical', anchorA: { x: 100, y: 80 }, anchorB: { x: 100, y: 120 } },
+      { a: { x: 10, y: 0 }, b: { x: -10, y: 0 }, orientation: 'horizontal', anchorA: { x: 120, y: 100 }, anchorB: { x: 80, y: 100 } },
+      { a: { x: -10, y: 0 }, b: { x: 10, y: 0 }, orientation: 'horizontal', anchorA: { x: 80, y: 100 }, anchorB: { x: 120, y: 100 } },
+    ];
+    for (const c of cases) {
+      const base = linear(c.a, c.b, c.orientation, 0);
+      const [arrowA] = of(plotDimension(doc, { ...base, arrowheads: 'a' }), 'fill');
+      close(arrowA.points[0], c.anchorA);
+      const [arrowB] = of(plotDimension(doc, { ...base, arrowheads: 'b' }), 'fill');
+      close(arrowB.points[0], c.anchorB);
+    }
+  });
+
   it('aligned measures the true distance, offset to the left of a→b', () => {
     const doc = sheet(2);
     const d = linear({ x: 0, y: 0 }, { x: 30, y: 40 }, 'aligned', 5);

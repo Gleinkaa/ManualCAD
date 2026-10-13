@@ -152,7 +152,7 @@ function* linearDim(ctx: CommandContext, aligned: boolean): CommandGen {
     if (r.kind === 'option' && r.key === 'S') {
       const s = yield {
         kind: 'number',
-        prompt: 'Specify text shift along the dimension line (sheet mm, + = towards the second point, 0 = centred)',
+        prompt: "Specify text shift along the dimension line (sheet mm, + = along the dimension line's positive direction: +y vertical, +x horizontal, first to second point aligned; 0 = centred)",
         default: textShift,
       };
       if (s.kind === 'number') textShift = s.value;
@@ -347,7 +347,7 @@ export function* dimedit(ctx: CommandContext): CommandGen {
   if (key === 'S') {
     const s = yield {
       kind: 'number',
-      prompt: 'Specify text shift along the dimension line (sheet mm, + = towards the second point, 0 = centred)',
+      prompt: "Specify text shift along the dimension line (sheet mm, + = along the dimension line's positive direction: +y vertical, +x horizontal, first to second point aligned; 0 = centred)",
       default: 0,
     };
     const shift = s.kind === 'number' ? s.value : 0;

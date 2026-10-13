@@ -156,7 +156,8 @@ function plotLinear(doc: SheetDoc, dim: LinearDimension, c: Ctx): Primitive[] {
   const foot = (p: Vec2) => add(p, scale(n, dot(sub(M, p), n) + dim.offset));
   let P1 = foot(A);
   let P2 = foot(B);
-  if (dot(sub(P2, P1), u) < 0) [P1, P2] = [P2, P1];
+  let p1IsA = true;
+  if (dot(sub(P2, P1), u) < 0) { [P1, P2] = [P2, P1]; p1IsA = false; }
 
   const prims: Primitive[] = [];
   for (const [p, P] of [[A, foot(A)], [B, foot(B)]] as const) {
@@ -164,7 +165,7 @@ function plotLinear(doc: SheetDoc, dim: LinearDimension, c: Ctx): Primitive[] {
     if (Math.hypot(d.x, d.y) < EPS) continue;
     prims.push(line(c, p, add(P, scale(norm(d), c.overshoot))));
   }
-  prims.push(...dimensionLine(c, P1, P2, u, dimensionText(doc, dim), false, null, null, dim.textShift ?? 0, dim.arrowheads ?? 'both'));
+  prims.push(...dimensionLine(c, P1, P2, u, dimensionText(doc, dim), false, null, null, dim.textShift ?? 0, dim.arrowheads ?? 'both', p1IsA));
   return prims;
 }
 
@@ -176,10 +177,12 @@ function plotLinear(doc: SheetDoc, dim: LinearDimension, c: Ctx): Primitive[] {
  * `shift` slides the text along the line (see LinearDimension.textShift); it is clamped so the text stays
  * between the terminators, and a text that has to stand outside the line ignores it.
  * `arrowheads` 'a'/'b' is the one-sided cut form (see LinearDimension.arrowheads); it ignores `shift`.
+ * `p1IsA` says whether `P1` is the measured anchor a (false when the u-ordering swapped the two ends), so the
+ * one-sided form places its arrowhead on the named anchor rather than on the u-negative end.
  */
 function dimensionLine(
   c: Ctx, P1: Vec2, P2: Vec2, u: Vec2, text: string, forceOutside: boolean, textOut: number | null, from: Vec2 | null,
-  shift = 0, arrowheads: 'both' | 'a' | 'b' = 'both',
+  shift = 0, arrowheads: 'both' | 'a' | 'b' = 'both', p1IsA = true,
 ): Primitive[] {
   const L = dist(P1, P2);
   const tw = textWidth(text, c.h);
@@ -196,8 +199,9 @@ function dimensionLine(
   if (arrowheads !== 'both') {
     // The cut exists on one side only: one arrowhead on that edge, the line running from it across the centre
     // line, and the value beyond the other measured point, clear of the centre line by the text gap.
-    const Pa = arrowheads === 'a' ? P1 : P2;
-    const dir = scale(u, arrowheads === 'a' ? 1 : -1); // from the arrowhead towards the other measured point
+    const paIsP1 = arrowheads === 'a' ? p1IsA : !p1IsA;
+    const Pa = paIsP1 ? P1 : P2;
+    const dir = scale(u, paIsP1 ? 1 : -1); // from the arrowhead towards the other measured point
     const M = scale(add(P1, P2), 0.5);
     return [
       arrow(c, Pa, scale(dir, -1)),
