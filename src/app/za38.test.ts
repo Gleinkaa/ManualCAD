@@ -1,7 +1,7 @@
 // End-to-end: the ZA 38 exercise drawn through the command line (src/app/testcases/za38.ts), then checked.
 import { describe, expect, it } from 'vitest';
-import { dimensionText, measure } from '../dim';
-import type { Hatch } from '../model/types';
+import { dimensionText, measure, plotDimension } from '../dim';
+import type { Hatch, Leader, LinearDimension } from '../model/types';
 import { frameGeometry, hatchSheetSegments, plotSheet, sheetToSvg } from '../plot';
 import { drawZA38 } from './testcases/za38';
 
@@ -19,6 +19,19 @@ describe('ZA 38 end to end', () => {
     }
     const angular = doc.dimensions.find((d) => d.kind === 'angular')!;
     expect(measure(doc, angular)).toBeCloseTo(30, 6);
+  });
+
+  it('slides the ⌀ values off the centreline they cross, alternating above and below it', () => {
+    const v1 = doc.views[0];
+    const diameters = doc.dimensions.filter((d): d is LinearDimension => d.kind === 'linear' && d.viewId === v1.id && d.text.prefix === '⌀');
+    expect(diameters).toHaveLength(6);
+    expect(diameters.filter((d) => (d.textShift ?? 0) < 0)).toHaveLength(3);
+    expect(diameters.filter((d) => (d.textShift ?? 0) > 0)).toHaveLength(3);
+    for (const d of diameters) {
+      const [t] = plotDimension(doc, d).filter((p) => p.kind === 'text');
+      expect(t.kind).toBe('text');
+      if (t.kind === 'text') expect(Math.abs(t.pos.y - v1.origin.y)).toBeGreaterThan(1); // not on the axis
+    }
   });
 
   it('hatches the five cut regions at 45°, inside the sheet frame, with the bores left free', () => {
@@ -55,6 +68,12 @@ describe('ZA 38 end to end', () => {
     const prims = plotSheet(doc, { includeConstruction: false, screenColors: false });
     const texts = prims.filter((p) => p.kind === 'text').map((p) => (p.kind === 'text' ? p.text : ''));
     expect(texts).toEqual(expect.arrayContaining(['Welle', 'Gabelhebel', 'ZA 38', '1', '2']));
+    // the cut notes of the Vorlage, each on a leader with an arrowhead on the cut surface
+    const notes = ['Senkung ⌀20 x 17 tief', 'Bohrung ⌀13 x 28 tief', 'Ausdrehung auf ⌀42 x 10 tief', 'Senkung ⌀20 x 8 tief', 'Einfräsung 4 tief'];
+    expect(texts).toEqual(expect.arrayContaining(notes));
+    const leaders = doc.annotations.filter((a): a is Leader => a.kind === 'leader');
+    expect(leaders.map((l) => l.text).sort()).toEqual([...notes].sort());
+    expect(leaders.every((l) => l.terminator === 'arrow' && l.points.length >= 2)).toBe(true);
     expect(doc.entities.some((e) => e.lineType === 'freehand')).toBe(true);
     const { sheet } = frameGeometry(doc);
     for (const p of prims) {

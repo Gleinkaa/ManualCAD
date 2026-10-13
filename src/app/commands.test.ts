@@ -465,6 +465,31 @@ describe('dimension text', () => {
     expect(runner.active).toBe(false);
     expect(doc.dimensions.map((d) => dimensionText(doc, d))).toEqual(['⌀28', '⌀15']);
   });
+
+  it('DIMLINEAR Text shift option slides the value along the dimension line', () => {
+    const { doc, type } = setup();
+    type('DLI', '0,0', '0,15', 'S', '-6', '-10,7');
+    expect(doc.dimensions[0]).toMatchObject({ orientation: 'vertical', textShift: -6 });
+  });
+
+  it('DIMLINEAR Arrowhead option marks a diameter whose cut exists on one side only', () => {
+    const { doc, type } = setup();
+    type('DLI', '0,-10', '0,10', 'A', 'S', '0,0');
+    expect(doc.dimensions[0]).toMatchObject({ orientation: 'vertical', offset: 0, arrowheads: 'b' });
+  });
+
+  it('DIMEDIT Shift slides the values of the selected dimensions, 0 centres them again', () => {
+    const { doc, runner, type } = setup();
+    type('DLI', '0,0', '28,0', '14,10');
+    type('DLI', '0,0', '0,15', '-10,7');
+    runner.start('DIMEDIT', doc.dimensions.map((d) => d.id));
+    type('S', '5');
+    expect(runner.active).toBe(false);
+    expect(doc.dimensions.map((d) => (d.kind === 'linear' ? d.textShift : undefined))).toEqual([5, 5]);
+    runner.start('DIMEDIT', [doc.dimensions[0].id]);
+    type('S', '0');
+    expect(doc.dimensions[0]).not.toHaveProperty('textShift');
+  });
 });
 
 describe('DIMANGULAR', () => {

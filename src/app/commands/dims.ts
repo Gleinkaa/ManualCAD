@@ -13,6 +13,18 @@ type Orientation = LinearDimension['orientation'];
 /** Text and Mtext options on every "dimension line location" prompt (both ask for a single line here). */
 const TEXT_OPTIONS: Option[] = [{ key: 'M', label: 'Mtext' }, { key: 'T', label: 'Text' }];
 
+/** Slides the value along the dimension line, off its midpoint (LinearDimension.textShift). */
+const SHIFT_OPTION: Option = { key: 'S', label: 'Text shift' };
+
+/** One arrowhead only, for a cut that exists on one side (LinearDimension.arrowheads). */
+const ARROW_OPTION: Option = { key: 'A', label: 'Arrowhead' };
+
+const ARROW_CHOICES: Option[] = [
+  { key: 'B', label: 'Both ends' },
+  { key: 'F', label: 'First point only' },
+  { key: 'S', label: 'Second point only' },
+];
+
 const keepMeasured = (): DimText => ({ override: null, prefix: '', suffix: '' });
 
 /**
@@ -104,6 +116,8 @@ function* linearDim(ctx: CommandContext, aligned: boolean): CommandGen {
   }
   let fixed: Orientation | null = aligned ? 'aligned' : null;
   let text = keepMeasured();
+  let textShift = 0;
+  let arrowheads: 'both' | 'a' | 'b' = 'both';
   const make = (loc: Vec2): LinearDimension => {
     const orientation = fixed ?? autoOrientation(sa, sb, loc);
     return {
@@ -115,6 +129,8 @@ function* linearDim(ctx: CommandContext, aligned: boolean): CommandGen {
       b: structuredClone(b),
       orientation,
       offset: dimOffset(orientation, sa, sb, loc),
+      ...(textShift === 0 ? {} : { textShift }),
+      ...(arrowheads === 'both' ? {} : { arrowheads }),
       text: structuredClone(text),
     };
   };
@@ -122,13 +138,30 @@ function* linearDim(ctx: CommandContext, aligned: boolean): CommandGen {
     const r = yield {
       kind: 'point',
       prompt: 'Specify dimension line location',
-      options: aligned ? TEXT_OPTIONS : [...TEXT_OPTIONS, { key: 'H', label: 'Horizontal' }, { key: 'V', label: 'Vertical' }],
+      options: aligned
+        ? [...TEXT_OPTIONS, SHIFT_OPTION, ARROW_OPTION]
+        : [...TEXT_OPTIONS, SHIFT_OPTION, ARROW_OPTION, { key: 'H', label: 'Horizontal' }, { key: 'V', label: 'Vertical' }],
       preview: (p) => ({ dims: [make(p)] }),
     };
     if (r.kind === 'option' && (r.key === 'T' || r.key === 'M')) {
       const probe = make(sb);
       probe.text = keepMeasured();
       text = yield* askDimText(dimensionText(ctx.doc, probe), text);
+      continue;
+    }
+    if (r.kind === 'option' && r.key === 'S') {
+      const s = yield {
+        kind: 'number',
+        prompt: "Specify text shift along the dimension line (sheet mm, + = along the dimension line's positive direction: +y vertical, +x horizontal, first to second point aligned; 0 = centred)",
+        default: textShift,
+      };
+      if (s.kind === 'number') textShift = s.value;
+      continue;
+    }
+    if (r.kind === 'option' && r.key === 'A') {
+      const ch = yield { kind: 'text', prompt: 'Specify arrowhead (one-sided cut: single arrowhead, value past the centre line)', options: ARROW_CHOICES, default: 'B' };
+      const key = (ch.kind === 'option' ? ch.key : ch.kind === 'text' ? ch.text.trim().slice(0, 1).toUpperCase() : 'B');
+      arrowheads = key === 'F' ? 'a' : key === 'S' ? 'b' : 'both';
       continue;
     }
     if (r.kind === 'option') {
@@ -299,10 +332,35 @@ export function* dimangular(ctx: CommandContext): CommandGen {
 
 // --- DIMEDIT ---
 
-/** DIMEDIT New: replace the text of the selected dimensions (`<>` = measured value). */
+/**
+ * DIMEDIT New: replace the text of the selected dimensions (`<>` = measured value).
+ * DIMEDIT Shift: slide their values along their dimension lines (LinearDimension.textShift; 0 = centred).
+ */
 export function* dimedit(ctx: CommandContext): CommandGen {
-  const o = yield { kind: 'text', prompt: 'Enter type of dimension editing', options: [{ key: 'N', label: 'New' }], default: 'N' };
-  if (o.kind !== 'option' && !(o.kind === 'text' && /^n/i.test(o.text.trim()))) return;
+  const o = yield {
+    kind: 'text',
+    prompt: 'Enter type of dimension editing',
+    options: [{ key: 'N', label: 'New' }, { key: 'S', label: 'Shift' }],
+    default: 'N',
+  };
+  const key = (o.kind === 'option' ? o.key : o.kind === 'text' ? o.text.trim().slice(0, 1).toUpperCase() : '');
+  if (key === 'S') {
+    const s = yield {
+      kind: 'number',
+      prompt: "Specify text shift along the dimension line (sheet mm, + = along the dimension line's positive direction: +y vertical, +x horizontal, first to second point aligned; 0 = centred)",
+      default: 0,
+    };
+    const shift = s.kind === 'number' ? s.value : 0;
+    const ids = new Set(yield* selectObjects(ctx));
+    const dims = ctx.doc.dimensions.filter((d): d is LinearDimension => ids.has(d.id) && d.kind === 'linear');
+    for (const d of dims) {
+      if (shift === 0) delete d.textShift;
+      else d.textShift = shift;
+    }
+    ctx.log(`${dims.length} dimension(s) shifted.`);
+    return;
+  }
+  if (key !== 'N') return;
   const t = yield { kind: 'text', prompt: 'Enter dimension text (<> = measured value)' };
   const text = t.kind === 'text' ? parseDimText(t.text) : keepMeasured();
   const ids = new Set(yield* selectObjects(ctx));

@@ -77,6 +77,22 @@ export interface LinearDimension {
   orientation: LinearOrientation;
   /** Signed distance of the dimension line from the midpoint of the two measured sheet points, in SHEET mm, perpendicular to the measured direction (+y horizontal, +x vertical, left normal of a→b aligned). */
   offset: number;
+  /**
+   * Signed shift of the dimension value ALONG the dimension line from its midpoint, in SHEET mm in the
+   * measurement direction `u` (+y for a vertical dimension, +x horizontal, a→b aligned); absent = 0 = the ISO
+   * default (value centred on the dimension line). It never leaves the line, so the value stays parallel to it
+   * and readable (DIM-TEXT-ABOVE), and it is clamped to keep the value between the terminators. Used to move
+   * values off a centreline the dimension line crosses, or to space several parallel dimension lines.
+   */
+  textShift?: number;
+  /**
+   * Terminators: 'both' (default) puts an arrowhead on each measured point; 'a' or 'b' is the one-sided cut
+   * form (half section / break-out, ISO 129-1): a single arrowhead on that point, the dimension line running
+   * from it across the centre line to the far edge of the value (running under the value), the value standing
+   * clear of the centre line by the text gap. The measured value stays the full diameter, and `textShift` does
+   * not apply in this form.
+   */
+  arrowheads?: 'both' | 'a' | 'b';
   text: DimText;
 }
 

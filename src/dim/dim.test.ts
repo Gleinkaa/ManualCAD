@@ -3,7 +3,7 @@ import type { Vec2 } from '../geom/types';
 import { newSheet } from '../model/doc';
 import type { AngularDimension, Dimension, DimText, LinearDimension, RadialDimension, SheetDoc } from '../model/types';
 import type { Primitive } from './types';
-import { angularGeometry, clampToArc, dimensionText, formatValue, measure, plotDimension, readableAngle } from './index';
+import { angularGeometry, clampToArc, dimensionText, formatValue, measure, plotDimension, readableAngle, textWidth } from './index';
 
 const noText = (): DimText => ({ override: null, prefix: '', suffix: '' });
 
@@ -112,6 +112,69 @@ describe('linear', () => {
     expect(t.angle).toBeCloseTo(Math.PI / 2);
     expect(t.pos.x).toBeLessThan(112);
     expect(t.pos.y).toBeCloseTo(130);
+  });
+
+  it('slides the value along the dimension line and never lets it pass a terminator', () => {
+    const doc = sheet(2);
+    const d = linear({ x: 0, y: 30 }, { x: 0, y: 0 }, 'vertical', 12);
+    const [base] = of(plotDimension(doc, d), 'text');
+    d.textShift = 8;
+    const [up] = of(plotDimension(doc, d), 'text');
+    expect(up.pos.x).toBeCloseTo(base.pos.x);      // stays beside the line, same gap
+    expect(up.pos.y - base.pos.y).toBeCloseTo(8);  // +u of a vertical dimension is sheet +y
+    expect(up.angle).toBeCloseTo(base.angle);      // stays parallel and readable (DIM-TEXT-ABOVE)
+    d.textShift = -8;
+    const [down] = of(plotDimension(doc, d), 'text');
+    expect(down.pos.y - base.pos.y).toBeCloseTo(-8);
+    d.textShift = 500;                             // clamped: the value stops at the upper arrow
+    const [clamped] = of(plotDimension(doc, d), 'text');
+    expect(clamped.pos.y).toBeCloseTo(130 + 30 - textWidth('30', 3.5) / 2);
+  });
+
+  it('draws the one-sided cut form with a single arrowhead and the value past the centre line', () => {
+    const doc = sheet(2);
+    // a = the hidden side below the axis, b = the cut edge above it (view origin 100,100, scale 2)
+    const d = linear({ x: 0, y: -10 }, { x: 0, y: 10 }, 'vertical', 0);
+    d.arrowheads = 'b';
+    d.textShift = 6; // ignored in this form
+    const prims = plotDimension(doc, d);
+    expect(of(prims, 'fill')).toHaveLength(1); // one arrowhead only
+    const [arrow1] = of(prims, 'fill');
+    close(arrow1.points[0], { x: 100, y: 120 }); // tip on the cut edge, body inside the line
+    expect(arrow1.points[1].y).toBeLessThan(120);
+    const lines = of(prims, 'polyline');
+    expect(lines).toHaveLength(1); // no extension lines in this form
+    close(lines[0].points[0], { x: 100, y: 120 });
+    expect(lines[0].points[1].y).toBeLessThan(100); // the line runs across the centre line
+    const [t] = of(prims, 'text');
+    expect(t.angle).toBeCloseTo(Math.PI / 2);
+    expect(t.text).toBe('20');
+    expect(t.pos.y).toBeLessThan(100);             // the value stands clear of the centre line
+    expect(t.pos.y - textWidth('20', 3.5) / 2).toBeCloseTo(lines[0].points[1].y, 6); // outer edge flush with the line end
+
+    d.arrowheads = 'a'; // mirror it: arrowhead on the other measured point
+    const flipped = plotDimension(doc, d);
+    const [arrow2] = of(flipped, 'fill');
+    close(arrow2.points[0], { x: 100, y: 80 });
+    const [t2] = of(flipped, 'text');
+    expect(t2.pos.y).toBeGreaterThan(100);
+  });
+
+  it('puts the one-sided arrowhead on the named anchor whichever end of the line it is on', () => {
+    const doc = sheet(2);
+    const cases: { a: Vec2; b: Vec2; orientation: LinearDimension['orientation']; anchorA: Vec2; anchorB: Vec2 }[] = [
+      { a: { x: 0, y: 10 }, b: { x: 0, y: -10 }, orientation: 'vertical', anchorA: { x: 100, y: 120 }, anchorB: { x: 100, y: 80 } },
+      { a: { x: 0, y: -10 }, b: { x: 0, y: 10 }, orientation: 'vertical', anchorA: { x: 100, y: 80 }, anchorB: { x: 100, y: 120 } },
+      { a: { x: 10, y: 0 }, b: { x: -10, y: 0 }, orientation: 'horizontal', anchorA: { x: 120, y: 100 }, anchorB: { x: 80, y: 100 } },
+      { a: { x: -10, y: 0 }, b: { x: 10, y: 0 }, orientation: 'horizontal', anchorA: { x: 80, y: 100 }, anchorB: { x: 120, y: 100 } },
+    ];
+    for (const c of cases) {
+      const base = linear(c.a, c.b, c.orientation, 0);
+      const [arrowA] = of(plotDimension(doc, { ...base, arrowheads: 'a' }), 'fill');
+      close(arrowA.points[0], c.anchorA);
+      const [arrowB] = of(plotDimension(doc, { ...base, arrowheads: 'b' }), 'fill');
+      close(arrowB.points[0], c.anchorB);
+    }
   });
 
   it('aligned measures the true distance, offset to the left of a→b', () => {
