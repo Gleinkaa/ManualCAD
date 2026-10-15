@@ -19,7 +19,7 @@ A 2D drafting program for Austrian mechanical manufacturing drawings (Fertigungs
 
 Most CAD tools assume the drawing falls out of a model. For training — and for the Austrian manufacturing drawings this targets — the drawing *is* the work, and the costly mistakes are standards mistakes: a wrong line type, a missing centre line, a hatch not associated to anything, a dimension that no longer matches its part.
 
-ManualCAD treats those as first-class: the norm rules are data in the program (`model/standards.ts`), each one with an ID and its source, so an element's appearance is derived from what it means rather than from a layer or a style someone set once and forgot.
+ManualCAD treats those as first-class: the norm rules are data in the program (`src/model/standards.ts`), each one with an ID and its source, so an element's appearance is derived from what it means rather than from a layer or a style someone set once and forgot.
 
 ## Quick start
 
@@ -73,4 +73,4 @@ The stack, the conventions and the module map for contributors are in `CLAUDE.md
 
 ## License
 
-No licence yet — all rights reserved.
+MIT — see LICENSE.
