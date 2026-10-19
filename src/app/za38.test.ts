@@ -1,8 +1,10 @@
 // End-to-end: the ZA 38 exercise drawn through the command line (src/app/testcases/za38.ts), then checked.
 import { describe, expect, it } from 'vitest';
 import { dimensionText, measure, plotDimension } from '../dim';
+import type { Primitive } from '../dim/types';
+import type { Vec2 } from '../geom/types';
 import type { Hatch, Leader, LinearDimension } from '../model/types';
-import { frameGeometry, hatchSheetSegments, plotSheet, sheetToSvg } from '../plot';
+import { frameGeometry, hatchSheetSegments, plotSheet, sheetToSvg, textWidth } from '../plot';
 import { drawZA38 } from './testcases/za38';
 
 describe('ZA 38 end to end', () => {
@@ -82,5 +84,56 @@ describe('ZA 38 end to end', () => {
     const svg = sheetToSvg(doc, prims);
     expect(svg).toMatch(/^<svg [^>]*width="210mm" height="297mm"/);
     expect(svg).toContain('>Gabelhebel</text>');
+  });
+
+  it('keeps every value and note readable: inside the frame, no line, arc or other text through it', () => {
+    // Text boxes in the text's own frame (rotated values too), from the plot's width estimate, shrunk by
+    // 0.3 mm so a value standing a text gap off its own dimension line does not count as touching it.
+    const prims = plotSheet(doc, { includeConstruction: false, screenColors: false });
+    const isSheetText = (p: Primitive): p is Extract<Primitive, { kind: 'text' }> =>
+      p.kind === 'text' && !/^(frame|titleblock|partslist)/.test(p.tag ?? '');
+    const boxes = prims.filter(isSheetText).map((p) => {
+      const w = textWidth(p.text, p.height);
+      const u0 = p.align === 'left' ? 0 : p.align === 'right' ? -w : -w / 2;
+      const v0 = p.baseline === 'bottom' ? 0 : p.baseline === 'top' ? -p.height : -p.height / 2;
+      return { p, u0, u1: u0 + w, v0, v1: v0 + p.height, c: Math.cos(p.angle), s: Math.sin(p.angle) };
+    });
+    type Box = (typeof boxes)[number];
+    const inside = (b: Box, q: Vec2, m = 0.3) => {
+      const dx = q.x - b.p.pos.x, dy = q.y - b.p.pos.y;
+      const u = dx * b.c + dy * b.s, v = -dx * b.s + dy * b.c;
+      return u > b.u0 + m && u < b.u1 - m && v > b.v0 + m && v < b.v1 - m;
+    };
+    const corners = (b: Box): Vec2[] => [[b.u0, b.v0], [b.u1, b.v0], [b.u1, b.v1], [b.u0, b.v1]].map(([u, v]) => ({ x: b.p.pos.x + u * b.c - v * b.s, y: b.p.pos.y + u * b.s + v * b.c }));
+    const { frame } = frameGeometry(doc);
+    const problems: string[] = [];
+    for (const b of boxes) {
+      if (corners(b).some((q) => q.x < frame.x0 || q.x > frame.x1 || q.y < frame.y0 || q.y > frame.y1)) problems.push(`"${b.p.text}" leaves the frame`);
+      for (const o of boxes) if (o !== b && corners(o).some((q) => inside(b, q, 0.2))) problems.push(`"${o.p.text}" overlaps "${b.p.text}"`);
+    }
+    const samples = (p: Primitive): Vec2[] => {
+      const out: Vec2[] = [];
+      if (p.kind === 'polyline') {
+        for (let k = 0; k + 1 < p.points.length; k++) {
+          const a = p.points[k], z = p.points[k + 1];
+          const n = Math.max(2, Math.ceil(Math.hypot(z.x - a.x, z.y - a.y) / 0.1));
+          for (let i = 0; i <= n; i++) out.push({ x: a.x + ((z.x - a.x) * i) / n, y: a.y + ((z.y - a.y) * i) / n });
+        }
+      } else if (p.kind === 'arc') {
+        let end = p.end;
+        while (end < p.start) end += 2 * Math.PI;
+        const n = Math.max(8, Math.ceil(((end - p.start) * p.r) / 0.1));
+        for (let i = 0; i <= n; i++) {
+          const t = p.start + ((end - p.start) * i) / n;
+          out.push({ x: p.c.x + p.r * Math.cos(t), y: p.c.y + p.r * Math.sin(t) });
+        }
+      }
+      return out;
+    };
+    for (const p of prims) {
+      const pts = samples(p);
+      for (const b of boxes) if (pts.some((q) => inside(b, q))) problems.push(`"${b.p.text}" crossed by ${p.kind} ${p.tag ?? ''}`);
+    }
+    expect(problems).toEqual([]);
   });
 });
